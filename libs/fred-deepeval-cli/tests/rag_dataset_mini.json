@@ -1,0 +1,14 @@
+[
+  {
+    "id": "rag-bidgpt-001",
+    "input": "What is BidGPT and what problem does it solve?",
+    "expected_answer": "BidGPT is a virtual assistant designed for pre-sales teams...",
+    "tags": ["bidgpt", "docx"]
+  },
+  {
+    "id": "rag-arxiv-001",
+    "input": "What is RAGuard and what problem does it solve in Offshore Wind maintenance?",
+    "expected_answer": "RAGuard is an enhanced RAG framework for Offshore Wind maintenance...",
+    "tags": ["rag", "pdf"]
+  }
+]

@@ -1,0 +1,132 @@
+[
+  {
+    "id": "sql-metadata-001",
+    "input": "What tabular datasets are available and what can you do with them?",
+    "expected_flow": {
+      "schema_context": true,
+      "query_executed": false
+    },
+    "tags": ["metadata", "schema"]
+  },
+  {
+    "id": "sql-metadata-002",
+    "input": "What columns are available in commandes.csv?",
+    "expected_flow": {
+      "schema_context": true,
+      "query_executed": false
+    },
+    "tags": ["metadata", "schema", "commandes"]
+  },
+  {
+    "id": "sql-query-001",
+    "input": "Show the first 10 rows of commandes.",
+    "expected_flow": {
+      "schema_context": true,
+      "query_executed": true
+    },
+    "expected_values": {
+      "row_count": 10,
+      "first_row": {
+        "id_commande": 1,
+        "id_client": 33,
+        "montant": 354.39,
+        "categorie": "loisirs"
+      }
+    },
+    "tags": ["simple_query", "commandes"]
+  },
+  {
+    "id": "sql-agg-001",
+    "input": "What is the total revenue by category in commandes?",
+    "expected_flow": {
+      "schema_context": true,
+      "query_executed": true
+    },
+    "expected_values": {
+      "row_count": 4,
+      "contains_rows": [
+        { "categorie": "alimentaire", "total_revenue": 19522.89 },
+        { "categorie": "high-tech", "total_revenue": 23000.67 },
+        { "categorie": "loisirs", "total_revenue": 21146.68 },
+        { "categorie": "mode", "total_revenue": 18634.73 }
+      ]
+    },
+    "tags": ["aggregation", "commandes"]
+  },
+  {
+    "id": "sql-agg-002",
+    "input": "What is the average order amount in commandes?",
+    "expected_flow": {
+      "schema_context": true,
+      "query_executed": true
+    },
+    "expected_values": {
+      "output_contains": ["548.7"]
+    },
+    "tags": ["aggregation", "average", "commandes"]
+  },
+  {
+    "id": "sql-support-001",
+    "input": "How many support tickets are currently open?",
+    "expected_flow": {
+      "schema_context": true,
+      "query_executed": true
+    },
+    "expected_values": {
+      "output_contains": ["15"]
+    },
+    "tags": ["support", "count", "tickets"]
+  },
+  {
+    "id": "sql-join-001",
+    "input": "Join commandes with donnees_postales_adresse_enrichi and show the top 10 customers by total revenue, including their nom, prenom, and code_postal.",
+    "expected_flow": {
+        "schema_context": true,
+        "query_executed": true
+    },
+    "expected_values": {
+        "sql_query_contains": [
+        "JOIN",
+        "id_client",
+        "SUM(c.montant)"
+        ],
+        "row_count": 10,
+        "first_row": {
+        "nom": "Moreau",
+        "prenom": "Pierre",
+        "code_postal": 69002,
+        "total_revenue": 6307.83
+        }
+    },
+    "tags": ["join", "aggregation", "customers", "revenue"]
+    },
+    {
+    "id": "sql-join-002",
+    "input": "Show revenue by region.",
+    "expected_flow": {
+        "schema_context": true,
+        "query_executed": true
+    },
+    "expected_values": {
+        "sql_query_contains": [
+        "JOIN",
+        "code_postal",
+        "GROUP BY"
+        ],
+        "row_count": 6,
+        "contains_rows": [
+        { "region": "Occitanie", "total_revenue": 19275.82 }
+        ]
+    },
+    "tags": ["join", "aggregation", "region"]
+    },
+  {
+    "id": "sql-join-003",
+    "input": "Join donnees_postales_pub_enrichi with donnees_postales_adresse_enrichi and show customers who accept advertisements, including their nom, prenom, code_postal, and canal_prefere.",
+    "expected_flow": {
+      "schema_context": true,
+      "query_executed": true
+    },
+    "tags": ["join", "marketing", "customers"]
+  }
+]

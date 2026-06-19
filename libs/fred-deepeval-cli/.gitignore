@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+
+# Test and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Type checker / lint caches
+.ruff_cache/
+.mypy_cache/
+.pyright/
+basedpyright-report.json
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+target/
+
+# Local environment files
+.env
+.env.local
+config/.env
+
+# macOS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# DeepEval local cache
+.deepeval/

@@ -1,0 +1,32 @@
+[
+  {
+    "id": "rag-bidgpt-001",
+    "input": "What is BidGPT and what problem does it solve?",
+    "expected_output": "BidGPT is a virtual assistant designed for pre-sales teams to enhance the efficiency and accuracy of commercial proposals. It leverages large language models (LLMs) to provide adaptive and intelligent support for creating personalized proposals, analyzing customer needs, and consolidating documents for prospects. It solves several problems: faster access to information for drafting responses to calls for tender, ensuring consistency in responses across multiple contributors, leveraging existing knowledge from past tender responses, and providing domain-specific precision for the pre-sales domain.",
+    "tags": ["bidgpt", "pre-sales", "llm", "docx"]
+  },
+  {
+    "id": "rag-foryou-001",
+    "input": "Comment poser des congés avec l'outil FORYOU ?",
+    "expected_output": "Pour poser des congés avec FORYOU, il faut : 1. Ouvrir le lien FORYOU : https://sirhfr.corp.thales/app/foryou/#/syd ; 2. Cliquer sur 'Mes demandes d'absences' en bas à droite de l'écran ; 3. Sélectionner le mois souhaité ; 4. Sur la droite, sélectionner le type de congés ; 5. Sur le calendrier, sélectionner les journées ou demi-journées ; 6. Cliquer sur 'Ajouter au panier' en haut à droite ; 7. Cliquer sur 'Envoyer' en bas à droite.",
+    "tags": ["foryou", "conges", "rh", "thales", "markdown"]
+  },
+  {
+    "id": "rag-foryou-002",
+    "input": "À quoi sert l'outil FORYOU chez Thales ?",
+    "expected_output": "FORYOU est un outil web permettant aux collaborateurs de Thales de : faire leurs demandes d'absence (congés ou RTT), faire leurs demandes de télétravail, déclarer leurs arrêts maladie, gérer leur CET (Compte Epargne Temps), et gérer la répartition de leur participation et intéressements.",
+    "tags": ["foryou", "rh", "thales", "markdown"]
+  },
+  {
+    "id": "rag-arxiv-001",
+    "input": "What is RAGuard and what problem does it solve in Offshore Wind maintenance?",
+    "expected_output": "RAGuard is an enhanced Retrieval-Augmented Generation (RAG) framework designed for Offshore Wind (OSW) maintenance. It solves the problem that conventional LLMs often fail in highly specialised or unexpected maintenance scenarios. RAGuard integrates safety-critical documents alongside technical manuals by issuing parallel queries to two separate indices, allocating distinct retrieval budgets for technical knowledge and safety content. This guarantees both technical depth and safety coverage simultaneously. The framework improves Safety Recall@K from almost 0% in standard RAG to more than 50%, while maintaining Technical Recall above 60%.",
+    "tags": ["rag", "safety", "offshore-wind", "retrieval", "pdf"]
+  },
+  {
+    "id": "rag-arxiv-002",
+    "input": "What is CoT-Space and what does it explain about the 'overthinking' phenomenon in LLM reasoning?",
+    "expected_output": "CoT-Space is a theoretical framework that recasts LLM reasoning from a discrete token-prediction task to an optimization process within a continuous, reasoning-level semantic space. It addresses the misalignment between token-level RL frameworks and the reasoning-level nature of Chain-of-Thought (CoT). CoT-Space explains overthinking as a natural consequence of the trade-off between underfitting and overfitting: too short a CoT leads to underfitting, while too long a CoT introduces noise and degrades generalization. The optimal CoT length is therefore a balance point, and CoT-Space provides the theoretical foundation for understanding why RL training naturally converges toward it.",
+    "tags": ["llm", "reasoning", "reinforcement-learning", "chain-of-thought", "pdf"]
+  }
+]

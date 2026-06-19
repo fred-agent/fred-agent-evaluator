@@ -1,0 +1,55 @@
+api:
+  image:
+    repository: fred-evaluation-api
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 1
+  port: 8333
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+worker:
+  image:
+    repository: fred-evaluation-worker
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 1
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+db:
+  host: postgres
+  port: 5432
+  name: evaluation
+  schema: evaluation
+  secretName: fred-evaluator-db-secret  # must contain: POSTGRES_USER, POSTGRES_PASSWORD
+
+keycloak:
+  url: ""
+  realm: app
+  clientId: app
+
+controlPlane:
+  baseUrl: ""
+  runtimeBaseUrl: ""
+  serviceTokenSecretName: fred-evaluator-service-token  # must contain: CONTROL_PLANE_SERVICE_TOKEN
+
+config:
+  configFile: /config/configuration.yaml
+
+# Secrets injected as .env file (override in production with real values)
+dotenv:
+  CONTROL_PLANE_SERVICE_TOKEN: ""
+  POSTGRES_USER: evaluation
+  POSTGRES_PASSWORD: ""
+  MISTRAL_API_KEY: ""

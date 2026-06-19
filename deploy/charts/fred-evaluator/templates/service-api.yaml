@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-api
+spec:
+  selector:
+    app: {{ .Release.Name }}-api
+  ports:
+    - port: 8333
+      targetPort: {{ .Values.api.port }}
+      protocol: TCP
+  type: ClusterIP

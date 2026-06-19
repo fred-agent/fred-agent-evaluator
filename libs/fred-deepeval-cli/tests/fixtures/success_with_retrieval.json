@@ -1,0 +1,55 @@
+{
+  "session_id": "f52b0f4a-5d2c-4f4d-9fcb-25f0a4c31b01",
+  "agent_id": "fred.github.rag_expert",
+  "input": "What capabilities does fred.github.rag_expert have?",
+  "output": "fred.github.rag_expert can search indexed GitHub knowledge and answer from retrieved context.",
+  "error": null,
+  "latency_ms": 1142,
+  "model_name": "mistral-medium-2508",
+  "token_usage": {
+    "input_tokens": 221,
+    "output_tokens": 37
+  },
+  "finish_reason": "stop",
+  "steps": [
+    {
+      "kind": "tool_call",
+      "tool_name": "knowledge_search",
+      "call_id": "call-rag-001",
+      "arguments": {
+        "query": "fred.github.rag_expert capabilities",
+        "top_k": 3
+      },
+      "content": null,
+      "is_error": null,
+      "node_id": null,
+      "error_message": null
+    },
+    {
+      "kind": "tool_result",
+      "tool_name": "knowledge_search",
+      "call_id": "call-rag-001",
+      "arguments": null,
+      "content": "fred.github.rag_expert can search indexed GitHub knowledge using retrieval.",
+      "is_error": false,
+      "node_id": null,
+      "error_message": null
+    },
+    {
+      "kind": "final",
+      "tool_name": null,
+      "call_id": null,
+      "arguments": null,
+      "content": "fred.github.rag_expert can search indexed GitHub knowledge and answer from retrieved context.",
+      "is_error": null,
+      "node_id": null,
+      "error_message": null
+    }
+  ],
+  "retrieval_context": [
+    "fred.github.rag_expert can search indexed GitHub knowledge using retrieval."
+  ],
+  "tools_called": [
+    "knowledge_search"
+  ]
+}

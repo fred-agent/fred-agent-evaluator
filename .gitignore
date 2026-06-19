@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.uv/
+*.egg
+
+# Environment
+.env
+.env.*
+!.env.example
+*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# Ruff
+.ruff_cache/
+
+# Alembic
+# (keep versions/ tracked)
+
+# Docker
+*.tar
+
+# DeepEval telemetry
+.deepeval/
+
+# Logs
+*.log
+logs/
+
+# SQLite dev DB
+*.db
+*.sqlite3

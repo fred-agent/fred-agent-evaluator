@@ -1,0 +1,77 @@
+{
+  "session_id": "3f8a1c2d-9e47-4b60-a112-7d5c83ef0192",
+  "agent_id": "sql-analyst",
+  "input": "How many tabular datasets are available in the corpus?",
+  "output": "There are currently 3 tabular datasets in the corpus: sales_q1, inventory_snapshot, and customer_churn.",
+  "error": null,
+  "latency_ms": 2134,
+  "model_name": "mistral-medium-2508",
+  "token_usage": {
+    "input_tokens": 512,
+    "output_tokens": 48
+  },
+  "finish_reason": "stop",
+  "steps": [
+    {
+      "kind": "tool_call",
+      "tool_name": "knowledge.tabular.list_tabular_datasets",
+      "call_id": "call-a1b2c3",
+      "arguments": {},
+      "content": null,
+      "is_error": null,
+      "node_id": null,
+      "error_message": null
+    },
+    {
+      "kind": "tool_result",
+      "tool_name": "knowledge.tabular.list_tabular_datasets",
+      "call_id": "call-a1b2c3",
+      "arguments": null,
+      "content": "sales_q1 | 14 200 rows | uploaded 2026-04-01\ninventory_snapshot | 8 900 rows | uploaded 2026-04-15\ncustomer_churn | 22 400 rows | uploaded 2026-05-01",
+      "is_error": false,
+      "node_id": null,
+      "error_message": null
+    },
+    {
+      "kind": "tool_call",
+      "tool_name": "knowledge.text.search",
+      "call_id": "call-d4e5f6",
+      "arguments": {
+        "query": "tabular dataset count corpus",
+        "top_k": 3
+      },
+      "content": null,
+      "is_error": null,
+      "node_id": null,
+      "error_message": null
+    },
+    {
+      "kind": "tool_result",
+      "tool_name": "knowledge.text.search",
+      "call_id": "call-d4e5f6",
+      "arguments": null,
+      "content": "The corpus currently holds 3 registered tabular datasets.",
+      "is_error": false,
+      "node_id": null,
+      "error_message": null
+    },
+    {
+      "kind": "final",
+      "tool_name": null,
+      "call_id": null,
+      "arguments": null,
+      "content": "There are currently 3 tabular datasets in the corpus: sales_q1, inventory_snapshot, and customer_churn.",
+      "is_error": null,
+      "node_id": null,
+      "error_message": null
+    }
+  ],
+  "retrieval_context": [
+    "sales_q1 | 14 200 rows | uploaded 2026-04-01\ninventory_snapshot | 8 900 rows | uploaded 2026-04-15\ncustomer_churn | 22 400 rows | uploaded 2026-05-01",
+    "The corpus currently holds 3 registered tabular datasets."
+  ],
+  "tools_called": [
+    "knowledge.tabular.list_tabular_datasets",
+    "knowledge.text.search"
+  ]
+}

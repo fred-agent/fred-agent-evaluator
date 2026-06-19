@@ -1,0 +1,27 @@
+version: v1
+
+judge:
+  default: judge.mistral.large
+
+  profiles:
+    - profile_id: judge.mistral.large
+      provider: litellm
+      model: mistral/mistral-large-latest
+      settings:
+        api_base: https://api.mistral.ai/v1
+        api_key_env: LITELLM_API_KEY
+        request_timeout: 120
+
+    - profile_id: judge.ollama.local
+      provider: ollama
+      model: gpt-oss:20b
+      settings:
+        api_base: http://localhost:11434
+        request_timeout: 300
+
+    - profile_id: judge.openai.gpt4o
+      provider: openai
+      model: gpt-4o
+      settings:
+        api_key_env: OPENAI_API_KEY
+        request_timeout: 120

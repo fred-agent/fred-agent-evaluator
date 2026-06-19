@@ -1,0 +1,56 @@
+{
+  "session_id": "e14b7f92-8a33-4c01-9d55-6f2b0c3d8e47",
+  "agent_id": "bank-transfer-agent",
+  "input": "Transfer 5 000 € from account FR76 to account FR29.",
+  "output": null,
+  "error": null,
+  "latency_ms": 943,
+  "model_name": "mistral-medium-2508",
+  "token_usage": {
+    "input_tokens": 271,
+    "output_tokens": 0
+  },
+  "finish_reason": null,
+  "steps": [
+    {
+      "kind": "tool_call",
+      "tool_name": "bank.risk_guard.score_transfer",
+      "call_id": "call-j1k2l3",
+      "arguments": {
+        "from_account": "FR76",
+        "to_account": "FR29",
+        "amount_eur": 5000
+      },
+      "content": null,
+      "is_error": null,
+      "node_id": null,
+      "error_message": null
+    },
+    {
+      "kind": "tool_result",
+      "tool_name": "bank.risk_guard.score_transfer",
+      "call_id": "call-j1k2l3",
+      "arguments": null,
+      "content": "risk_score=0.72 | flag=HIGH | reason=unusual_destination_country",
+      "is_error": false,
+      "node_id": null,
+      "error_message": null
+    },
+    {
+      "kind": "awaiting_human",
+      "tool_name": null,
+      "call_id": null,
+      "arguments": null,
+      "content": null,
+      "is_error": null,
+      "node_id": null,
+      "error_message": null
+    }
+  ],
+  "retrieval_context": [
+    "risk_score=0.72 | flag=HIGH | reason=unusual_destination_country"
+  ],
+  "tools_called": [
+    "bank.risk_guard.score_transfer"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "session_id": "a9f03b1e-2c88-4d77-b563-1e4a72dc8f30",
+  "agent_id": "sql-analyst",
+  "input": "Run a full export of the production database.",
+  "output": null,
+  "error": "Agent 'sql-analyst' raised: ConnectionError: Knowledge Flow backend unreachable at http://localhost:8111",
+  "latency_ms": 387,
+  "model_name": null,
+  "token_usage": null,
+  "finish_reason": null,
+  "steps": [],
+  "retrieval_context": [],
+  "tools_called": []
+}

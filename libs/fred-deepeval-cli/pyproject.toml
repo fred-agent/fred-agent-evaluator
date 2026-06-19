@@ -1,0 +1,45 @@
+[project]
+name = "fred-deepeval-cli"
+version = "0.1.2"
+description = "External CLI for evaluating Fred agent turns via /agents/evaluate"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "Apache-2.0" }
+authors = []
+dependencies = [
+  "fred-sdk>=2.0.7",
+  "fred-runtime>=2.0.8",
+]
+
+[project.optional-dependencies]
+dev = [
+  "bandit>=1.8.6",
+  "basedpyright==1.31.0",
+  "detect-secrets>=1.5.0",
+  "pytest>=8.4.2",
+  "pytest-cov>=6.2.1",
+  "pytest-socket>=0.7.0",
+  "ruff>=0.12.5",
+]
+eval = [
+  "deepeval",
+  "litellm",
+  "python-dotenv",
+  "rich>=13.0",
+  "temporalio",
+]
+
+[project.scripts]
+fred-deepeval-cli = "fred_deepeval_cli.cli.main:main"
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["fred_deepeval_cli*"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-ra"
+testpaths = ["tests"]
