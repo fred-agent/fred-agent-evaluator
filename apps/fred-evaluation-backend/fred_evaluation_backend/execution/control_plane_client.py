@@ -68,7 +68,10 @@ class ControlPlaneClient:
             data = response.json()
             evaluate_url = data.get("evaluate_url", "")
             if evaluate_url.startswith("/") and self._runtime_base_url:
-                data = {**data, "evaluate_url": f"{self._runtime_base_url}{evaluate_url}"}
+                data = {
+                    **data,
+                    "evaluate_url": f"{self._runtime_base_url}{evaluate_url}",
+                }
             return RuntimeAgentExecutionPreparation.model_validate(data)
 
     async def prepare_managed_instance_execution(

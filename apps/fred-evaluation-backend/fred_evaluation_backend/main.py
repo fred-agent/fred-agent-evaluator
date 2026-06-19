@@ -44,6 +44,7 @@ def create_app() -> FastAPI:
     init_user_store(engine)
 
     import os
+
     cp_token = os.environ.get(configuration.control_plane.credential_ref)
     control_plane_client = ControlPlaneClient(
         base_url=configuration.control_plane.base_url,
@@ -61,7 +62,9 @@ def create_app() -> FastAPI:
     app = FastAPI(
         docs_url=f"{configuration.app.base_url}/docs" if docs_enabled else None,
         redoc_url=f"{configuration.app.base_url}/redoc" if docs_enabled else None,
-        openapi_url=f"{configuration.app.base_url}/openapi.json" if docs_enabled else None,
+        openapi_url=f"{configuration.app.base_url}/openapi.json"
+        if docs_enabled
+        else None,
         lifespan=lifespan,
     )
 

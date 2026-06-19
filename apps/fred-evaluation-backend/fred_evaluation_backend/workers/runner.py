@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import uuid
@@ -182,7 +183,9 @@ class CampaignRunner:
                         input=case.input,
                         expected_output=case.expected_output,
                         agent_id=campaign.target_agent_id,
-                        agent_instance_id=prep.agent_instance_id if campaign.target_kind == "managed_instance" else None,
+                        agent_instance_id=prep.agent_instance_id
+                        if campaign.target_kind == "managed_instance"
+                        else None,
                         session_id=str(uuid.uuid4()),
                         evaluate_url=evaluate_url,
                         execution_grant=execution_grant,
@@ -193,7 +196,9 @@ class CampaignRunner:
                         agent_client=self._agent_client,
                     )
                 except Exception as exc:
-                    logger.error("[RUNNER] case=%s unhandled exception: %s", case.case_id, exc)
+                    logger.error(
+                        "[RUNNER] case=%s unhandled exception: %s", case.case_id, exc
+                    )
                     await self._store.update_case_result(
                         case.case_id,
                         status="error",
@@ -206,10 +211,17 @@ class CampaignRunner:
                         structural_checks_json=None,
                     )
 
-        results = await asyncio.gather(*[_run_case(c) for c in cases], return_exceptions=True)
+        results = await asyncio.gather(
+            *[_run_case(c) for c in cases], return_exceptions=True
+        )
         for i, result in enumerate(results):
             if isinstance(result, Exception):
-                logger.error("[RUNNER] campaign=%s case[%d] unhandled exception: %s", campaign_id, i, result)
+                logger.error(
+                    "[RUNNER] campaign=%s case[%d] unhandled exception: %s",
+                    campaign_id,
+                    i,
+                    result,
+                )
 
         # Compute aggregates
         refreshed = await self._store.list_cases_by_campaign(campaign_id, limit=10000)
@@ -229,6 +241,21 @@ class CampaignRunner:
         else:
             campaign_verdict = "passed"
 
+        # Compute per-metric average scores
+        all_metrics = await self._store.list_metrics_by_campaign(campaign_id)
+        metric_scores: dict[str, list[float]] = {}
+        for m in all_metrics:
+            if m.score is not None:
+                try:
+                    score_val = float(m.score)
+                    metric_scores.setdefault(m.name, []).append(score_val)
+                except ValueError:
+                    pass
+        metric_averages = {
+            name: sum(scores) / len(scores) for name, scores in metric_scores.items()
+        }
+        metric_averages_json = json.dumps(metric_averages) if metric_averages else None
+
         await self._store.update_campaign_aggregates(
             campaign_id,
             completed_cases=completed,
@@ -238,6 +265,7 @@ class CampaignRunner:
             scoring_error_cases=scoring_errors,
             verdict=campaign_verdict,
             operational_state="completed",
+            metric_averages_json=metric_averages_json,
         )
         await self._store.create_event(
             campaign_id, kind="campaign_completed", payload_json=None

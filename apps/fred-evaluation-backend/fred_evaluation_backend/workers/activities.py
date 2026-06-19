@@ -74,13 +74,23 @@ async def execute_and_score_case(
 
     # Convert EvalTrace to the dict format expected by fred-deepeval-cli internals
     trace_dict = trace.model_dump()
-    print(f"[ACTIVITY-DEBUG] case={case_id} tools_called={trace.tools_called} steps_count={len(trace.steps)}", flush=True)
-    logger.info("[TRACE] case=%s tools_called=%s steps_count=%d", case_id, trace.tools_called, len(trace.steps))
+    print(
+        f"[ACTIVITY-DEBUG] case={case_id} tools_called={trace.tools_called} steps_count={len(trace.steps)}",
+        flush=True,
+    )
+    logger.info(
+        "[TRACE] case=%s tools_called=%s steps_count=%d",
+        case_id,
+        trace.tools_called,
+        len(trace.steps),
+    )
 
     try:
         outcome = classify_outcome(trace_dict)
         resolved_profile = resolve_profile(trace_dict, explicit_profile=profile)
-        structural_checks = build_structural_checks(trace_dict, profile=resolved_profile)
+        structural_checks = build_structural_checks(
+            trace_dict, profile=resolved_profile
+        )
 
         metrics: list = []
         scoring_errors: list[str] = []
@@ -107,12 +117,18 @@ async def execute_and_score_case(
         await _emit_event(campaign_id, case_id, "case_error", store)
         return
 
-    structural_ok = all(c.passed is not False for c in structural_checks)  # None (skipped) is not a failure
+    structural_ok = all(
+        c.passed is not False for c in structural_checks
+    )  # None (skipped) is not a failure
     metrics_ok = all(m.verdict == "passed" for m in metrics) if metrics else True
     metrics_insufficient_only = (
-        not metrics_ok
-        and all(m.verdict in ("passed", "insufficient", "skipped") for m in metrics)
-    ) if metrics else False
+        (
+            not metrics_ok
+            and all(m.verdict in ("passed", "insufficient", "skipped") for m in metrics)
+        )
+        if metrics
+        else False
+    )
     if structural_ok and not scoring_errors:
         if metrics_ok:
             verdict = "passed"
