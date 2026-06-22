@@ -15,6 +15,7 @@ from fred_core.sql import create_async_engine_from_config
 
 from fred_evaluation_backend.campaigns.api import build_evaluations_router
 from fred_evaluation_backend.config.loader import load_configuration
+from fred_evaluation_backend.execution.analysis_client import AnalysisClient
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
 
 logger = logging.getLogger(__name__)
@@ -52,10 +53,22 @@ def create_app() -> FastAPI:
         runtime_base_url=configuration.control_plane.runtime_base_url,
     )
 
+    analysis_api_key = os.environ.get(configuration.analysis.api_key_env)
+    analysis_client = (
+        AnalysisClient(
+            api_key=analysis_api_key,
+            model=configuration.analysis.model,
+            base_url=configuration.analysis.base_url,
+        )
+        if analysis_api_key
+        else None
+    )
+
     @contextlib.asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.db_engine = engine
         app.state.control_plane_client = control_plane_client
+        app.state.analysis_client = analysis_client
         yield
         await engine.dispose()
 

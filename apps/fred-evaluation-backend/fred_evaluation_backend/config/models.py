@@ -46,9 +46,16 @@ class WorkerConfig(BaseModel):
     judge_profiles: dict[str, JudgeProfile] = {}
 
 
+class AnalysisConfig(BaseModel):
+    api_key_env: str = "MISTRAL_API_KEY"
+    model: str = "mistral-small-latest"
+    base_url: str = "https://api.mistral.ai/v1"
+
+
 class EvaluationConfig(BaseModel):
     app: AppConfig = AppConfig()
     database: PostgresStoreConfig = PostgresStoreConfig()
     control_plane: ControlPlaneConfig = ControlPlaneConfig()
     security: SecurityConfig = SecurityConfig()
     worker: WorkerConfig = WorkerConfig()
+    analysis: AnalysisConfig = AnalysisConfig()

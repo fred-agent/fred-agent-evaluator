@@ -361,6 +361,19 @@ class EvaluationStore:
             await s.delete(row)
             return True
 
+    async def update_campaign_analysis(
+        self,
+        campaign_id: str,
+        analysis_json: str,
+        session: AsyncSession | None = None,
+    ) -> None:
+        async with use_session(self._sessions, session) as s:
+            row = await s.get(EvaluationCampaignRow, campaign_id)
+            if row is None:
+                raise ValueError(f"Campaign {campaign_id} not found")
+            row.analysis_json = analysis_json
+            await s.flush()
+
     async def list_metrics_by_campaign(
         self,
         campaign_id: str,
