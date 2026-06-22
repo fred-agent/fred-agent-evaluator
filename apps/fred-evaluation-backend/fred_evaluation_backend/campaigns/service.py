@@ -243,3 +243,19 @@ async def list_cases(
             )
         )
     return EvaluationCaseListResponse(cases=cases, total=len(cases))
+
+
+async def delete_campaign(
+    campaign_id: str,
+    *,
+    store: EvaluationStore,
+) -> None:
+    row = await store.get_campaign(campaign_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Campaign '{campaign_id}' not found.")
+    if row.operational_state == "running":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Campaign '{campaign_id}' is currently running and cannot be deleted.",
+        )
+    await store.delete_campaign(campaign_id)

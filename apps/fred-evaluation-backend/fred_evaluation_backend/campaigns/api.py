@@ -5,7 +5,7 @@ import json
 from typing import Annotated, AsyncGenerator
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from fred_core import KeycloakUser, get_current_user
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -149,5 +149,14 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     ) -> dict:
         await service.cancel_campaign(campaign_id, store=store)
         return {"campaign_id": campaign_id, "state": "cancelled"}
+
+    @router.delete("/campaigns/{campaign_id}", status_code=204, response_class=Response)
+    async def delete_campaign(
+        campaign_id: str,
+        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        store: Annotated[EvaluationStore, Depends(_get_evaluation_store)],
+    ) -> Response:
+        await service.delete_campaign(campaign_id, store=store)
+        return Response(status_code=204)
 
     return router
