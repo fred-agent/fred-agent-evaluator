@@ -4,13 +4,14 @@ import logging
 from datetime import datetime, timezone
 
 from fred_core.sql import make_session_factory, use_session
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from fred_evaluation_backend.campaigns.models import (
     EvaluationCampaignRow,
     EvaluationCaseRow,
     EvaluationEventRow,
+    EvaluationExportDeliveryRow,
     EvaluationMetricResultRow,
 )
 
@@ -338,6 +339,27 @@ class EvaluationStore:
                 .all()
             )
         return list(rows)
+
+    async def delete_campaign(
+        self,
+        campaign_id: str,
+        session: AsyncSession | None = None,
+    ) -> bool:
+        async with use_session(self._sessions, session) as s:
+            row = await s.get(EvaluationCampaignRow, campaign_id)
+            if row is None:
+                return False
+            for table in (
+                EvaluationMetricResultRow,
+                EvaluationEventRow,
+                EvaluationExportDeliveryRow,
+                EvaluationCaseRow,
+            ):
+                await s.execute(
+                    delete(table).where(table.campaign_id == campaign_id)
+                )
+            await s.delete(row)
+            return True
 
     async def list_metrics_by_campaign(
         self,
