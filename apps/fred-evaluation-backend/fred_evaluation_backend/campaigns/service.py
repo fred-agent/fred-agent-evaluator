@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from typing import Literal, cast
 from uuid import uuid4
@@ -135,6 +136,9 @@ def _campaign_row_to_response(row) -> EvaluationCampaignResponse:
         failed_cases=row.failed_cases,
         execution_error_cases=row.execution_error_cases,
         scoring_error_cases=row.scoring_error_cases,
+        metric_averages=json.loads(row.metric_averages_json)
+        if row.metric_averages_json
+        else None,
         created_at=row.created_at,
         started_at=row.started_at,
         completed_at=row.completed_at,
@@ -170,7 +174,9 @@ async def cancel_campaign(
 ) -> None:
     row = await store.get_campaign(campaign_id)
     if row is None:
-        raise HTTPException(status_code=404, detail=f"Campaign '{campaign_id}' not found.")
+        raise HTTPException(
+            status_code=404, detail=f"Campaign '{campaign_id}' not found."
+        )
     if row.operational_state in ("succeeded", "failed", "cancelled"):
         raise HTTPException(
             status_code=409,

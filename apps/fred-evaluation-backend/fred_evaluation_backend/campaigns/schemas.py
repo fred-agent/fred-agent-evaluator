@@ -120,6 +120,7 @@ class EvaluationCampaignResponse(BaseModel):
     failed_cases: int
     execution_error_cases: int
     scoring_error_cases: int
+    metric_averages: dict[str, float] | None
     created_at: datetime
     started_at: datetime | None
     completed_at: datetime | None

@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import logging
 
-from fred_core.common import ConfigFiles, load_configuration_with_config_files, parse_yaml_mapping_file
+from fred_core.common import (
+    ConfigFiles,
+    load_configuration_with_config_files,
+    parse_yaml_mapping_file,
+)
 
 from fred_evaluation_backend.config.models import EvaluationConfig
 

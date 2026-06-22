@@ -120,14 +120,22 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
                 events = await store.list_events(campaign_id, after_seq=last_seq)
                 for event in events:
                     last_seq = event.seq
-                    data = json.dumps({
-                        "seq": event.seq,
-                        "kind": event.kind,
-                        "payload": json.loads(event.payload_json) if event.payload_json else None,
-                    })
+                    data = json.dumps(
+                        {
+                            "seq": event.seq,
+                            "kind": event.kind,
+                            "payload": json.loads(event.payload_json)
+                            if event.payload_json
+                            else None,
+                        }
+                    )
                     yield f"data: {data}\n\n"
                 campaign_row = await store.get_campaign(campaign_id)
-                if campaign_row and campaign_row.operational_state in ("succeeded", "failed", "cancelled"):
+                if campaign_row and campaign_row.operational_state in (
+                    "succeeded",
+                    "failed",
+                    "cancelled",
+                ):
                     break
                 await asyncio.sleep(1)
 

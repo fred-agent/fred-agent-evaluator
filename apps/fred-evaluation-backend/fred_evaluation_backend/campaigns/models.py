@@ -37,6 +37,7 @@ class EvaluationCampaignRow(Base):
         Integer, nullable=False, default=0
     )
     scoring_error_cases: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    metric_averages_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utcnow
     )
@@ -100,7 +101,9 @@ class EvaluationRunRow(Base):
     completed_cases: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     passed_cases: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     failed_cases: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    execution_error_cases: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    execution_error_cases: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0
+    )
     scoring_error_cases: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utcnow

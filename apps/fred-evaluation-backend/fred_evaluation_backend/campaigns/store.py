@@ -277,6 +277,7 @@ class EvaluationStore:
         scoring_error_cases: int,
         verdict: str,
         operational_state: str,
+        metric_averages_json: str | None = None,
         session: AsyncSession | None = None,
     ) -> None:
         async with use_session(self._sessions, session) as s:
@@ -289,6 +290,7 @@ class EvaluationStore:
                 row.scoring_error_cases = scoring_error_cases
                 row.verdict = verdict
                 row.operational_state = operational_state
+                row.metric_averages_json = metric_averages_json
 
     async def create_event(
         self,
@@ -329,6 +331,25 @@ class EvaluationStore:
                     await s.execute(
                         select(EvaluationMetricResultRow).where(
                             EvaluationMetricResultRow.case_id == case_id
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        return list(rows)
+
+    async def list_metrics_by_campaign(
+        self,
+        campaign_id: str,
+        session: AsyncSession | None = None,
+    ) -> list[EvaluationMetricResultRow]:
+        async with use_session(self._sessions, session) as s:
+            rows = (
+                (
+                    await s.execute(
+                        select(EvaluationMetricResultRow).where(
+                            EvaluationMetricResultRow.campaign_id == campaign_id
                         )
                     )
                 )
