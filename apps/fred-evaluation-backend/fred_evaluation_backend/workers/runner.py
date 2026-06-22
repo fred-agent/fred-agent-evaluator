@@ -180,6 +180,7 @@ class CampaignRunner:
                     await execute_and_score_case(
                         case_id=case.case_id,
                         campaign_id=campaign_id,
+                        created_by=campaign.created_by,
                         input=case.input,
                         expected_output=case.expected_output,
                         agent_id=campaign.target_agent_id,

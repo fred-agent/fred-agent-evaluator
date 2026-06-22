@@ -46,6 +46,13 @@ class WorkerConfig(BaseModel):
     judge_profiles: dict[str, JudgeProfile] = {}
 
 
+class TelemetryConfig(BaseModel):
+    enabled: bool = False
+    otlp_endpoint: str = "http://localhost:3030"
+    public_key_env: str = "LANGFUSE_PUBLIC_KEY"
+    secret_key_env: str = "LANGFUSE_SECRET_KEY"
+
+
 class AnalysisConfig(BaseModel):
     api_key_env: str = "MISTRAL_API_KEY"
     model: str = "mistral-small-latest"
@@ -58,4 +65,5 @@ class EvaluationConfig(BaseModel):
     control_plane: ControlPlaneConfig = ControlPlaneConfig()
     security: SecurityConfig = SecurityConfig()
     worker: WorkerConfig = WorkerConfig()
+    telemetry: TelemetryConfig = TelemetryConfig()
     analysis: AnalysisConfig = AnalysisConfig()
