@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from fred_evaluation_backend.campaigns import service
 from fred_evaluation_backend.campaigns.schemas import (
+    CampaignAnalysisResponse,
+    CampaignAnalysisResult,
     CampaignCreatedResponse,
     CreateEvaluationCampaignRequest,
     EvaluationCampaignListResponse,
@@ -18,6 +20,7 @@ from fred_evaluation_backend.campaigns.schemas import (
     EvaluationCaseListResponse,
     EvaluationCaseResponse,
 )
+from fred_evaluation_backend.execution.analysis_client import CaseDetail, CaseMetricDetail
 from fred_evaluation_backend.campaigns.store import EvaluationStore
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
 
@@ -158,5 +161,94 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     ) -> Response:
         await service.delete_campaign(campaign_id, store=store)
         return Response(status_code=204)
+
+    @router.post("/campaigns/{campaign_id}/analyze", response_model=CampaignAnalysisResponse)
+    async def analyze_campaign(
+        campaign_id: str,
+        request: Request,
+        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        store: Annotated[EvaluationStore, Depends(_get_evaluation_store)],
+    ) -> CampaignAnalysisResponse:
+        campaign = await store.get_campaign(campaign_id)
+        if campaign is None:
+            raise HTTPException(status_code=404, detail="Campaign not found")
+
+        if campaign.analysis_json:
+            stored = json.loads(campaign.analysis_json)
+            return CampaignAnalysisResponse(
+                campaign_id=campaign_id,
+                analysis=CampaignAnalysisResult(**stored["analysis"]),
+                cached=True,
+            )
+
+        analysis_client = getattr(request.app.state, "analysis_client", None)
+        if analysis_client is None:
+            raise HTTPException(status_code=503, detail="Analysis service not configured")
+
+        metric_averages: dict[str, float] = {}
+        if campaign.metric_averages_json:
+            metric_averages = json.loads(campaign.metric_averages_json)
+
+        if campaign.operational_state != "completed":
+            raise HTTPException(status_code=409, detail="Campaign is not completed yet")
+
+        # Build per-case details with metric breakdowns
+        raw_cases = await store.list_cases_by_campaign(campaign_id, limit=10000)
+        all_metrics = await store.list_metrics_by_campaign(campaign_id)
+        metrics_by_case: dict[str, list] = {}
+        for m in all_metrics:
+            metrics_by_case.setdefault(m.case_id, []).append(m)
+
+        cases: list[CaseDetail] = [
+            CaseDetail(
+                case_id=c.case_id,
+                input=c.input,
+                verdict=c.verdict,
+                metrics=[
+                    CaseMetricDetail(
+                        name=m.name,
+                        score=float(m.score) if m.score is not None else None,
+                        verdict=m.verdict,
+                        explanation=m.explanation,
+                    )
+                    for m in metrics_by_case.get(c.case_id, [])
+                ],
+            )
+            for c in raw_cases
+        ]
+
+        analysis_text = await analysis_client.analyze(
+            campaign_name=campaign.name,
+            profile=campaign.profile,
+            verdict=campaign.verdict,
+            total_cases=campaign.total_cases,
+            passed_cases=campaign.passed_cases,
+            failed_cases=campaign.failed_cases,
+            metric_averages=metric_averages,
+            cases=cases,
+        )
+
+        analysis_data = json.loads(analysis_text)
+
+        # Normalize fields that Mistral sometimes returns as objects instead of strings
+        for field in ("strengths", "weaknesses", "recommendations"):
+            analysis_data[field] = [
+                item if isinstance(item, str)
+                else item.get("task") or item.get("recommendation") or item.get("description") or next(iter(item.values()), str(item))
+                for item in analysis_data.get(field, [])
+            ]
+
+        analysis_result = CampaignAnalysisResult(**analysis_data)
+
+        await store.update_campaign_analysis(
+            campaign_id=campaign_id,
+            analysis_json=json.dumps({"analysis": analysis_data}),
+        )
+
+        return CampaignAnalysisResponse(
+            campaign_id=campaign_id,
+            analysis=analysis_result,
+            cached=False,
+        )
 
     return router

@@ -134,3 +134,17 @@ class EvaluationCampaignListResponse(BaseModel):
 class EvaluationCaseListResponse(BaseModel):
     cases: list[EvaluationCaseResponse]
     total: int
+
+
+class CampaignAnalysisResult(BaseModel):
+    summary: str
+    strengths: list[str]
+    weaknesses: list[str]
+    recommendations: list[str]
+    risk_level: str
+
+
+class CampaignAnalysisResponse(BaseModel):
+    campaign_id: str
+    analysis: CampaignAnalysisResult
+    cached: bool
