@@ -30,13 +30,17 @@ def setup_otel(endpoint: str, public_key_env: str, secret_key_env: str) -> bool:
     from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
     from opentelemetry.sdk.resources import Resource
     from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
 
     otlp_endpoint = endpoint.rstrip("/") + "/api/public/otel/v1/traces"
     credentials = base64.b64encode(f"{public_key}:{secret_key}".encode()).decode()
     headers = {"Authorization": f"Basic {credentials}"}
 
-    exporter = OTLPSpanExporter(endpoint=otlp_endpoint, headers=headers)
+    exporter = OTLPSpanExporter(
+        endpoint=otlp_endpoint,
+        headers=headers,
+        timeout=30,
+    )
     provider = TracerProvider(
         resource=Resource.create({"service.name": "fred-evaluation-worker"})
     )

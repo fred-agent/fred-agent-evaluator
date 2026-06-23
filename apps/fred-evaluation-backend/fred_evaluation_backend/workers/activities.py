@@ -37,9 +37,9 @@ async def execute_and_score_case(
         span.set_attribute("eval.case_id", case_id)
         span.set_attribute("eval.profile", profile)
         span.set_attribute("gen_ai.prompt", input[:500])
-        # Langfuse uses these to group traces into sessions and filter by user
-        span.set_attribute("langfuse.session_id", campaign_id)
-        span.set_attribute("langfuse.user_id", created_by)
+        # Langfuse v3 OTLP semantic attributes for session grouping
+        span.set_attribute("session.id", campaign_id)
+        span.set_attribute("user.id", created_by)
         await _execute_and_score_case_inner(
             span=span,
             case_id=case_id,
