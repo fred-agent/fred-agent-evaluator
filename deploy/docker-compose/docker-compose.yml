@@ -15,7 +15,7 @@ services:
       context: ../../
       dockerfile: apps/fred-evaluation-backend/dockerfiles/Dockerfile-api
     ports:
-      - "8333:8333"
+      - "8336:8336"
     environment:
       CONFIG_FILE: /config/configuration.yaml
     volumes:
@@ -33,6 +33,88 @@ services:
       - ./configuration.yaml:/config/configuration.yaml:ro
     depends_on:
       - postgres
+      # Uncomment if using dedicated Temporal below (option B):
+      # temporal:
+      #   condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # Temporal scheduler — two options, pick one:
+  #
+  # Option A — shared Temporal from fred-deployment-factory
+  #   No services to uncomment here.
+  #   Set in configuration.yaml:
+  #     scheduler:
+  #       backend: temporal
+  #       temporal:
+  #         host: app-temporal:7233   # Docker hostname of fred's Temporal
+  #         task_queue: evaluation
+  #   Requires the worker container to join fred-shared-network (add networks below).
+  #
+  # Option B — dedicated Temporal for fred-agent-evaluator
+  #   Uncomment temporal-setup, temporal, temporal-ui below.
+  #   Also uncomment the temporal depends_on in worker above.
+  #   Set in configuration.yaml:
+  #     scheduler:
+  #       backend: temporal
+  #       temporal:
+  #         host: temporal:7233       # Docker hostname of the service below
+  #         task_queue: evaluation
+  # ---------------------------------------------------------------------------
+
+  # temporal-setup:
+  #   image: mirror.gcr.io/temporalio/admin-tools:1.28
+  #   entrypoint: ["/bin/sh", "-c"]
+  #   command:
+  #     - |-
+  #       temporal-sql-tool --plugin postgres12 --endpoint postgres --port 5432 \
+  #         --database temporal --user evaluation --password evaluation \
+  #         setup-schema -v 0.0 && \
+  #       temporal-sql-tool --plugin postgres12 --endpoint postgres --port 5432 \
+  #         --database temporal --user evaluation --password evaluation \
+  #         update-schema -d schema/postgresql/v12/temporal/versioned/ && \
+  #       temporal-sql-tool --plugin postgres12 --endpoint postgres --port 5432 \
+  #         --database temporal_visibility --user evaluation --password evaluation \
+  #         setup-schema -v 0.0 && \
+  #       temporal-sql-tool --plugin postgres12 --endpoint postgres --port 5432 \
+  #         --database temporal_visibility --user evaluation --password evaluation \
+  #         update-schema -d schema/postgresql/v12/visibility/versioned/
+  #   depends_on:
+  #     - postgres
+
+  # temporal:
+  #   image: mirror.gcr.io/temporalio/server:1.28.0
+  #   environment:
+  #     DB: postgres12
+  #     DBNAME: temporal
+  #     DB_PORT: 5432
+  #     POSTGRES_SEEDS: postgres
+  #     POSTGRES_USER: evaluation
+  #     POSTGRES_PWD: evaluation
+  #     VISIBILITY_DBNAME: temporal_visibility
+  #     VISIBILITY_DB_PORT: 5432
+  #     VISIBILITY_POSTGRES_SEEDS: postgres
+  #     VISIBILITY_POSTGRES_USER: evaluation
+  #     VISIBILITY_POSTGRES_PWD: evaluation
+  #     TEMPORAL_ADDRESS: temporal:7233
+  #   ports:
+  #     - "7233:7233"
+  #   depends_on:
+  #     temporal-setup:
+  #       condition: service_completed_successfully
+  #   healthcheck:
+  #     test: tctl cluster health
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+  # temporal-ui:
+  #   image: mirror.gcr.io/temporalio/ui:2.39.0
+  #   environment:
+  #     TEMPORAL_ADDRESS: temporal:7233
+  #   ports:
+  #     - "8233:8080"
+  #   depends_on:
+  #     - temporal
 
 volumes:
   pgdata:

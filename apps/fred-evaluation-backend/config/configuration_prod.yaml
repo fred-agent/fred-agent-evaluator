@@ -47,6 +47,7 @@ worker:
   max_concurrent_cases: 4
   poll_interval_seconds: 5
   judge_profiles:
+
     mistral-small:
       provider: openai
       model: openai/mistral-small-2508
@@ -59,3 +60,9 @@ worker:
       settings:
         base_url: https://api.mistral.ai/v1
         api_key_env: MISTRAL_API_KEY
+
+scheduler:
+  backend: temporal  # backend: memory
+  temporal:
+    host: localhost:7233  # host: app-temporal:7233 (if running in Docker)
+    task_queue: evaluation

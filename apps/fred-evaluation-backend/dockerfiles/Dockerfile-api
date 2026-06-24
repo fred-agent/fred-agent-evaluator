@@ -21,8 +21,11 @@ COPY apps/fred-evaluation-backend/pyproject.toml apps/fred-evaluation-backend/uv
 COPY apps/fred-evaluation-backend/README.md ./
 COPY apps/fred-evaluation-backend/fred_evaluation_backend ./fred_evaluation_backend
 COPY scripts/makefiles /workspace/scripts/makefiles
-# The API needs no local fred libs: fred-core/fred-sdk come from PyPI, and the
-# scoring path-dep (fred-deepeval-cli) is worker-only.
+# fred-core/fred-sdk come from PyPI. fred-deepeval-cli is an editable path member
+# of uv.lock, so its source must be present for `uv sync` to resolve the lock —
+# even though the API (no `scoring` extra) never installs it. Copied in the
+# builder only; it is NOT carried into the final image.
+COPY libs/fred-deepeval-cli /workspace/libs/fred-deepeval-cli
 
 RUN make dev VENV=/app/venv TARGET=/app/target
 

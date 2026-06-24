@@ -6,7 +6,7 @@ spec:
   selector:
     app: {{ .Release.Name }}-api
   ports:
-    - port: 8333
+    - port: 8336
       targetPort: {{ .Values.api.port }}
       protocol: TCP
   type: ClusterIP

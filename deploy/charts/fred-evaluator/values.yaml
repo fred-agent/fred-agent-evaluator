@@ -4,7 +4,7 @@ api:
     tag: latest
     pullPolicy: IfNotPresent
   replicas: 1
-  port: 8333
+  port: 8336
   resources:
     requests:
       cpu: 100m

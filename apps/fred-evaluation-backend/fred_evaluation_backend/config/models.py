@@ -4,7 +4,12 @@ from typing import Literal
 
 from fred_core import SecurityConfiguration
 from fred_core.common import KpiObservabilityConfig
-from fred_core.common.structures import OpenSearchStoreConfig, PostgresStoreConfig
+from fred_core.common.structures import (
+    OpenSearchStoreConfig,
+    PostgresStoreConfig,
+    TemporalSchedulerConfig,
+)
+from fred_core.scheduler import SchedulerBackend
 from pydantic import BaseModel, Field
 
 
@@ -63,6 +68,11 @@ class WorkerConfig(BaseModel):
     judge_profiles: dict[str, JudgeProfile] = Field(default_factory=dict)
 
 
+class SchedulerConfig(BaseModel):
+    backend: SchedulerBackend = SchedulerBackend.MEMORY
+    temporal: TemporalSchedulerConfig = TemporalSchedulerConfig(task_queue="evaluation")
+
+
 class AnalysisConfig(BaseModel):
     api_key_env: str = "MISTRAL_API_KEY"
     model: str = "mistral-small-latest"
@@ -100,5 +110,6 @@ class EvaluationConfig(BaseModel):
     control_plane: ControlPlaneConfig = Field(default_factory=ControlPlaneConfig)
     security: SecurityConfiguration = Field(default_factory=_default_security)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
+    scheduler: SchedulerConfig = Field(default_factory=SchedulerConfig)
     worker: WorkerConfig = Field(default_factory=WorkerConfig)
     analysis: AnalysisConfig = Field(default_factory=AnalysisConfig)

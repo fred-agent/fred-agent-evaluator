@@ -51,6 +51,10 @@ def _get_control_plane_client(request: Request) -> ControlPlaneClient:
     return request.app.state.control_plane_client
 
 
+def _get_temporal_client_provider(request: Request):
+    return getattr(request.app.state, "temporal_client_provider", None)
+
+
 async def _resolve_langfuse_session_url(config) -> str | None:
     """Query Langfuse /api/public/projects to get the project ID for building UI links."""
     obs = config.observability
@@ -88,16 +92,32 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     )
     async def create_campaign(
         body: CreateEvaluationCampaignRequest,
+        request: Request,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[EvaluationStore, Depends(_get_evaluation_store)],
         cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> CampaignCreatedResponse:
-        return await service.create_campaign(
+        result = await service.create_campaign(
             body,
             created_by=user.uid,
             store=store,
             control_plane_client=cp_client,
         )
+
+        temporal_provider = _get_temporal_client_provider(request)
+        if temporal_provider is not None:
+            from fred_evaluation_backend.workers.workflow import CampaignInput, CampaignWorkflow
+
+            task_queue = getattr(request.app.state, "temporal_task_queue", "evaluation") or "evaluation"
+            client = await temporal_provider.get_client()
+            await client.start_workflow(
+                CampaignWorkflow.run,
+                CampaignInput(campaign_id=result.campaign_id),
+                id=f"campaign-eval-{result.campaign_id}",
+                task_queue=task_queue,
+            )
+
+        return result
 
     @router.get(
         "/campaigns",
