@@ -10,6 +10,7 @@ from fred_core import get_config, initialize_user_security, log_setup
 from fred_core.users.store.postgres_user_store import init_user_store
 from fred_core.common import read_env_bool
 from fred_core.logs.null_log_store import NullLogStore
+from fred_core.scheduler import SchedulerBackend, TemporalClientProvider
 from pydantic import BaseModel
 from fred_core.sql import create_async_engine_from_config
 
@@ -64,11 +65,19 @@ def create_app() -> FastAPI:
         else None
     )
 
+    temporal_client_provider: TemporalClientProvider | None = None
+    temporal_task_queue: str | None = None
+    if configuration.scheduler.backend == SchedulerBackend.TEMPORAL:
+        temporal_client_provider = TemporalClientProvider(configuration.scheduler.temporal)
+        temporal_task_queue = configuration.scheduler.temporal.task_queue
+
     @contextlib.asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.db_engine = engine
         app.state.control_plane_client = control_plane_client
         app.state.analysis_client = analysis_client
+        app.state.temporal_client_provider = temporal_client_provider
+        app.state.temporal_task_queue = temporal_task_queue
         yield
         await engine.dispose()
 

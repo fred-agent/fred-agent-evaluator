@@ -14,6 +14,6 @@ IMAGE_TAG           ?= $(VERSION)
 IMAGE_FULL          ?= $(REGISTRY_URL)/$(REGISTRY_NAMESPACE)/$(IMAGE_NAME):$(IMAGE_TAG)
 
 # Runtime
-PORT                ?= 8333
+PORT                ?= 8336
 ENV_FILE            ?= .venv
 LOG_LEVEL           ?= info

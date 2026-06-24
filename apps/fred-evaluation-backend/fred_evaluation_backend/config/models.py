@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from fred_core.common.structures import PostgresStoreConfig
+from fred_core.common.structures import PostgresStoreConfig, TemporalSchedulerConfig
+from fred_core.scheduler import SchedulerBackend
 from fred_core.security.structure import UserSecurity
 from pydantic import AnyUrl, BaseModel
 
@@ -46,6 +47,13 @@ class WorkerConfig(BaseModel):
     judge_profiles: dict[str, JudgeProfile] = {}
 
 
+class SchedulerConfig(BaseModel):
+    backend: SchedulerBackend = SchedulerBackend.MEMORY
+    temporal: TemporalSchedulerConfig = TemporalSchedulerConfig(
+        task_queue="evaluation"
+    )
+
+
 class TelemetryConfig(BaseModel):
     enabled: bool = False
     otlp_endpoint: str = "http://localhost:3030"
@@ -65,5 +73,6 @@ class EvaluationConfig(BaseModel):
     control_plane: ControlPlaneConfig = ControlPlaneConfig()
     security: SecurityConfig = SecurityConfig()
     worker: WorkerConfig = WorkerConfig()
+    scheduler: SchedulerConfig = SchedulerConfig()
     telemetry: TelemetryConfig = TelemetryConfig()
     analysis: AnalysisConfig = AnalysisConfig()

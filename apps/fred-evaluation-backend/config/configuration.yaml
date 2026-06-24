@@ -28,3 +28,9 @@ worker:
       model: mistral/mistral-small-latest
       settings:
         api_key_env: MISTRAL_API_KEY
+
+scheduler:
+  backend: temporal  # backend: memory
+  temporal:
+    host: localhost:7233  # host: app-temporal:7233 (if running in Docker)
+    task_queue: evaluation
