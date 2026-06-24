@@ -10,6 +10,7 @@ from fred_core.sql import create_async_engine_from_config
 from fred_evaluation_backend.config.loader import load_configuration
 from fred_evaluation_backend.execution.auth import build_m2m_token_provider
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
+from fred_evaluation_backend.telemetry.otel import setup_otel
 from fred_evaluation_backend.workers.runner import CampaignRunner
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,8 @@ async def main() -> None:
         store=NullLogStore(),
     )
     logger.info("Fred evaluation worker starting...")
+    if configuration.observability.tracer == "langfuse":
+        setup_otel(host=configuration.observability.langfuse.host)
 
     engine = create_async_engine_from_config(configuration.storage.postgres)
     token_provider = build_m2m_token_provider(configuration.security)

@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
+import logging
+import os
 from typing import Annotated, AsyncGenerator
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
 from fred_core import KeycloakUser, get_current_user
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from fred_evaluation_backend.campaigns import service
@@ -24,6 +29,18 @@ from fred_evaluation_backend.execution.analysis_client import CaseDetail, CaseMe
 from fred_evaluation_backend.campaigns.store import EvaluationStore
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
 
+logger = logging.getLogger(__name__)
+
+
+class TelemetryInfoResponse(BaseModel):
+    enabled: bool
+    langfuse_session_url: str | None = None
+
+
+class TelemetrySessionResponse(BaseModel):
+    available: bool
+    url: str | None = None
+
 
 def _get_evaluation_store(request: Request) -> EvaluationStore:
     engine: AsyncEngine = request.app.state.db_engine
@@ -32,6 +49,33 @@ def _get_evaluation_store(request: Request) -> EvaluationStore:
 
 def _get_control_plane_client(request: Request) -> ControlPlaneClient:
     return request.app.state.control_plane_client
+
+
+async def _resolve_langfuse_session_url(config) -> str | None:
+    """Query Langfuse /api/public/projects to get the project ID for building UI links."""
+    obs = config.observability
+    if obs.tracer != "langfuse":
+        return None
+    public_key = os.environ.get("LANGFUSE_PUBLIC_KEY", "")
+    secret_key = os.environ.get("LANGFUSE_SECRET_KEY", "")
+    if not public_key or not secret_key:
+        return None
+    base = obs.langfuse.host.rstrip("/")
+    credentials = base64.b64encode(f"{public_key}:{secret_key}".encode()).decode()
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.get(
+                f"{base}/api/public/projects",
+                headers={"Authorization": f"Basic {credentials}"},
+            )
+            resp.raise_for_status()
+            projects = resp.json().get("data", [])
+            if projects:
+                project_id = projects[0]["id"]
+                return f"{base}/project/{project_id}/sessions"
+    except Exception as exc:
+        logger.warning("[TELEMETRY] could not resolve Langfuse project: %s", exc)
+    return None
 
 
 def build_evaluations_router(prefix: str = "") -> APIRouter:
@@ -161,6 +205,57 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     ) -> Response:
         await service.delete_campaign(campaign_id, store=store)
         return Response(status_code=204)
+
+    @router.get("/telemetry/session/{campaign_id}", response_model=TelemetrySessionResponse)
+    async def get_telemetry_session(
+        campaign_id: str,
+        request: Request,
+        user: Annotated[KeycloakUser, Depends(get_current_user)],
+    ) -> TelemetrySessionResponse:
+        from fred_core import get_config
+        config = request.app.dependency_overrides.get(get_config, get_config)()
+        obs = config.observability
+        if obs.tracer != "langfuse":
+            return TelemetrySessionResponse(available=False)
+        public_key = os.environ.get("LANGFUSE_PUBLIC_KEY", "")
+        secret_key = os.environ.get("LANGFUSE_SECRET_KEY", "")
+        if not public_key or not secret_key:
+            return TelemetrySessionResponse(available=False)
+        base = obs.langfuse.host.rstrip("/")
+        credentials = base64.b64encode(f"{public_key}:{secret_key}".encode()).decode()
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                resp = await client.get(
+                    f"{base}/api/public/sessions/{campaign_id}",
+                    headers={"Authorization": f"Basic {credentials}"},
+                )
+                if resp.status_code == 200:
+                    projects_resp = await client.get(
+                        f"{base}/api/public/projects",
+                        headers={"Authorization": f"Basic {credentials}"},
+                    )
+                    projects_resp.raise_for_status()
+                    projects = projects_resp.json().get("data", [])
+                    if projects:
+                        project_id = projects[0]["id"]
+                        url = f"{base}/project/{project_id}/sessions/{campaign_id}"
+                        return TelemetrySessionResponse(available=True, url=url)
+        except Exception as exc:
+            logger.warning("[TELEMETRY] session check failed: %s", exc)
+        return TelemetrySessionResponse(available=False)
+
+    @router.get("/telemetry", response_model=TelemetryInfoResponse)
+    async def get_telemetry(
+        request: Request,
+        user: Annotated[KeycloakUser, Depends(get_current_user)],
+    ) -> TelemetryInfoResponse:
+        from fred_core import get_config
+        config = request.app.dependency_overrides.get(get_config, get_config)()
+        langfuse_session_url = await _resolve_langfuse_session_url(config)
+        return TelemetryInfoResponse(
+            enabled=config.observability.tracer == "langfuse",
+            langfuse_session_url=langfuse_session_url,
+        )
 
     @router.post("/campaigns/{campaign_id}/analyze", response_model=CampaignAnalysisResponse)
     async def analyze_campaign(

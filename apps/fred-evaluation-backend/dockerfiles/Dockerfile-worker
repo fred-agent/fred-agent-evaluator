@@ -21,9 +21,13 @@ COPY apps/fred-evaluation-backend/pyproject.toml apps/fred-evaluation-backend/uv
 COPY apps/fred-evaluation-backend/README.md ./
 COPY apps/fred-evaluation-backend/fred_evaluation_backend ./fred_evaluation_backend
 COPY scripts/makefiles /workspace/scripts/makefiles
-COPY libs/fred-core /workspace/libs/fred-core
+# fred-core / fred-sdk / fred-runtime come from PyPI; only fred-deepeval-cli is a
+# local editable path dependency (pulled in by the `scoring` extra).
+COPY libs/fred-deepeval-cli /workspace/libs/fred-deepeval-cli
 
-RUN make dev VENV=/app/venv TARGET=/app/target EXTRAS="scoring,worker,otel"
+# dev-scoring installs dev + scoring + worker + otel extras (the worker needs
+# deepeval/litellm + temporalio + opentelemetry). `make dev` only installs --extra dev.
+RUN make dev-scoring VENV=/app/venv TARGET=/app/target
 
 # -----------------------------------------------------------------------------
 # FINAL STAGE
@@ -45,7 +49,9 @@ WORKDIR /app
 COPY --chown=${USER_ID}:${GROUP_ID} apps/fred-evaluation-backend/pyproject.toml /workspace/apps/fred-evaluation-backend/pyproject.toml
 COPY --chown=${USER_ID}:${GROUP_ID} apps/fred-evaluation-backend/README.md /workspace/apps/fred-evaluation-backend/README.md
 COPY --chown=${USER_ID}:${GROUP_ID} apps/fred-evaluation-backend/fred_evaluation_backend /workspace/apps/fred-evaluation-backend/fred_evaluation_backend
-COPY --chown=${USER_ID}:${GROUP_ID} libs/fred-core /workspace/libs/fred-core
+# fred-deepeval-cli is installed editable, so its source must stay at the same
+# /workspace path in the final image.
+COPY --chown=${USER_ID}:${GROUP_ID} libs/fred-deepeval-cli /workspace/libs/fred-deepeval-cli
 
 USER ${USER_NAME}
 

@@ -21,8 +21,8 @@ export CONFIG_FILE
 
 
 .PHONY: dev-scoring
-dev-scoring: ## Install scoring extras (deepeval, fred-deepeval-cli) required by the worker
-	flock $(TARGET)/.compiled.lock sh -c '$(UV) sync --extra dev --extra scoring --extra worker --refresh-package fred-deepeval-cli && touch $(TARGET)/.compiled'
+dev-scoring: $(TARGET)/.uv-installed ## Install scoring+worker+otel extras required by the worker
+	flock $(TARGET)/.compiled.lock sh -c '$(UV) sync --extra dev --extra scoring --extra worker --extra otel --refresh-package fred-deepeval-cli && touch $(TARGET)/.compiled'
 	@echo "✅ Scoring dependencies installed."
 
 .PHONY: run-worker

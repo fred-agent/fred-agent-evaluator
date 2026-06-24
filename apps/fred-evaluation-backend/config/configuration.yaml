@@ -23,6 +23,10 @@ security:
     - http://localhost:5173
 
 observability:
+  tracer: langfuse # null | logging | langfuse
+  langfuse:
+    host: http://localhost:3001
+    # LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY come from .env
   kpi:
     log:
       enabled: true

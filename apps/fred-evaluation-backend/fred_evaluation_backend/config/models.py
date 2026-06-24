@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from fred_core import SecurityConfiguration
 from fred_core.common import KpiObservabilityConfig
 from fred_core.common.structures import OpenSearchStoreConfig, PostgresStoreConfig
@@ -27,7 +29,19 @@ class StorageConfig(BaseModel):
     opensearch: OpenSearchStoreConfig | None = None
 
 
+class LangfuseObservabilityConfig(BaseModel):
+    # Non-secret Langfuse settings; credentials come from the environment
+    # (LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY), per the Fred convention.
+    host: str = "http://localhost:3001"
+
+
 class ObservabilityConfig(BaseModel):
+    # Mirrors fred-runtime's PodObservabilityConfig shape: a tracer backend
+    # selector, Langfuse connection settings, and the shared KPI sink config.
+    tracer: Literal["null", "logging", "langfuse"] = "logging"
+    langfuse: LangfuseObservabilityConfig = Field(
+        default_factory=LangfuseObservabilityConfig
+    )
     kpi: KpiObservabilityConfig = Field(default_factory=KpiObservabilityConfig)
 
 

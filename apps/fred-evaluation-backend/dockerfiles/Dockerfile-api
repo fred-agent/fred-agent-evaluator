@@ -21,7 +21,8 @@ COPY apps/fred-evaluation-backend/pyproject.toml apps/fred-evaluation-backend/uv
 COPY apps/fred-evaluation-backend/README.md ./
 COPY apps/fred-evaluation-backend/fred_evaluation_backend ./fred_evaluation_backend
 COPY scripts/makefiles /workspace/scripts/makefiles
-COPY libs/fred-core /workspace/libs/fred-core
+# The API needs no local fred libs: fred-core/fred-sdk come from PyPI, and the
+# scoring path-dep (fred-deepeval-cli) is worker-only.
 
 RUN make dev VENV=/app/venv TARGET=/app/target
 
@@ -47,7 +48,6 @@ WORKDIR /app
 COPY --chown=${USER_ID}:${GROUP_ID} apps/fred-evaluation-backend/pyproject.toml /workspace/apps/fred-evaluation-backend/pyproject.toml
 COPY --chown=${USER_ID}:${GROUP_ID} apps/fred-evaluation-backend/README.md /workspace/apps/fred-evaluation-backend/README.md
 COPY --chown=${USER_ID}:${GROUP_ID} apps/fred-evaluation-backend/fred_evaluation_backend /workspace/apps/fred-evaluation-backend/fred_evaluation_backend
-COPY --chown=${USER_ID}:${GROUP_ID} libs/fred-core /workspace/libs/fred-core
 
 USER ${USER_NAME}
 
