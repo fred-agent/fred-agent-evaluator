@@ -13,4 +13,6 @@ def test_trace_to_test_case_maps_input_output_and_retrieval_context() -> None:
     test_case = _trace_to_test_case(trace, expected_output="Fred is an agent platform.")
     assert test_case.input == "What is Fred?"
     assert test_case.actual_output == "Fred is an agent platform."
-    assert test_case.retrieval_context == ["Fred is an agent platform built on LangGraph."]
+    assert test_case.retrieval_context == [
+        "Fred is an agent platform built on LangGraph."
+    ]

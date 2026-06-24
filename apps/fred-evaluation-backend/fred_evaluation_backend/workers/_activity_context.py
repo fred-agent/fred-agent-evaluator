@@ -8,6 +8,7 @@ Why this pattern:
 - The worker process initializes these singletons once before starting the
   Temporal worker, so all activity invocations share the same instances.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -16,7 +17,9 @@ if TYPE_CHECKING:
     from fred_evaluation_backend.campaigns.store import EvaluationStore
     from fred_evaluation_backend.config.models import EvaluationConfig
     from fred_evaluation_backend.execution.agent_client import AgentClient
-    from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
+    from fred_evaluation_backend.execution.control_plane_client import (
+        ControlPlaneClient,
+    )
 
 _store: "EvaluationStore | None" = None
 _config: "EvaluationConfig | None" = None

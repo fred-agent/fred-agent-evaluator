@@ -17,15 +17,18 @@ class FakeMetric:
 
 
 def _patch_metrics():
-    return patch.dict("sys.modules", {
-        "deepeval.metrics": MagicMock(
-            AnswerRelevancyMetric=FakeMetric,
-            FaithfulnessMetric=FakeMetric,
-            ContextualRelevancyMetric=FakeMetric,
-            ContextualPrecisionMetric=FakeMetric,
-            ContextualRecallMetric=FakeMetric,
-        )
-    })
+    return patch.dict(
+        "sys.modules",
+        {
+            "deepeval.metrics": MagicMock(
+                AnswerRelevancyMetric=FakeMetric,
+                FaithfulnessMetric=FakeMetric,
+                ContextualRelevancyMetric=FakeMetric,
+                ContextualPrecisionMetric=FakeMetric,
+                ContextualRecallMetric=FakeMetric,
+            )
+        },
+    )
 
 
 def test_score_trace_without_retrieval_context_only_uses_answer_relevancy() -> None:
@@ -57,7 +60,11 @@ def test_score_trace_with_retrieval_context_adds_faithfulness() -> None:
 def test_score_trace_with_sql_profile_only_uses_answer_relevancy() -> None:
     with _patch_metrics():
         metrics, errors = score_trace(
-            make_trace(agent_tags=["sql"], output="Average: 548.7", retrieval_context=["schema"]),
+            make_trace(
+                agent_tags=["sql"],
+                output="Average: 548.7",
+                retrieval_context=["schema"],
+            ),
             profile="sql",
             judge=object(),
         )

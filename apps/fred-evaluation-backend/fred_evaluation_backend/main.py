@@ -69,7 +69,9 @@ def create_app() -> FastAPI:
     temporal_client_provider: TemporalClientProvider | None = None
     temporal_task_queue: str | None = None
     if configuration.scheduler.backend == SchedulerBackend.TEMPORAL:
-        temporal_client_provider = TemporalClientProvider(configuration.scheduler.temporal)
+        temporal_client_provider = TemporalClientProvider(
+            configuration.scheduler.temporal
+        )
         temporal_task_queue = configuration.scheduler.temporal.task_queue
 
     @contextlib.asynccontextmanager

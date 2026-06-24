@@ -209,7 +209,9 @@ async def _execute_and_score_case_inner(
     )
     span.set_attribute(
         "gen_ai.completion",
-        f"verdict={verdict} | {metric_summary}" if metric_summary else f"verdict={verdict}",
+        f"verdict={verdict} | {metric_summary}"
+        if metric_summary
+        else f"verdict={verdict}",
     )
 
     if verdict == "failed":

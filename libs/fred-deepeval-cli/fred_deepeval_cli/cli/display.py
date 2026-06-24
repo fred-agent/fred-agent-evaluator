@@ -36,18 +36,22 @@ def render_score(
     header.add_row("Profile", result.profile)
 
     console.print()
-    console.print(Panel(header, title="[bold]fred-deepeval-cli[/bold]", border_style="cyan"))
+    console.print(
+        Panel(header, title="[bold]fred-deepeval-cli[/bold]", border_style="cyan")
+    )
 
     # ── Output agent ────────────────────────────────────────────────────────
     agent_output = result.actual_output or "—"
     console.print(Panel(agent_output, title="Output", border_style="yellow"))
 
     # ── Outcome ─────────────────────────────────────────────────────────────
-    console.print(Panel(
-        _outcome_text(result.outcome),
-        title="Outcome",
-        border_style="green" if result.outcome != "execution_error" else "red",
-    ))
+    console.print(
+        Panel(
+            _outcome_text(result.outcome),
+            title="Outcome",
+            border_style="green" if result.outcome != "execution_error" else "red",
+        )
+    )
 
     # ── Structural Checks ───────────────────────────────────────────────────
     if result.structural_checks:
@@ -58,7 +62,13 @@ def render_score(
         for check in result.structural_checks:
             table.add_row(check.name, _check_icon(check.passed))
 
-        console.print(Panel(table, title=f"Structural Checks [{result.profile}]", border_style="magenta"))
+        console.print(
+            Panel(
+                table,
+                title=f"Structural Checks [{result.profile}]",
+                border_style="magenta",
+            )
+        )
 
     # ── DeepEval Metrics ────────────────────────────────────────────────────
     if result.metrics:
@@ -70,18 +80,24 @@ def render_score(
 
         for m in result.metrics:
             score_str = f"{m.score:.2f}" if isinstance(m.score, float) else "—"
-            icon = "✅" if m.verdict == "passed" else ("⏭" if m.verdict == "skipped" else "❌")
+            icon = (
+                "✅"
+                if m.verdict == "passed"
+                else ("⏭" if m.verdict == "skipped" else "❌")
+            )
             table.add_row(m.name, score_str, icon, m.explanation or m.error or "—")
 
         console.print(Panel(table, title="DeepEval Metrics", border_style="blue"))
 
     # ── Erreurs ─────────────────────────────────────────────────────────────
     if result.scoring_errors:
-        console.print(Panel(
-            "\n".join(result.scoring_errors),
-            title="Scoring Errors",
-            border_style="red",
-        ))
+        console.print(
+            Panel(
+                "\n".join(result.scoring_errors),
+                title="Scoring Errors",
+                border_style="red",
+            )
+        )
 
     console.print()
 
@@ -125,7 +141,11 @@ def render_campaign(results: list[dict]) -> None:
 
     for r in results:
         raw_metrics = r.get("metrics", {})
-        metrics_by_name = raw_metrics if isinstance(raw_metrics, dict) else {m["name"]: m for m in raw_metrics}
+        metrics_by_name = (
+            raw_metrics
+            if isinstance(raw_metrics, dict)
+            else {m["name"]: m for m in raw_metrics}
+        )
         table.add_row(
             r["id"],
             r["outcome"],
@@ -201,8 +221,10 @@ def render_sql_campaign(results: list[dict]) -> None:
 
     total = len(results)
     color = "green" if passed == total else "yellow" if passed > 0 else "red"
-    console.print(Panel(
-        f"[bold {color}]{passed}/{total} scénarios passés[/bold {color}]",
-        border_style=color,
-    ))
+    console.print(
+        Panel(
+            f"[bold {color}]{passed}/{total} scénarios passés[/bold {color}]",
+            border_style=color,
+        )
+    )
     console.print()

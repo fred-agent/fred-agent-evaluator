@@ -355,9 +355,7 @@ class EvaluationStore:
                 EvaluationExportDeliveryRow,
                 EvaluationCaseRow,
             ):
-                await s.execute(
-                    delete(table).where(table.campaign_id == campaign_id)
-                )
+                await s.execute(delete(table).where(table.campaign_id == campaign_id))
             await s.delete(row)
             return True
 

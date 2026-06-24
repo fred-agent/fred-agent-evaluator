@@ -24,7 +24,10 @@ async def _run_temporal_worker(configuration, engine, cp_client) -> None:
 
     from temporalio.client import Client
     from temporalio.worker import Worker
-    from temporalio.worker.workflow_sandbox import SandboxedWorkflowRunner, SandboxRestrictions
+    from temporalio.worker.workflow_sandbox import (
+        SandboxedWorkflowRunner,
+        SandboxRestrictions,
+    )
 
     from fred_evaluation_backend.workers import _activity_context
     from fred_evaluation_backend.workers.workflow import (
@@ -99,7 +102,9 @@ async def main() -> None:
         await _run_temporal_worker(configuration, engine, cp_client)
     else:
         logger.info("Scheduler backend: MEMORY (asyncio polling)")
-        runner = CampaignRunner(config=configuration, engine=engine, cp_client=cp_client)
+        runner = CampaignRunner(
+            config=configuration, engine=engine, cp_client=cp_client
+        )
         await runner.run_forever()
 
 

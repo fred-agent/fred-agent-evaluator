@@ -8,12 +8,15 @@ from fred_deepeval_cli.cli.main import run_score
 from fred_deepeval_cli.core.models import EvaluationCaseResult, EvaluationMetricResult
 
 
-def _make_result(outcome="success", profile="default", metrics=None) -> EvaluationCaseResult:
+def _make_result(
+    outcome="success", profile="default", metrics=None
+) -> EvaluationCaseResult:
     return EvaluationCaseResult(
         outcome=outcome,
         profile=profile,
         structural_checks=[],
-        metrics=metrics or [
+        metrics=metrics
+        or [
             EvaluationMetricResult(
                 name="AnswerRelevancyMetric",
                 provider="deepeval",

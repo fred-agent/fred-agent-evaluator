@@ -66,21 +66,25 @@ def score_trace(
     for metric in metrics:
         try:
             metric.measure(test_case)
-            results.append(EvaluationMetricResult(
-                name=metric.__class__.__name__,
-                provider="deepeval",
-                score=metric.score,
-                verdict="passed" if metric.success else "insufficient",
-                explanation=getattr(metric, "reason", None),
-            ))
+            results.append(
+                EvaluationMetricResult(
+                    name=metric.__class__.__name__,
+                    provider="deepeval",
+                    score=metric.score,
+                    verdict="passed" if metric.success else "insufficient",
+                    explanation=getattr(metric, "reason", None),
+                )
+            )
         except Exception as e:
             scoring_errors.append(f"{metric.__class__.__name__}: {e}")
-            results.append(EvaluationMetricResult(
-                name=metric.__class__.__name__,
-                provider="deepeval",
-                score=None,
-                verdict="error",
-                error=str(e),
-            ))
+            results.append(
+                EvaluationMetricResult(
+                    name=metric.__class__.__name__,
+                    provider="deepeval",
+                    score=None,
+                    verdict="error",
+                    error=str(e),
+                )
+            )
 
     return results, scoring_errors

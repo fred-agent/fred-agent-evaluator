@@ -8,7 +8,11 @@ def test_evaluation_case_request_builds_runtime_context() -> None:
         agent_id="fred.github.rag_expert",
         input="Quels sont les trois métriques ?",
         session_id="eval-001",
-        runtime_context={"user_id": "alice", "team_id": "team-alpha", "search_policy": "semantic"},
+        runtime_context={
+            "user_id": "alice",
+            "team_id": "team-alpha",
+            "search_policy": "semantic",
+        },
     )
     assert request.runtime_context["user_id"] == "alice"
     assert request.runtime_context["team_id"] == "team-alpha"

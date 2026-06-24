@@ -32,7 +32,9 @@ def compare_expected_flow(checks: list[dict], expected_flow: dict) -> list[str]:
     if expected_query_executed is not None:
         actual = checks_by_name.get("sql_query_executed")
         if actual != expected_query_executed:
-            failures.append(f"query_executed expected={expected_query_executed} actual={actual}")
+            failures.append(
+                f"query_executed expected={expected_query_executed} actual={actual}"
+            )
 
     return failures
 
@@ -90,15 +92,21 @@ def compare_expected_values(trace: dict, expected_values: dict) -> list[str]:
     query_result = extract_latest_query_result(trace)
     rows = query_result.get("rows", []) if isinstance(query_result, dict) else []
 
-    expects_query_result = any(key in expected_values for key in ("row_count", "first_row", "contains_rows"))
+    expects_query_result = any(
+        key in expected_values for key in ("row_count", "first_row", "contains_rows")
+    )
     if expects_query_result and query_result is None:
-        failures.append("expected query result but no successful read_query result was found")
+        failures.append(
+            "expected query result but no successful read_query result was found"
+        )
         return failures
 
     if expected_values.get("row_count") is not None:
         expected_row_count = expected_values["row_count"]
         if len(rows) != expected_row_count:
-            failures.append(f"row_count expected={expected_row_count} actual={len(rows)}")
+            failures.append(
+                f"row_count expected={expected_row_count} actual={len(rows)}"
+            )
 
     expected_first_row = expected_values.get("first_row")
     if expected_first_row is not None:
@@ -117,7 +125,9 @@ def compare_expected_values(trace: dict, expected_values: dict) -> list[str]:
 def summarize_observed_values(trace: dict) -> dict:
     query_result = extract_latest_query_result(trace)
     rows = query_result.get("rows", []) if isinstance(query_result, dict) else []
-    sql_query = query_result.get("sql_query") if isinstance(query_result, dict) else None
+    sql_query = (
+        query_result.get("sql_query") if isinstance(query_result, dict) else None
+    )
     return {
         "sql_query": sql_query,
         "query_row_count": len(rows),
@@ -147,7 +157,9 @@ def evaluate_scenario(
     )
 
     trace = fetch_trace(base_url=base_url, request=request, access_token=access_token)
-    result = evaluate_case_sync(base_url=base_url, request=request, access_token=access_token)
+    result = evaluate_case_sync(
+        base_url=base_url, request=request, access_token=access_token
+    )
 
     checks_as_dicts = [c.model_dump() for c in result.structural_checks]
     failures = compare_expected_flow(checks_as_dicts, scenario.get("expected_flow", {}))

@@ -6,8 +6,17 @@ from fred_deepeval_cli.core.structural_checks import build_structural_checks
 def test_sql_query_executed_returns_true_when_read_query_succeeds() -> None:
     trace = {
         "steps": [
-            {"kind": "tool_call", "tool_name": "read_query", "arguments": {"query": "SELECT 1"}},
-            {"kind": "tool_result", "tool_name": "read_query", "content": '{"rows": [{"value": 1}]}', "is_error": False},
+            {
+                "kind": "tool_call",
+                "tool_name": "read_query",
+                "arguments": {"query": "SELECT 1"},
+            },
+            {
+                "kind": "tool_result",
+                "tool_name": "read_query",
+                "content": '{"rows": [{"value": 1}]}',
+                "is_error": False,
+            },
         ]
     }
     checks = build_structural_checks(trace, profile="sql")
@@ -18,8 +27,17 @@ def test_sql_query_executed_returns_true_when_read_query_succeeds() -> None:
 def test_sql_query_executed_returns_false_when_read_query_failed() -> None:
     trace = {
         "steps": [
-            {"kind": "tool_call", "tool_name": "read_query", "arguments": {"query": "SELECT 1"}},
-            {"kind": "tool_result", "tool_name": "read_query", "content": "Error: query failed", "is_error": True},
+            {
+                "kind": "tool_call",
+                "tool_name": "read_query",
+                "arguments": {"query": "SELECT 1"},
+            },
+            {
+                "kind": "tool_result",
+                "tool_name": "read_query",
+                "content": "Error: query failed",
+                "is_error": True,
+            },
         ]
     }
     checks = build_structural_checks(trace, profile="sql")
@@ -31,7 +49,12 @@ def test_sql_no_execution_error_returns_true_for_clean_run() -> None:
     trace = {
         "error": None,
         "steps": [
-            {"kind": "tool_result", "tool_name": "read_query", "content": '{"rows": [{"value": 1}]}', "is_error": False}
+            {
+                "kind": "tool_result",
+                "tool_name": "read_query",
+                "content": '{"rows": [{"value": 1}]}',
+                "is_error": False,
+            }
         ],
     }
     checks = build_structural_checks(trace, profile="sql")
@@ -49,8 +72,17 @@ def test_sql_no_execution_error_returns_false_for_global_error() -> None:
 def test_sql_query_executed_returns_true_when_list_tabular_datasets_succeeds() -> None:
     trace = {
         "steps": [
-            {"kind": "tool_call", "tool_name": "list_tabular_datasets", "arguments": {}},
-            {"kind": "tool_result", "tool_name": "list_tabular_datasets", "content": '["commandes"]', "is_error": False},
+            {
+                "kind": "tool_call",
+                "tool_name": "list_tabular_datasets",
+                "arguments": {},
+            },
+            {
+                "kind": "tool_result",
+                "tool_name": "list_tabular_datasets",
+                "content": '["commandes"]',
+                "is_error": False,
+            },
         ]
     }
     checks = build_structural_checks(trace, profile="sql")
@@ -69,7 +101,12 @@ def test_build_structural_checks_returns_sql_checks_for_sql_profile() -> None:
     trace = {
         "steps": [
             {"kind": "tool_call", "tool_name": "read_query"},
-            {"kind": "tool_result", "tool_name": "read_query", "content": "results", "is_error": False},
+            {
+                "kind": "tool_result",
+                "tool_name": "read_query",
+                "content": "results",
+                "is_error": False,
+            },
         ],
         "error": None,
     }

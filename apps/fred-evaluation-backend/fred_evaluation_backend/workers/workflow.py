@@ -8,6 +8,7 @@ Why this separation:
   Any non-deterministic code (DB calls, HTTP, time) must live in activities.
 - Activities run exactly once per schedule and can be retried independently.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -192,7 +193,9 @@ class CampaignWorkflow:
         )
 
         workflow.logger.info(
-            "[CAMPAIGN-WORKFLOW] campaign=%s running %d cases", campaign_id, len(case_ids)
+            "[CAMPAIGN-WORKFLOW] campaign=%s running %d cases",
+            campaign_id,
+            len(case_ids),
         )
 
         # Run all cases in parallel — each case is an independent activity

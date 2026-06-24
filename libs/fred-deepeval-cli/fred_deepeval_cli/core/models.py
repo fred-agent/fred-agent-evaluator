@@ -31,7 +31,9 @@ class EvaluationCaseRequest(BaseModel):
 
 class EvaluationCaseResult(BaseModel):
     schema_version: Literal["1"] = "1"
-    outcome: Literal["success", "execution_error", "degraded", "hitl_blocked", "unknown"]
+    outcome: Literal[
+        "success", "execution_error", "degraded", "hitl_blocked", "unknown"
+    ]
     profile: str
     structural_checks: list[StructuralCheckResult]
     metrics: list[EvaluationMetricResult]

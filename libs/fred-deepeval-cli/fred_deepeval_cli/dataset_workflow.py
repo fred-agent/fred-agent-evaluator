@@ -24,7 +24,11 @@ async def evaluate_question_activity(params: dict) -> dict:
         runtime_context={
             "user_id": params["user_id"],
             **({"team_id": params["team_id"]} if params.get("team_id") else {}),
-            **({"search_policy": params["search_policy"]} if params.get("search_policy") else {}),
+            **(
+                {"search_policy": params["search_policy"]}
+                if params.get("search_policy")
+                else {}
+            ),
         },
     )
 
@@ -96,7 +100,9 @@ async def run_with_temporal(questions: list[dict]) -> list[dict]:
     return results
 
 
-async def run_with_temporal_server(questions: list[dict], server_url: str) -> list[dict]:
+async def run_with_temporal_server(
+    questions: list[dict], server_url: str
+) -> list[dict]:
     """Lance le workflow sur un serveur Temporal réel (production)."""
     client = await Client.connect(server_url)
     async with Worker(

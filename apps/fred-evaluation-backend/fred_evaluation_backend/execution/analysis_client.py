@@ -68,7 +68,9 @@ def _build_prompt(
                 expl = f" | {m.explanation}" if m.explanation else ""
                 case_lines.append(f"         {m.name}: {score_str} ({m.verdict}){expl}")
 
-    cases_section = "\n".join(case_lines) if case_lines else "  No case details available."
+    cases_section = (
+        "\n".join(case_lines) if case_lines else "  No case details available."
+    )
 
     return (
         f"You are a senior AI/ML engineer at Thales reviewing an automated evaluation report "
@@ -83,13 +85,13 @@ def _build_prompt(
         f"EVALUATION FOCUS: {focus}\n\n"
         f"Return ONLY a valid JSON object. No markdown, no explanation outside the JSON.\n"
         f"Schema:\n"
-        f'{{\n'
+        f"{{\n"
         f'  "summary": "2-3 technical sentences on overall pipeline health",\n'
         f'  "strengths": ["concrete observation with metric reference", ...],\n'
         f'  "weaknesses": ["specific failure with root cause hypothesis", ...],\n'
         f'  "recommendations": ["prioritised, actionable engineering task", ...],\n'
         f'  "risk_level": "low" | "medium" | "high"\n'
-        f'}}'
+        f"}}"
     )
 
 
@@ -120,7 +122,11 @@ class AnalysisClient:
             metric_averages=metric_averages,
             cases=cases,
         )
-        logger.info("[ANALYSIS] calling Mistral model=%s prompt_chars=%d", self._model, len(prompt))
+        logger.info(
+            "[ANALYSIS] calling Mistral model=%s prompt_chars=%d",
+            self._model,
+            len(prompt),
+        )
 
         async with httpx.AsyncClient(timeout=60) as client:
             response = await client.post(

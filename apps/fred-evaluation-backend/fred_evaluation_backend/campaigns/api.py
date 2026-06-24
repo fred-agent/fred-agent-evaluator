@@ -25,7 +25,10 @@ from fred_evaluation_backend.campaigns.schemas import (
     EvaluationCaseListResponse,
     EvaluationCaseResponse,
 )
-from fred_evaluation_backend.execution.analysis_client import CaseDetail, CaseMetricDetail
+from fred_evaluation_backend.execution.analysis_client import (
+    CaseDetail,
+    CaseMetricDetail,
+)
 from fred_evaluation_backend.campaigns.store import EvaluationStore
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
 
@@ -106,9 +109,15 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
 
         temporal_provider = _get_temporal_client_provider(request)
         if temporal_provider is not None:
-            from fred_evaluation_backend.workers.workflow import CampaignInput, CampaignWorkflow
+            from fred_evaluation_backend.workers.workflow import (
+                CampaignInput,
+                CampaignWorkflow,
+            )
 
-            task_queue = getattr(request.app.state, "temporal_task_queue", "evaluation") or "evaluation"
+            task_queue = (
+                getattr(request.app.state, "temporal_task_queue", "evaluation")
+                or "evaluation"
+            )
             client = await temporal_provider.get_client()
             await client.start_workflow(
                 CampaignWorkflow.run,
@@ -226,13 +235,16 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         await service.delete_campaign(campaign_id, store=store)
         return Response(status_code=204)
 
-    @router.get("/telemetry/session/{campaign_id}", response_model=TelemetrySessionResponse)
+    @router.get(
+        "/telemetry/session/{campaign_id}", response_model=TelemetrySessionResponse
+    )
     async def get_telemetry_session(
         campaign_id: str,
         request: Request,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
     ) -> TelemetrySessionResponse:
         from fred_core import get_config
+
         config = request.app.dependency_overrides.get(get_config, get_config)()
         obs = config.observability
         if obs.tracer != "langfuse":
@@ -270,6 +282,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         user: Annotated[KeycloakUser, Depends(get_current_user)],
     ) -> TelemetryInfoResponse:
         from fred_core import get_config
+
         config = request.app.dependency_overrides.get(get_config, get_config)()
         langfuse_session_url = await _resolve_langfuse_session_url(config)
         return TelemetryInfoResponse(
@@ -277,7 +290,9 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
             langfuse_session_url=langfuse_session_url,
         )
 
-    @router.post("/campaigns/{campaign_id}/analyze", response_model=CampaignAnalysisResponse)
+    @router.post(
+        "/campaigns/{campaign_id}/analyze", response_model=CampaignAnalysisResponse
+    )
     async def analyze_campaign(
         campaign_id: str,
         request: Request,
@@ -298,7 +313,9 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
 
         analysis_client = getattr(request.app.state, "analysis_client", None)
         if analysis_client is None:
-            raise HTTPException(status_code=503, detail="Analysis service not configured")
+            raise HTTPException(
+                status_code=503, detail="Analysis service not configured"
+            )
 
         metric_averages: dict[str, float] = {}
         if campaign.metric_averages_json:
@@ -348,8 +365,12 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         # Normalize fields that Mistral sometimes returns as objects instead of strings
         for field in ("strengths", "weaknesses", "recommendations"):
             analysis_data[field] = [
-                item if isinstance(item, str)
-                else item.get("task") or item.get("recommendation") or item.get("description") or next(iter(item.values()), str(item))
+                item
+                if isinstance(item, str)
+                else item.get("task")
+                or item.get("recommendation")
+                or item.get("description")
+                or next(iter(item.values()), str(item))
                 for item in analysis_data.get(field, [])
             ]
 

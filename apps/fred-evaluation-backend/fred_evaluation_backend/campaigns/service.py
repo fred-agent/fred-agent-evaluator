@@ -252,7 +252,9 @@ async def delete_campaign(
 ) -> None:
     row = await store.get_campaign(campaign_id)
     if row is None:
-        raise HTTPException(status_code=404, detail=f"Campaign '{campaign_id}' not found.")
+        raise HTTPException(
+            status_code=404, detail=f"Campaign '{campaign_id}' not found."
+        )
     if row.operational_state == "running":
         raise HTTPException(
             status_code=409,
