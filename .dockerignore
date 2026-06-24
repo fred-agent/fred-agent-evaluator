@@ -1,0 +1,40 @@
+# Build context hygiene for the API/worker images.
+# The Dockerfiles build from the repo root and COPY only:
+#   apps/fred-evaluation-backend/{Makefile,pyproject.toml,uv.lock,README.md,fred_evaluation_backend}
+#   scripts/makefiles
+#   libs/fred-deepeval-cli   (worker only)
+# Everything below is large or irrelevant to the build. Note: we deliberately do
+# NOT ignore migrations/ — the image runs `alembic upgrade head` as a job.
+
+# Version control
+**/.git
+**/.gitignore
+
+# Virtual environments and build markers (the heavy stuff)
+**/.venv/
+**/venv/
+**/target/
+**/build/
+**/dist/
+
+# Python caches / artifacts
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
+**/.ruff_cache/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.coverage
+**/htmlcov/
+
+# Node (if any frontend is colocated)
+**/node_modules/
+
+# Local env / secrets — config is mounted at runtime, never baked in
+**/.env
+
+# OS / editor noise
+**/.DS_Store
+**/.vscode/
+**/.idea/
+**/*.swp
