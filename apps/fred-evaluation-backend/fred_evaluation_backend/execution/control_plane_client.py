@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 
 import httpx
+from fred_core import M2MBearerAuth, M2MTokenProvider
 from fred_sdk.contracts.execution import ExecutionGrant
 from pydantic import BaseModel
 
@@ -32,18 +33,16 @@ class ControlPlaneClient:
     def __init__(
         self,
         base_url: str,
-        service_token: str | None = None,
+        token_provider: M2MTokenProvider | None = None,
         runtime_base_url: str = "",
     ) -> None:
         self._base_url = base_url.rstrip("/")
-        self._service_token = service_token
+        self._token_provider = token_provider
+        self._auth = M2MBearerAuth(token_provider) if token_provider else None
         self._runtime_base_url = runtime_base_url.rstrip("/")
 
     def _headers(self) -> dict:
-        headers = {"Content-Type": "application/json"}
-        if self._service_token:
-            headers["Authorization"] = f"Bearer {self._service_token}"
-        return headers
+        return {"Content-Type": "application/json"}
 
     async def prepare_runtime_agent_execution(
         self,
@@ -63,7 +62,7 @@ class ControlPlaneClient:
             agent_id,
         )
         async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(url, headers=self._headers())
+            response = await client.post(url, headers=self._headers(), auth=self._auth)
             response.raise_for_status()
             data = response.json()
             evaluate_url = data.get("evaluate_url", "")
@@ -90,7 +89,7 @@ class ControlPlaneClient:
             agent_instance_id,
         )
         async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(url, headers=self._headers())
+            response = await client.post(url, headers=self._headers(), auth=self._auth)
             response.raise_for_status()
             data = response.json()
             execute_url = data["execute_url"]

@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch
 
 from fred_deepeval_cli.cli.main import run_score
 from fred_deepeval_cli.core.models import EvaluationCaseResult, EvaluationMetricResult
-from fred_deepeval_cli.test_helpers import make_response, make_trace
 
 
 def _make_result(outcome="success", profile="default", metrics=None) -> EvaluationCaseResult:

@@ -1,13 +1,35 @@
-database:
-  sqlite_path: "~/.fred/evaluation/evaluation.sqlite3"
+app:
+  name: Fred Evaluation Backend
+  base_url: /evaluation/v1
+  address: 0.0.0.0
+  port: 8333
+  log_level: info
+
+storage:
+  postgres:
+    sqlite_path: "~/.fred/evaluation/evaluation.sqlite3"
 
 security:
   user:
     enabled: false
     realm_url: http://localhost:8080/realms/app
     client_id: app
+  m2m:
+    enabled: false
+    realm_url: http://localhost:8080/realms/app
+    client_id: evaluation
+    secret_env_var: KEYCLOAK_EVALUATION_CLIENT_SECRET # pragma: allowlist secret
   authorized_origins:
     - http://localhost:5173
+
+observability:
+  kpi:
+    log:
+      enabled: true
+    prometheus:
+      enabled: false
+    opensearch:
+      enabled: false
 
 control_plane:
   base_url: http://localhost:8222/control-plane/v1

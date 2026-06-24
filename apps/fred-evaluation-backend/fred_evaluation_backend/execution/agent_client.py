@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 import httpx
+from fred_core import M2MBearerAuth, M2MTokenProvider
 from fred_sdk.contracts.eval import EvalTrace
 from fred_sdk.contracts.execution import ExecutionGrant
 
@@ -22,14 +23,18 @@ class AgentClient:
         agent_instance_id: str | None = None,
         session_id: str,
         input: str,
-        service_token: str | None = None,
+        token_provider: M2MTokenProvider | None = None,
     ) -> EvalTrace:
         token = execution_grant.model_dump_json()
         headers = {
             "Content-Type": "application/json",
             "X-Execution-Grant": token,
         }
-        headers["Authorization"] = f"Bearer {service_token or 'dev'}"
+        # When M2M is configured the bearer token is injected by M2MBearerAuth;
+        # otherwise fall back to a dev token (local stacks run agents without auth).
+        auth = M2MBearerAuth(token_provider) if token_provider else None
+        if auth is None:
+            headers["Authorization"] = "Bearer dev"
         body: dict = {
             "session_id": session_id,
             "input": input,
@@ -46,6 +51,8 @@ class AgentClient:
             session_id,
         )
         async with httpx.AsyncClient(timeout=self._timeout) as client:
-            response = await client.post(evaluate_url, headers=headers, json=body)
+            response = await client.post(
+                evaluate_url, headers=headers, json=body, auth=auth
+            )
             response.raise_for_status()
             return EvalTrace.model_validate(response.json())

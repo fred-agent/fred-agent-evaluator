@@ -16,6 +16,7 @@ from fred_core.sql import create_async_engine_from_config
 from fred_evaluation_backend.campaigns.api import build_evaluations_router
 from fred_evaluation_backend.config.loader import load_configuration
 from fred_evaluation_backend.execution.analysis_client import AnalysisClient
+from fred_evaluation_backend.execution.auth import build_m2m_token_provider
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
 
 logger = logging.getLogger(__name__)
@@ -41,15 +42,15 @@ def create_app() -> FastAPI:
 
     initialize_user_security(configuration.security.user)
     docs_enabled = read_env_bool("PRODUCTION_FASTAPI_DOCS_ENABLED", default=True)
-    engine = create_async_engine_from_config(configuration.database)
+    engine = create_async_engine_from_config(configuration.storage.postgres)
     init_user_store(engine)
 
     import os
 
-    cp_token = os.environ.get(configuration.control_plane.credential_ref)
+    token_provider = build_m2m_token_provider(configuration.security)
     control_plane_client = ControlPlaneClient(
         base_url=configuration.control_plane.base_url,
-        service_token=cp_token,
+        token_provider=token_provider,
         runtime_base_url=configuration.control_plane.runtime_base_url,
     )
 

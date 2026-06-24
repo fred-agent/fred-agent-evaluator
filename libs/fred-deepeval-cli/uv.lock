@@ -77,6 +77,20 @@ wheels = [
 ]
 
 [[package]]
+name = "alembic"
+version = "1.18.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "mako" },
+    { name = "sqlalchemy" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/94/13/8b084e0f2efb0275a1d534838844926f798bd766566b1375174e2448cd31/alembic-1.18.4.tar.gz", hash = "sha256:cb6e1fd84b6174ab8dbb2329f86d631ba9559dd78df550b57804d607672cedbc", size = 2056725, upload-time = "2026-02-10T16:00:47.195Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d2/29/6533c317b74f707ea28f8d633734dbda2119bbadfc61b2f3640ba835d0f7/alembic-1.18.4-py3-none-any.whl", hash = "sha256:a5ed4adcf6d8a4cb575f3d759f071b03cd6e5c7618eb796cb52497be25bfe19a", size = 263893, upload-time = "2026-02-10T16:00:49.997Z" },
+]
+
+[[package]]
 name = "annotated-doc"
 version = "0.0.4"
 source = { registry = "https://pypi.org/simple" }
@@ -601,7 +615,7 @@ wheels = [
 
 [[package]]
 name = "fred-core"
-version = "2.0.4"
+version = "3.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiosqlite" },
@@ -609,6 +623,7 @@ dependencies = [
     { name = "authzed" },
     { name = "azure-identity" },
     { name = "fastapi" },
+    { name = "greenlet" },
     { name = "httpx" },
     { name = "langchain-core" },
     { name = "langchain-google-genai" },
@@ -631,14 +646,14 @@ dependencies = [
     { name = "temporalio" },
     { name = "uv" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/54/eb/77ef421eaae94330747abf1608b3e17c24ed0361e5701d1ee68c3932b70b/fred_core-2.0.4.tar.gz", hash = "sha256:2af53a483ff6d95700cb5df68f7aa63ebce92757e547c1406e1204a3e5b53331", size = 144633, upload-time = "2026-06-01T11:17:08.098Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2e/52/0c0dc42cbefa40a372572e93ef09a82fb0f6445ccac65eeb50f96489a332/fred_core-3.1.0.tar.gz", hash = "sha256:dc56c4194a8be75cff1aeeed17902b0ebd1c954e9a3d15e8a989d3fba2e8ed8e", size = 172822, upload-time = "2026-06-22T10:50:43.959Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b5/4c/4fa055c859a045eafadeeb8d28790f614fb4ac24d74aca495a99e31eea0a/fred_core-2.0.4-py3-none-any.whl", hash = "sha256:37cf43e032b5f386607ca3b9b167d5e6d6f372b7956990812ae11df81c5eab90", size = 205050, upload-time = "2026-06-01T11:17:09.357Z" },
+    { url = "https://files.pythonhosted.org/packages/a7/32/64f257ba794ab0cbe75eeeb0755e90ad676b7627c3083a5d1c7d3cac8707/fred_core-3.1.0-py3-none-any.whl", hash = "sha256:3d0b597a9201701fa69535271bbbe98db5be1d155dd09aa5a312f8a2dcb50c48", size = 263898, upload-time = "2026-06-22T10:50:45.947Z" },
 ]
 
 [[package]]
 name = "fred-deepeval-cli"
-version = "0.1.0"
+version = "0.1.3"
 source = { editable = "." }
 dependencies = [
     { name = "fred-runtime" },
@@ -669,8 +684,8 @@ requires-dist = [
     { name = "basedpyright", marker = "extra == 'dev'", specifier = "==1.31.0" },
     { name = "deepeval", marker = "extra == 'eval'" },
     { name = "detect-secrets", marker = "extra == 'dev'", specifier = ">=1.5.0" },
-    { name = "fred-runtime", specifier = ">=2.0.8" },
-    { name = "fred-sdk", specifier = ">=2.0.7" },
+    { name = "fred-runtime", specifier = ">=3.1.0" },
+    { name = "fred-sdk", specifier = ">=3.1.0" },
     { name = "litellm", marker = "extra == 'eval'" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.4.2" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6.2.1" },
@@ -684,9 +699,10 @@ provides-extras = ["dev", "eval"]
 
 [[package]]
 name = "fred-runtime"
-version = "2.0.8"
+version = "3.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "alembic" },
     { name = "deepagents" },
     { name = "fred-core" },
     { name = "fred-sdk" },
@@ -699,14 +715,14 @@ dependencies = [
     { name = "pyyaml" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b2/a5/143300ed9fa02db0d26295e03d003d711cccd8a144543aad05527f9a8c86/fred_runtime-2.0.8.tar.gz", hash = "sha256:21725180816e7591e0ae72d6dafb2e3221d37276042bd46f59acb5cb4bec52ba", size = 231132, upload-time = "2026-06-03T01:42:08.48Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9e/2e/41edfc2c8dbe8d064a83fb35e943ae8eac8098e18f0fd10370dd11d5a949/fred_runtime-3.1.0.tar.gz", hash = "sha256:8eebfa7bbc001dfc8d4b166b7540e434dedfe4e8633d0839c9ef1c47933de3a6", size = 247073, upload-time = "2026-06-22T10:51:13.084Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d7/6e/38a08fdfdcff9ba609fa30c3da5a410c362b919b5dff2fa8abbd6c6b7987/fred_runtime-2.0.8-py3-none-any.whl", hash = "sha256:c7593ffcc7e851f5758ec373cba2ddd02073bca69ee0134d15b35b918a8ab5ff", size = 227948, upload-time = "2026-06-03T01:42:06.68Z" },
+    { url = "https://files.pythonhosted.org/packages/0d/e0/bb2504e1dfd38de7b46383ea2b580e7d8cc94cde3263851737c2feb2ecd3/fred_runtime-3.1.0-py3-none-any.whl", hash = "sha256:bba7c5d761d271f83b6ce10eaecab012c150d892b7abf167e339b2d5ec1692ec", size = 245769, upload-time = "2026-06-22T10:51:11.254Z" },
 ]
 
 [[package]]
 name = "fred-sdk"
-version = "2.0.7"
+version = "3.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fred-core" },
@@ -716,9 +732,9 @@ dependencies = [
     { name = "langgraph" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ea/b4/cec05ddf0ce0381c6c251715693de49653b423f1b4193e6d228a47fa5d5e/fred_sdk-2.0.7.tar.gz", hash = "sha256:db6e212640493e0ed9d4a5a92ee3646e155f2ff73ab0aaa2db63fabf15a32111", size = 107493, upload-time = "2026-06-03T01:42:26.617Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/26/2f/dc61c860403126a29fc655a595d7b4ff229dcabb60cf2f8f250b1625aaa5/fred_sdk-3.1.0.tar.gz", hash = "sha256:f2332ce2b8d9fe13d57ba1b2b6569cb8187ae64028f2cffa96fb6c7b315132e9", size = 113772, upload-time = "2026-06-22T10:51:00.696Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/10/f7/9efa2b44b8f82485df614f1fd06121c216f6fb39882aeb650c398591dc72/fred_sdk-2.0.7-py3-none-any.whl", hash = "sha256:8427c30edc16618aedfc19b0a7b5906db76015f12331a9536d465d7b0aa9142b", size = 111444, upload-time = "2026-06-03T01:42:24.881Z" },
+    { url = "https://files.pythonhosted.org/packages/20/1e/c2b23e4dd1d6283c8a2963e43d0808ef2ecff7e57e5936bccc061b0eb0bb/fred_sdk-3.1.0-py3-none-any.whl", hash = "sha256:193fee7d0cd10e716cc26e9109ea099e02f986e53f330d812bd53e446bde9f5f", size = 118499, upload-time = "2026-06-22T10:50:58.754Z" },
 ]
 
 [[package]]
@@ -971,7 +987,9 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/ef/32/f2ce6d4cac3e55bc6173f92dbe627e782e1850f89d986c3606feb63aafa7/greenlet-3.5.0-cp312-cp312-macosx_11_0_universal2.whl", hash = "sha256:db2910d3c809444e0a20147361f343fe2798e106af8d9d8506f5305302655a9f", size = 286228, upload-time = "2026-04-27T12:20:34.421Z" },
     { url = "https://files.pythonhosted.org/packages/b7/aa/caed9e5adf742315fc7be2a84196373aab4816e540e38ba0d76cb7584d68/greenlet-3.5.0-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:3ec9ea74e7268ace7f9aab1b1a4e730193fc661b39a993cd91c606c32d4a3628", size = 601775, upload-time = "2026-04-27T12:52:41.045Z" },
     { url = "https://files.pythonhosted.org/packages/c7/af/90ae08497400a941595d12774447f752d3dfe0fbb012e35b76bc5c0ff37e/greenlet-3.5.0-cp312-cp312-manylinux_2_24_ppc64le.manylinux_2_28_ppc64le.whl", hash = "sha256:54d243512da35485fc7a6bf3c178fdda6327a9d6506fcdd62b1abd1e41b2927b", size = 614436, upload-time = "2026-04-27T12:59:41.595Z" },
+    { url = "https://files.pythonhosted.org/packages/3f/e9/4eeadf8cb3403ac274245ba75f07844abc7fa5f6787583fc9156ba741e0f/greenlet-3.5.0-cp312-cp312-manylinux_2_24_s390x.manylinux_2_28_s390x.whl", hash = "sha256:41353ec2ecedf7aa8f682753a41919f8718031a6edac46b8d3dc7ed9e1ceb136", size = 620610, upload-time = "2026-04-27T13:02:39.194Z" },
     { url = "https://files.pythonhosted.org/packages/2b/e0/2e13df68f367e2f9960616927d60857dd7e56aaadd59a47c644216b2f920/greenlet-3.5.0-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:9d280a7f5c331622c69f97eb167f33577ff2d1df282c41cd15907fc0a3ca198c", size = 611388, upload-time = "2026-04-27T12:25:28.008Z" },
+    { url = "https://files.pythonhosted.org/packages/ee/ef/f913b3c0eb7d26d86a2401c5e1546c9d46b657efee724b06f6f4ac5d8824/greenlet-3.5.0-cp312-cp312-manylinux_2_39_riscv64.whl", hash = "sha256:58c1c374fe2b3d852f9b6b11a7dff4c85404e51b9a596fd9e89cf904eb09866d", size = 422775, upload-time = "2026-04-27T13:05:14.261Z" },
     { url = "https://files.pythonhosted.org/packages/82/f7/393c64055132ac0d488ef6be549253b7e6274194863967ddc0bc8f5b87b8/greenlet-3.5.0-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:1eb67d5adefb5bd2e182d42678a328979a209e4e82eb93575708185d31d1f588", size = 1570768, upload-time = "2026-04-27T12:53:28.099Z" },
     { url = "https://files.pythonhosted.org/packages/b8/4b/eaf7735253522cf56d1b74d672a58f54fc114702ceaf05def59aae72f6e1/greenlet-3.5.0-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:2628d6c86f6cb0cb45e0c3c54058bbec559f57eaae699447748cb3928150577e", size = 1635983, upload-time = "2026-04-27T12:25:26.903Z" },
     { url = "https://files.pythonhosted.org/packages/4c/fe/4fb3a0805bd5165da5ebf858da7cc01cce8061674106d2cf5bdab32cbfde/greenlet-3.5.0-cp312-cp312-win_amd64.whl", hash = "sha256:d4d9f0624c775f2dfc56ba54d515a8c771044346852a918b405914f6b19d7fd8", size = 238840, upload-time = "2026-04-27T12:23:54.806Z" },
@@ -1543,6 +1561,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/22/92/6ce9737554994ca8e536e5f4f6a87cc7c4774b656c9eb9add071caf7d54b/litellm-1.83.0.tar.gz", hash = "sha256:860bebc76c4bb27b4cf90b4a77acd66dba25aced37e3db98750de8a1766bfb7a", size = 17333062, upload-time = "2026-03-31T05:08:25.331Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/19/2c/a670cc050fcd6f45c6199eb99e259c73aea92edba8d5c2fc1b3686d36217/litellm-1.83.0-py3-none-any.whl", hash = "sha256:88c536d339248f3987571493015784671ba3f193a328e1ea6780dbebaa2094a8", size = 15610306, upload-time = "2026-03-31T05:08:21.987Z" },
+]
+
+[[package]]
+name = "mako"
+version = "1.3.12"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "markupsafe" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/00/62/791b31e69ae182791ec67f04850f2f062716bbd205483d63a215f3e062d3/mako-1.3.12.tar.gz", hash = "sha256:9f778e93289bd410bb35daadeb4fc66d95a746f0b75777b942088b7fd7af550a", size = 400219, upload-time = "2026-04-28T19:01:08.512Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bc/b1/a0ec7a5a9db730a08daef1fdfb8090435b82465abbf758a596f0ea88727e/mako-1.3.12-py3-none-any.whl", hash = "sha256:8f61569480282dbf557145ce441e4ba888be453c30989f879f0d652e39f53ea9", size = 78521, upload-time = "2026-04-28T19:01:10.393Z" },
 ]
 
 [[package]]

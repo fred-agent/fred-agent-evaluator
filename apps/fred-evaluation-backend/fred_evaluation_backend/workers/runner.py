@@ -189,7 +189,7 @@ class CampaignRunner:
                         session_id=str(uuid.uuid4()),
                         evaluate_url=evaluate_url,
                         execution_grant=execution_grant,
-                        service_token=self._cp_client._service_token,
+                        token_provider=self._cp_client._token_provider,
                         profile=campaign.profile,
                         judge=judge,
                         store=self._store,

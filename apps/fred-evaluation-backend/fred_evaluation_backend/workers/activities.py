@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 
+from fred_core import M2MTokenProvider
 from fred_sdk.contracts.execution import ExecutionGrant
 
 from fred_evaluation_backend.campaigns.store import EvaluationStore
@@ -22,7 +23,7 @@ async def execute_and_score_case(
     session_id: str,
     evaluate_url: str,
     execution_grant: ExecutionGrant,
-    service_token: str | None = None,
+    token_provider: M2MTokenProvider | None = None,
     profile: str,
     judge,
     store: EvaluationStore,
@@ -54,7 +55,7 @@ async def execute_and_score_case(
             agent_instance_id=agent_instance_id,
             session_id=session_id,
             input=input,
-            service_token=service_token,
+            token_provider=token_provider,
         )
     except Exception as exc:
         logger.error("[ACTIVITY] agent call failed case=%s: %s", case_id, exc)
