@@ -47,7 +47,7 @@ worker:
       provider: litellm
       model: mistral/mistral-small-latest
       settings:
-        api_key_env: MISTRAL_API_KEY
+        api_key_env: MISTRAL_API_KEY  # pragma: allowlist secret
 
 scheduler:
   backend: temporal  # backend: memory

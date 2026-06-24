@@ -1,0 +1,4 @@
+{
+  "include": ["fred_evaluation_backend", "tests"],
+  "exclude": ["**/.venv", "**/target", "**/__pycache__", "**/node_modules"]
+}

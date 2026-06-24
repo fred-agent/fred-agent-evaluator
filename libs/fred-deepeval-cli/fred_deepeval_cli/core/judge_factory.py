@@ -34,7 +34,7 @@ def build_judge(config=None):
     if provider == "ollama":
         return LiteLLMModel(
             model=f"ollama/{model_name}",
-            api_key="ollama",
+            api_key="ollama",  # pragma: allowlist secret
             base_url=settings.api_base or "http://localhost:11434",
             request_timeout=settings.request_timeout,
             num_retries=0,

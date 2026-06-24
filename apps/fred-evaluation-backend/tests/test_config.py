@@ -42,7 +42,10 @@ def test_dev_configuration_parses_and_is_canonical() -> None:
     cfg = _load("configuration.yaml")
     assert cfg.storage.postgres.sqlite_path  # dev uses SQLite
     assert cfg.security.m2m.client_id == "evaluation"
-    assert cfg.security.m2m.secret_env_var == "KEYCLOAK_EVALUATION_CLIENT_SECRET"
+    expected_secret_env = (
+        "KEYCLOAK_EVALUATION_CLIENT_SECRET"  # pragma: allowlist secret
+    )
+    assert cfg.security.m2m.secret_env_var == expected_secret_env
     assert cfg.observability.tracer == "langfuse"
     assert cfg.observability.langfuse.host == "http://localhost:3001"
 

@@ -11,7 +11,7 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "b4e2f3a1c9d7"
+revision: str = "b4e2f3a1c9d7"  # pragma: allowlist secret
 down_revision: Union[str, None] = "a3f1e2c4d5b6"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

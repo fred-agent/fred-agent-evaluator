@@ -91,7 +91,7 @@ def _default_security() -> SecurityConfiguration:
                 "enabled": False,
                 "realm_url": "http://localhost:8080/realms/app",
                 "client_id": "evaluation",
-                "secret_env_var": "KEYCLOAK_EVALUATION_CLIENT_SECRET",  # nosec B105
+                "secret_env_var": "KEYCLOAK_EVALUATION_CLIENT_SECRET",  # nosec B105  # pragma: allowlist secret
             },
             "user": {
                 "enabled": False,

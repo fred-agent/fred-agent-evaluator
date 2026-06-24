@@ -53,13 +53,13 @@ worker:
       model: openai/mistral-small-2508
       settings:
         base_url: https://api.mistral.ai/v1
-        api_key_env: MISTRAL_API_KEY
+        api_key_env: MISTRAL_API_KEY  # pragma: allowlist secret
     mistral-medium:
       provider: openai
       model: openai/mistral-medium-2508
       settings:
         base_url: https://api.mistral.ai/v1
-        api_key_env: MISTRAL_API_KEY
+        api_key_env: MISTRAL_API_KEY  # pragma: allowlist secret
 
 scheduler:
   backend: temporal  # backend: memory

@@ -9,7 +9,7 @@ judge:
       model: mistral/mistral-large-latest
       settings:
         api_base: https://api.mistral.ai/v1
-        api_key_env: LITELLM_API_KEY
+        api_key_env: LITELLM_API_KEY  # pragma: allowlist secret
         request_timeout: 120
 
     - profile_id: judge.ollama.local
@@ -23,5 +23,5 @@ judge:
       provider: openai
       model: gpt-4o
       settings:
-        api_key_env: OPENAI_API_KEY
+        api_key_env: OPENAI_API_KEY  # pragma: allowlist secret
         request_timeout: 120
