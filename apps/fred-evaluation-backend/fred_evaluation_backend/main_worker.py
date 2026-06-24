@@ -10,6 +10,7 @@ from fred_core.sql import create_async_engine_from_config
 
 from fred_evaluation_backend.config.loader import load_configuration
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
+from fred_evaluation_backend.telemetry.otel import setup_otel
 from fred_evaluation_backend.workers.runner import CampaignRunner
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,12 @@ async def main() -> None:
         store=NullLogStore(),
     )
     logger.info("Fred evaluation worker starting...")
+    if configuration.telemetry.enabled:
+        setup_otel(
+            endpoint=configuration.telemetry.otlp_endpoint,
+            public_key_env=configuration.telemetry.public_key_env,
+            secret_key_env=configuration.telemetry.secret_key_env,
+        )
 
     engine = create_async_engine_from_config(configuration.database)
     cp_token = os.environ.get(configuration.control_plane.credential_ref)

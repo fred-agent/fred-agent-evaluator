@@ -13,6 +13,12 @@ control_plane:
   base_url: http://localhost:8222/control-plane/v1
   runtime_base_url: http://localhost:8000
 
+telemetry:
+  enabled: true
+  otlp_endpoint: http://localhost:3001
+  public_key_env: LANGFUSE_PUBLIC_KEY
+  secret_key_env: LANGFUSE_SECRET_KEY
+
 worker:
   max_concurrent_cases: 4
   poll_interval_seconds: 5
