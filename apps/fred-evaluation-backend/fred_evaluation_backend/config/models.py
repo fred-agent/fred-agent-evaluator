@@ -17,7 +17,7 @@ class AppConfig(BaseModel):
     name: str = "Fred Evaluation Backend"
     base_url: str = "/evaluation/v1"
     address: str = "127.0.0.1"
-    port: int = 8333
+    port: int = 8336
     log_level: str = "info"
     gcu_version: str | None = None
 

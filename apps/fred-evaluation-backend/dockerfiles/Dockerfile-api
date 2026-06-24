@@ -54,7 +54,7 @@ COPY --chown=${USER_ID}:${GROUP_ID} apps/fred-evaluation-backend/fred_evaluation
 
 USER ${USER_NAME}
 
-EXPOSE 8333
+EXPOSE 8336
 
 ENTRYPOINT ["uvicorn", "fred_evaluation_backend.main:create_app", "--factory"]
-CMD ["--port", "8333", "--host", "0.0.0.0", "--log-level", "info", "--loop", "asyncio"]
+CMD ["--port", "8336", "--host", "0.0.0.0", "--log-level", "info", "--loop", "asyncio"]

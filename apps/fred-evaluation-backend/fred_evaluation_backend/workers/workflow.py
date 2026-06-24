@@ -14,7 +14,6 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Any
 
 from temporalio import activity, workflow
 from temporalio.common import RetryPolicy
@@ -104,7 +103,7 @@ async def run_case(payload: CaseInput) -> None:
         session_id=str(uuid.uuid4()),
         evaluate_url=prep.evaluate_url,
         execution_grant=prep.execution_grant,
-        service_token=cp_client._service_token,
+        token_provider=cp_client._token_provider,
         profile=campaign.profile,
         judge=judge,
         store=store,

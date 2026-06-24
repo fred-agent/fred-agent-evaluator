@@ -2,7 +2,7 @@ app:
   name: Fred Evaluation Backend
   base_url: /evaluation/v1
   address: 0.0.0.0
-  port: 8333
+  port: 8336
   log_level: info
 
 storage:
