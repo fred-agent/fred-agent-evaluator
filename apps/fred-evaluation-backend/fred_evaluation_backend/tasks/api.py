@@ -29,9 +29,10 @@ def _get_evaluation_store(request: Request) -> EvaluationStore:
 def build_tasks_router(prefix: str = "") -> APIRouter:
     """Canonical task-event surface over evaluation campaigns.
 
-    A campaign run is one task; `task_id == campaign_id`. State and counters are
-    mapped onto the platform-canonical task shape so the frontend drives the
-    shared Task components (TaskStateBadge / TaskProgressBar / TaskTray).
+    A campaign run is one task, addressed by its own ``task_id`` (distinct from
+    ``campaign_id`` — a campaign may later have several runs/tasks). State and
+    counters are mapped onto the platform-canonical task shape so the frontend
+    drives the shared Task components (TaskStateBadge / TaskProgressBar / TaskTray).
     """
     router = APIRouter(prefix=prefix, tags=["Tasks"])
 
@@ -60,7 +61,7 @@ def build_tasks_router(prefix: str = "") -> APIRouter:
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[EvaluationStore, Depends(_get_evaluation_store)],
     ) -> TaskSummary:
-        row = await store.get_campaign(task_id)
+        row = await store.get_campaign_by_task_id(task_id)
         if row is None:
             raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
         return campaign_to_summary(row)
@@ -71,7 +72,7 @@ def build_tasks_router(prefix: str = "") -> APIRouter:
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[EvaluationStore, Depends(_get_evaluation_store)],
     ) -> EvaluationTaskEvent:
-        row = await store.get_campaign(task_id)
+        row = await store.get_campaign_by_task_id(task_id)
         if row is None:
             raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
         return campaign_to_event(row, seq=0)
@@ -82,7 +83,7 @@ def build_tasks_router(prefix: str = "") -> APIRouter:
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[EvaluationStore, Depends(_get_evaluation_store)],
     ) -> StreamingResponse:
-        row = await store.get_campaign(task_id)
+        row = await store.get_campaign_by_task_id(task_id)
         if row is None:
             raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
 
@@ -90,7 +91,7 @@ def build_tasks_router(prefix: str = "") -> APIRouter:
             seq = 0
             last: tuple[TaskState, float | None] | None = None
             while True:
-                current = await store.get_campaign(task_id)
+                current = await store.get_campaign_by_task_id(task_id)
                 if current is None:
                     break
                 event = campaign_to_event(current, seq)
@@ -111,7 +112,10 @@ def build_tasks_router(prefix: str = "") -> APIRouter:
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[EvaluationStore, Depends(_get_evaluation_store)],
     ) -> dict[str, str]:
-        await service.cancel_campaign(task_id, store=store)
+        row = await store.get_campaign_by_task_id(task_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
+        await service.cancel_campaign(row.campaign_id, store=store)
         return {"task_id": task_id, "state": "cancelling"}
 
     return router

@@ -67,10 +67,15 @@ async def create_campaign(
 
     campaign_id = f"eval-cmp-{uuid4().hex[:8]}"
     run_id = f"eval-run-{uuid4().hex[:8]}"
+    # The task id is the campaign run's identity in the canonical task-event API.
+    # It is intentionally distinct from campaign_id (a campaign may later have many
+    # runs / tasks), so the frontend tracks the run via /tasks/{task_id}.
+    task_id = f"eval-task-{uuid4().hex[:8]}"
 
     await store.create_campaign(
         campaign_id=campaign_id,
         run_id=run_id,
+        task_id=task_id,
         name=request.name,
         team_id=request.team_id,
         created_by=created_by,
@@ -98,7 +103,7 @@ async def create_campaign(
     return CampaignCreatedResponse(
         campaign_id=campaign_id,
         run_id=run_id,
-        task_id=None,
+        task_id=task_id,
         state="pending",
     )
 

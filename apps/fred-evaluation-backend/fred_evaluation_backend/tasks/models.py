@@ -43,7 +43,7 @@ def _target(row: EvaluationCampaignRow) -> TaskTarget:
 def campaign_to_summary(row: EvaluationCampaignRow) -> TaskSummary:
     """One campaign row → a current-state task snapshot (GET /tasks)."""
     return TaskSummary(
-        task_id=row.campaign_id,
+        task_id=row.task_id or row.campaign_id,
         kind="evaluation",
         state=map_state(row.operational_state),
         progress=_progress(row),
@@ -60,7 +60,7 @@ def campaign_to_summary(row: EvaluationCampaignRow) -> TaskSummary:
 def campaign_to_event(row: EvaluationCampaignRow, seq: int) -> EvaluationTaskEvent:
     """One campaign row → a canonical evaluation task event (SSE / latest)."""
     return EvaluationTaskEvent(
-        task_id=row.campaign_id,
+        task_id=row.task_id or row.campaign_id,
         state=map_state(row.operational_state),
         seq=seq,
         timestamp=datetime.now(timezone.utc),

@@ -33,6 +33,7 @@ class EvaluationStore:
         *,
         campaign_id: str,
         run_id: str,
+        task_id: str,
         name: str,
         team_id: str,
         created_by: str,
@@ -50,6 +51,7 @@ class EvaluationStore:
         row = EvaluationCampaignRow(
             campaign_id=campaign_id,
             run_id=run_id,
+            task_id=task_id,
             name=name,
             team_id=team_id,
             created_by=created_by,
@@ -118,6 +120,25 @@ class EvaluationStore:
                 .all()
             )
         return list(rows)
+
+    async def get_campaign_by_task_id(
+        self,
+        task_id: str,
+        session: AsyncSession | None = None,
+    ) -> EvaluationCampaignRow | None:
+        async with use_session(self._sessions, session) as s:
+            rows = (
+                (
+                    await s.execute(
+                        select(EvaluationCampaignRow)
+                        .where(EvaluationCampaignRow.task_id == task_id)
+                        .limit(1)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        return rows[0] if rows else None
 
     async def list_campaigns_by_creator(
         self,
