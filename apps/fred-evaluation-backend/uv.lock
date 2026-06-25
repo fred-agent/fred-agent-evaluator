@@ -617,7 +617,7 @@ wheels = [
 
 [[package]]
 name = "fred-core"
-version = "3.1.0"
+version = "3.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiosqlite" },
@@ -625,6 +625,7 @@ dependencies = [
     { name = "authzed" },
     { name = "azure-identity" },
     { name = "fastapi" },
+    { name = "google-cloud-storage" },
     { name = "greenlet" },
     { name = "httpx" },
     { name = "langchain-core" },
@@ -648,9 +649,9 @@ dependencies = [
     { name = "temporalio" },
     { name = "uv" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2e/52/0c0dc42cbefa40a372572e93ef09a82fb0f6445ccac65eeb50f96489a332/fred_core-3.1.0.tar.gz", hash = "sha256:dc56c4194a8be75cff1aeeed17902b0ebd1c954e9a3d15e8a989d3fba2e8ed8e", size = 172822, upload-time = "2026-06-22T10:50:43.959Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6b/04/c5b82d6fa552c4565e2e4960a7268b8babb792b0f325ba9a5ab1107a8512/fred_core-3.2.0.tar.gz", hash = "sha256:249801ca6e27277f6ee0bb8a5e3eb0186eb913af0f2a7a2c54de0f7c057038b8", size = 178245, upload-time = "2026-06-25T04:59:27.495Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a7/32/64f257ba794ab0cbe75eeeb0755e90ad676b7627c3083a5d1c7d3cac8707/fred_core-3.1.0-py3-none-any.whl", hash = "sha256:3d0b597a9201701fa69535271bbbe98db5be1d155dd09aa5a312f8a2dcb50c48", size = 263898, upload-time = "2026-06-22T10:50:45.947Z" },
+    { url = "https://files.pythonhosted.org/packages/58/fa/4b02d8c27efda1cc9093c0258bf2c347c04fc987f977d284bf7170a0b2d4/fred_core-3.2.0-py3-none-any.whl", hash = "sha256:edf17e230eb35f097baec33d37a3e542f3a7d31a31edadbba42e915846dfa90a", size = 272511, upload-time = "2026-06-25T04:59:28.951Z" },
 ]
 
 [[package]]
@@ -730,7 +731,7 @@ requires-dist = [
     { name = "deepeval", marker = "extra == 'scoring'", specifier = ">=2.0.0" },
     { name = "detect-secrets", marker = "extra == 'dev'", specifier = ">=1.5.0" },
     { name = "fastapi", specifier = "==0.116.1" },
-    { name = "fred-core", specifier = ">=3.1.0" },
+    { name = "fred-core", specifier = ">=3.2.0" },
     { name = "fred-deepeval-cli", marker = "extra == 'scoring'", editable = "../../libs/fred-deepeval-cli" },
     { name = "fred-sdk", specifier = ">=3.1.0" },
     { name = "greenlet", specifier = ">=3.4.0" },
@@ -753,7 +754,7 @@ provides-extras = ["dev", "scoring", "worker", "otel"]
 
 [[package]]
 name = "fred-runtime"
-version = "3.1.0"
+version = "3.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "alembic" },
@@ -769,14 +770,14 @@ dependencies = [
     { name = "pyyaml" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9e/2e/41edfc2c8dbe8d064a83fb35e943ae8eac8098e18f0fd10370dd11d5a949/fred_runtime-3.1.0.tar.gz", hash = "sha256:8eebfa7bbc001dfc8d4b166b7540e434dedfe4e8633d0839c9ef1c47933de3a6", size = 247073, upload-time = "2026-06-22T10:51:13.084Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/00/57/c7ac6e5b7a45f313f1c8a85eb2ce8b2fe89377b3b8f148e76fc7fb8f546a/fred_runtime-3.1.1.tar.gz", hash = "sha256:288b8b6ce11e43834173670897c1b69a7b75584f3f2617ad59344dc1ef26f5e2", size = 248425, upload-time = "2026-06-24T13:42:34.906Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0d/e0/bb2504e1dfd38de7b46383ea2b580e7d8cc94cde3263851737c2feb2ecd3/fred_runtime-3.1.0-py3-none-any.whl", hash = "sha256:bba7c5d761d271f83b6ce10eaecab012c150d892b7abf167e339b2d5ec1692ec", size = 245769, upload-time = "2026-06-22T10:51:11.254Z" },
+    { url = "https://files.pythonhosted.org/packages/5f/68/7971e4c336c8c6a13e2bb96779714eb939375ef7ab7ad8565819cff8b303/fred_runtime-3.1.1-py3-none-any.whl", hash = "sha256:0930f9874d64844b638214d0c226c3379312ac3ee0901713e5ee8a37cb90c11d", size = 246602, upload-time = "2026-06-24T13:42:36.372Z" },
 ]
 
 [[package]]
 name = "fred-sdk"
-version = "3.1.0"
+version = "3.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fred-core" },
@@ -786,9 +787,9 @@ dependencies = [
     { name = "langgraph" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/26/2f/dc61c860403126a29fc655a595d7b4ff229dcabb60cf2f8f250b1625aaa5/fred_sdk-3.1.0.tar.gz", hash = "sha256:f2332ce2b8d9fe13d57ba1b2b6569cb8187ae64028f2cffa96fb6c7b315132e9", size = 113772, upload-time = "2026-06-22T10:51:00.696Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/79/c0/f5171f8a0e6a594ff0a0cc8fae336d26a02b915b8fc2f50ac6f7eaeae052/fred_sdk-3.1.1.tar.gz", hash = "sha256:5e12d9da412c6d89f2502888419e8759b0d9c181f8c52753dbc7071c018a81e9", size = 114614, upload-time = "2026-06-24T13:42:16.77Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/20/1e/c2b23e4dd1d6283c8a2963e43d0808ef2ecff7e57e5936bccc061b0eb0bb/fred_sdk-3.1.0-py3-none-any.whl", hash = "sha256:193fee7d0cd10e716cc26e9109ea099e02f986e53f330d812bd53e446bde9f5f", size = 118499, upload-time = "2026-06-22T10:50:58.754Z" },
+    { url = "https://files.pythonhosted.org/packages/8e/99/7173194dbfc3e80af3ad1a90d3c05238a9cde24e8f061c53eaa6ec876eb9/fred_sdk-3.1.1-py3-none-any.whl", hash = "sha256:78759150d9d9e795536b5fcb3bc7edb75577eefd9e5af182e3310bce288af624", size = 119006, upload-time = "2026-06-24T13:42:15.38Z" },
 ]
 
 [[package]]

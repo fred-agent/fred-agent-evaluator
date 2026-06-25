@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from fred_core.sql import create_async_engine_from_config
 
 from fred_evaluation_backend.campaigns.api import build_evaluations_router
+from fred_evaluation_backend.tasks.api import build_tasks_router
 from fred_evaluation_backend.config.loader import load_configuration
 from fred_evaluation_backend.execution.analysis_client import AnalysisClient
 from fred_evaluation_backend.execution.auth import build_m2m_token_provider
@@ -114,5 +115,6 @@ def create_app() -> FastAPI:
     app.dependency_overrides[get_config] = lambda: configuration
 
     router.include_router(build_evaluations_router())
+    router.include_router(build_tasks_router())
     app.include_router(router)
     return app

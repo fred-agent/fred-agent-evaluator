@@ -119,6 +119,25 @@ class EvaluationStore:
             )
         return list(rows)
 
+    async def list_campaigns_by_creator(
+        self,
+        created_by: str,
+        session: AsyncSession | None = None,
+    ) -> list[EvaluationCampaignRow]:
+        async with use_session(self._sessions, session) as s:
+            rows = (
+                (
+                    await s.execute(
+                        select(EvaluationCampaignRow)
+                        .where(EvaluationCampaignRow.created_by == created_by)
+                        .order_by(EvaluationCampaignRow.created_at.desc())
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        return list(rows)
+
     # ── Cas ───────────────────────────────────────────────────────────────────
 
     async def create_case(
