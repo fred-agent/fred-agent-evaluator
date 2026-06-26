@@ -64,10 +64,18 @@ class SchedulerConfig(BaseModel):
     temporal: TemporalSchedulerConfig = TemporalSchedulerConfig(task_queue="evaluation")
 
 
-class AnalysisConfig(BaseModel):
-    api_key_env: str = "MISTRAL_API_KEY"
-    model: str = "mistral-small-latest"
-    base_url: str = "https://api.mistral.ai/v1"
+def _default_analysis() -> ModelConfiguration:
+    """Provider-agnostic default for the campaign analysis model.
+
+    Same schema as the judge (`provider` / `name` / `settings`) so the analysis
+    is built by the shared `build_judge_model` factory. Kept as a separate config
+    block so the analysis model can differ from the scoring model.
+    """
+    return ModelConfiguration(
+        provider="litellm",
+        name="mistral/mistral-small-latest",
+        settings={"api_key_env": "MISTRAL_API_KEY"},  # pragma: allowlist secret
+    )
 
 
 def _default_security() -> SecurityConfiguration:
@@ -103,4 +111,4 @@ class EvaluationConfig(BaseModel):
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
     scheduler: SchedulerConfig = Field(default_factory=SchedulerConfig)
     worker: WorkerConfig = Field(default_factory=WorkerConfig)
-    analysis: AnalysisConfig = Field(default_factory=AnalysisConfig)
+    analysis: ModelConfiguration = Field(default_factory=_default_analysis)
