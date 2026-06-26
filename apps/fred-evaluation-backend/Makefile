@@ -29,6 +29,10 @@ dev-scoring: $(TARGET)/.uv-installed ## Install scoring+worker+otel extras requi
 run-worker: dev-scoring ## Run the evaluation worker (installs scoring deps automatically)
 	ENV_FILE=$(ROOT_DIR)/config/.env $(UV) run python -m fred_evaluation_backend.main_worker
 
+.PHONY: run-worker-prod
+run-worker-prod: export CONFIG_FILE = ./config/configuration_prod.yaml
+run-worker-prod: run-worker ## Run the evaluation worker with prod-like configuration (M2M enabled)
+
 ##@ Docker
 
 .PHONY: docker-build-api
