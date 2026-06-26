@@ -7,11 +7,14 @@ app:
 
 storage:
   postgres:
-    host: postgres
-    port: 5432
-    database: evaluation
-    username: evaluation
-    # password is read from the FRED_POSTGRES_PASSWORD environment variable
+    sqlite_path: "~/.fred/evaluation/evaluation.sqlite3"
+# # storage:
+# # postgres:
+#   host: postgres
+#     port: 5432
+#     database: evaluation
+#     username: evaluation
+#     # password is read from the FRED_POSTGRES_PASSWORD environment variable
 
 security:
   user:
@@ -20,7 +23,7 @@ security:
     client_id: app
   m2m:
     enabled: true
-    realm_url: http://localhost:8080/realms/app
+    realm_url: http://app-keycloak:8080/realms/app
     client_id: evaluation
     secret_env_var: KEYCLOAK_EVALUATION_CLIENT_SECRET # pragma: allowlist secret
   authorized_origins:
@@ -49,16 +52,14 @@ worker:
   judge_profiles:
 
     mistral-small:
-      provider: openai
-      model: openai/mistral-small-2508
+      provider: litellm
+      model: mistral/mistral-small-latest
       settings:
-        base_url: https://api.mistral.ai/v1
         api_key_env: MISTRAL_API_KEY  # pragma: allowlist secret
     mistral-medium:
-      provider: openai
-      model: openai/mistral-medium-2508
+      provider: litellm
+      model: mistral/mistral-medium-latest
       settings:
-        base_url: https://api.mistral.ai/v1
         api_key_env: MISTRAL_API_KEY  # pragma: allowlist secret
 
 scheduler:
