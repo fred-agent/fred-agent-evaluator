@@ -47,8 +47,6 @@ def create_app() -> FastAPI:
     engine = create_async_engine_from_config(configuration.storage.postgres)
     init_user_store(engine)
 
-    import os
-
     token_provider = build_m2m_token_provider(configuration.security)
     control_plane_client = ControlPlaneClient(
         base_url=configuration.control_plane.base_url,
@@ -56,16 +54,16 @@ def create_app() -> FastAPI:
         runtime_base_url=configuration.control_plane.runtime_base_url,
     )
 
-    analysis_api_key = os.environ.get(configuration.analysis.api_key_env)
-    analysis_client = (
-        AnalysisClient(
-            api_key=analysis_api_key,
-            model=configuration.analysis.model,
-            base_url=configuration.analysis.base_url,
+    try:
+        analysis_client = AnalysisClient(configuration.analysis)
+    except Exception as exc:
+        logger.warning(
+            "[ANALYSIS] disabled — cannot build analysis model (provider=%s name=%s): %s",
+            configuration.analysis.provider,
+            configuration.analysis.name,
+            exc,
         )
-        if analysis_api_key
-        else None
-    )
+        analysis_client = None
 
     temporal_client_provider: TemporalClientProvider | None = None
     temporal_task_queue: str | None = None

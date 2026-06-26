@@ -1689,47 +1689,7 @@
                 "code": "reportUnannotatedClassAttribute",
                 "range": {
                     "startColumn": 13,
-                    "endColumn": 21,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportUnannotatedClassAttribute",
-                "range": {
-                    "startColumn": 13,
                     "endColumn": 19,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportUnannotatedClassAttribute",
-                "range": {
-                    "startColumn": 13,
-                    "endColumn": 22,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportUnusedCallResult",
-                "range": {
-                    "startColumn": 12,
-                    "endColumn": 39,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportAny",
-                "range": {
-                    "startColumn": 12,
-                    "endColumn": 16,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportAny",
-                "range": {
-                    "startColumn": 19,
-                    "endColumn": 59,
                     "lineCount": 1
                 }
             }
