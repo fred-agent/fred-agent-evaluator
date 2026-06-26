@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Literal
 
 from fred_core import SecurityConfiguration
-from fred_core.common import KpiObservabilityConfig
+from fred_core.common import KpiObservabilityConfig, ModelConfiguration
 from fred_core.common.structures import (
     OpenSearchStoreConfig,
     PostgresStoreConfig,
@@ -50,22 +50,13 @@ class ObservabilityConfig(BaseModel):
     kpi: KpiObservabilityConfig = Field(default_factory=KpiObservabilityConfig)
 
 
-class JudgeProfileSettings(BaseModel):
-    api_key_env: str | None = None
-    api_base: str | None = None
-    request_timeout: int = 30
-
-
-class JudgeProfile(BaseModel):
-    provider: str  # litellm | openai | ollama
-    model: str
-    settings: JudgeProfileSettings = Field(default_factory=JudgeProfileSettings)
-
-
 class WorkerConfig(BaseModel):
     max_concurrent_cases: int = 4
     poll_interval_seconds: int = 5
-    judge_profiles: dict[str, JudgeProfile] = Field(default_factory=dict)
+    # Judge models follow fred's canonical ModelConfiguration (provider / name /
+    # settings). Switching provider/model is config-only; building the DeepEval
+    # model is delegated to fred_evaluation_backend.model.factory.build_judge_model.
+    judge_profiles: dict[str, ModelConfiguration] = Field(default_factory=dict)
 
 
 class SchedulerConfig(BaseModel):

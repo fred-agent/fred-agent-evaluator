@@ -43,11 +43,23 @@ worker:
   max_concurrent_cases: 4
   poll_interval_seconds: 5
   judge_profiles:
+    # Available providers: litellm | openai | ollama
     mistral-small:
       provider: litellm
-      model: mistral/mistral-small-latest
+      name: mistral/mistral-small-latest
       settings:
         api_key_env: MISTRAL_API_KEY  # pragma: allowlist secret
+    # openai-mini:
+    #   provider: openai
+    #   name: gpt-4o-mini
+    #   settings:
+    #     api_key_env: OPENAI_API_KEY  # pragma: allowlist secret
+    #     base_url: https://...   # optional: OpenAI-compatible endpoint
+    # llama-local:
+    #   provider: ollama
+    #   name: llama3
+    #   settings:
+    #     base_url: http://localhost:11434
 
 scheduler:
   backend: temporal  # backend: memory

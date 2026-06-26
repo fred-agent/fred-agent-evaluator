@@ -66,7 +66,7 @@ async def run_case(payload: CaseInput) -> None:
         get_store,
     )
     from fred_evaluation_backend.workers.activities import execute_and_score_case
-    from fred_evaluation_backend.workers.runner import _build_judge
+    from fred_evaluation_backend.model.factory import build_judge_model
 
     store = get_store()
     config = get_config()
@@ -89,7 +89,7 @@ async def run_case(payload: CaseInput) -> None:
         )
 
     judge_profile = config.worker.judge_profiles.get(campaign.judge_profile_id)
-    judge = _build_judge(judge_profile) if judge_profile is not None else None
+    judge = build_judge_model(judge_profile) if judge_profile is not None else None
 
     await execute_and_score_case(
         case_id=case.case_id,
