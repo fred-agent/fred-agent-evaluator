@@ -7,11 +7,14 @@ app:
 
 storage:
   postgres:
-    host: postgres
-    port: 5432
-    database: evaluation
-    username: evaluation
-    # password is read from the FRED_POSTGRES_PASSWORD environment variable
+    sqlite_path: "~/.fred/evaluation/evaluation.sqlite3"
+# # storage:
+# # postgres:
+#   host: postgres
+#     port: 5432
+#     database: evaluation
+#     username: evaluation
+#     # password is read from the FRED_POSTGRES_PASSWORD environment variable
 
 security:
   user:
@@ -20,7 +23,7 @@ security:
     client_id: app
   m2m:
     enabled: true
-    realm_url: http://localhost:8080/realms/app
+    realm_url: http://app-keycloak:8080/realms/app
     client_id: evaluation
     secret_env_var: KEYCLOAK_EVALUATION_CLIENT_SECRET # pragma: allowlist secret
   authorized_origins:
@@ -47,22 +50,50 @@ worker:
   max_concurrent_cases: 4
   poll_interval_seconds: 5
   judge_profiles:
-
+    # Available providers: litellm | openai | ollama
     mistral-small:
-      provider: openai
-      model: openai/mistral-small-2508
+      provider: litellm
+      name: mistral/mistral-small-latest
       settings:
-        base_url: https://api.mistral.ai/v1
         api_key_env: MISTRAL_API_KEY  # pragma: allowlist secret
     mistral-medium:
-      provider: openai
-      model: openai/mistral-medium-2508
+      provider: litellm
+      name: mistral/mistral-medium-latest
       settings:
-        base_url: https://api.mistral.ai/v1
         api_key_env: MISTRAL_API_KEY  # pragma: allowlist secret
+    # openai-mini:
+    #   provider: openai
+    #   name: gpt-4o-mini
+    #   settings:
+    #     api_key_env: OPENAI_API_KEY  # pragma: allowlist secret
+    #     base_url: https://...   # optional: OpenAI-compatible endpoint
+    # llama-local:
+    #   provider: ollama
+    #   name: llama3
+    #   settings:
+    #     base_url: http://localhost:11434
 
 scheduler:
   backend: temporal  # backend: memory
   temporal:
     host: localhost:7233  # host: app-temporal:7233 (if running in Docker)
     task_queue: evaluation
+
+# Model used to write the campaign analysis (separate from the scoring judge).
+# Available providers: litellm | openai | ollama
+analysis:
+  provider: litellm
+  name: mistral/mistral-small-latest
+  settings:
+    api_key_env: MISTRAL_API_KEY  # pragma: allowlist secret
+  # OpenAI (requires an OPENAI_API_KEY):
+  # provider: openai
+  # name: gpt-4o-mini
+  # settings:
+  #   api_key_env: OPENAI_API_KEY  # pragma: allowlist secret
+  #   base_url: https://...   # optional: OpenAI-compatible endpoint
+  # Ollama (local model, requires Ollama running):
+  # provider: ollama
+  # name: llama3
+  # settings:
+  #   base_url: http://localhost:11434

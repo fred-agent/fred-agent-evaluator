@@ -3,59 +3,18 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import uuid
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from fred_evaluation_backend.campaigns.store import EvaluationStore
-from fred_evaluation_backend.config.models import EvaluationConfig, JudgeProfile
+from fred_evaluation_backend.config.models import EvaluationConfig
 from fred_evaluation_backend.execution.agent_client import AgentClient
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
+from fred_evaluation_backend.model.factory import build_judge_model
 from fred_evaluation_backend.workers.activities import execute_and_score_case
 
 logger = logging.getLogger(__name__)
-
-
-def _build_judge(profile: JudgeProfile):
-    from deepeval.models.llms import LiteLLMModel
-
-    if profile.provider == "litellm":
-        api_key_env = profile.settings.api_key_env or "LITELLM_API_KEY"
-        api_key = os.environ.get(api_key_env)
-        if not api_key:
-            raise RuntimeError(
-                f"Missing {api_key_env} in environment for judge profile."
-            )
-        return LiteLLMModel(
-            model=profile.model,
-            api_key=api_key,
-            base_url=profile.settings.api_base,
-            request_timeout=profile.settings.request_timeout,
-            num_retries=0,
-        )
-
-    if profile.provider == "ollama":
-        return LiteLLMModel(
-            model=f"ollama/{profile.model}",
-            api_key="ollama",  # pragma: allowlist secret
-            base_url=profile.settings.api_base or "http://localhost:11434",
-            request_timeout=profile.settings.request_timeout,
-            num_retries=0,
-        )
-
-    if profile.provider == "openai":
-        from deepeval.models.llms import GPTModel
-
-        api_key_env = profile.settings.api_key_env or "OPENAI_API_KEY"
-        api_key = os.environ.get(api_key_env)
-        if not api_key:
-            raise RuntimeError(
-                f"Missing {api_key_env} in environment for judge profile."
-            )
-        return GPTModel(model=profile.model)
-
-    raise ValueError(f"Unsupported judge provider: {profile.provider}")
 
 
 class CampaignRunner:
@@ -163,7 +122,7 @@ class CampaignRunner:
         judge = None
         if judge_profile is not None:
             try:
-                judge = _build_judge(judge_profile)
+                judge = build_judge_model(judge_profile)
             except Exception as exc:
                 logger.warning(
                     "[RUNNER] campaign=%s cannot build judge '%s': %s — proceeding without scoring",

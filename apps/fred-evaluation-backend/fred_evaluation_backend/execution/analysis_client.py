@@ -3,9 +3,28 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-import httpx
+from fred_core.common import ModelConfiguration
+
+from fred_evaluation_backend.model.factory import build_judge_model
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_json_object(text: str) -> str:
+    """Return the outermost JSON object found in `text`.
+
+    Unlike the old raw HTTP call (which forced `response_format=json_object`),
+    DeepEval's `a_generate` does not constrain the output format, so models often
+    wrap the JSON in markdown fences or add a sentence of prose around it. The
+    downstream caller does `json.loads`, which fails on anything but pure JSON —
+    so extract the object spanning the first `{` to the last `}`.
+    """
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end == -1 or end < start:
+        return text.strip()
+    return text[start : end + 1]
+
 
 _PROFILE_FOCUS = {
     "rag": (
@@ -96,10 +115,17 @@ def _build_prompt(
 
 
 class AnalysisClient:
-    def __init__(self, api_key: str, model: str, base_url: str) -> None:
-        self._api_key = api_key
-        self._model = model
-        self._base_url = base_url.rstrip("/")
+    """Generate a textual analysis of a campaign, provider-agnostically.
+
+    Reuses the judge factory (`build_judge_model`) so the analysis works with any
+    provider (litellm / openai / ollama) selected purely by config — the same
+    mechanism as metric scoring, but with its own `ModelConfiguration` so the
+    analysis model can differ from the scoring model.
+    """
+
+    def __init__(self, config: ModelConfiguration) -> None:
+        self._config: ModelConfiguration = config
+        self._model = build_judge_model(config)
 
     async def analyze(
         self,
@@ -123,25 +149,15 @@ class AnalysisClient:
             cases=cases,
         )
         logger.info(
-            "[ANALYSIS] calling Mistral model=%s prompt_chars=%d",
-            self._model,
+            "[ANALYSIS] calling judge model provider=%s name=%s prompt_chars=%d",
+            self._config.provider,
+            self._config.name,
             len(prompt),
         )
 
-        async with httpx.AsyncClient(timeout=60) as client:
-            response = await client.post(
-                f"{self._base_url}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self._api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": self._model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.2,
-                    "response_format": {"type": "json_object"},
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
-            return data["choices"][0]["message"]["content"]
+        # DeepEval models return (output, cost); we only need the text. The prompt
+        # already instructs the model to return a single JSON object.
+        output, _cost = await self._model.a_generate(prompt)
+        text = output if isinstance(output, str) else str(output)
+        logger.info("[ANALYSIS] raw model output (%d chars): %r", len(text), text[:300])
+        return _extract_json_object(text)
