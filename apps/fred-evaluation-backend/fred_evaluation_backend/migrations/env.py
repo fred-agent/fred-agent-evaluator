@@ -7,6 +7,7 @@ from fred_core.sql import make_alembic_env
 
 from fred_evaluation_backend.campaigns.base import Base
 import fred_evaluation_backend.campaigns.models  # noqa: F401
+import fred_evaluation_backend.datasets.models  # noqa: F401
 
 from fred_evaluation_backend.config.loader import load_configuration
 

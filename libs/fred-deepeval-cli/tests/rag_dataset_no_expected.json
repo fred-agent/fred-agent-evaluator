@@ -1,0 +1,27 @@
+[
+  {
+    "id": "rag-bidgpt-001",
+    "input": "What is BidGPT and what problem does it solve?",
+    "tags": ["bidgpt", "pre-sales", "llm", "docx"]
+  },
+  {
+    "id": "rag-foryou-001",
+    "input": "Comment poser des congés avec l'outil FORYOU ?",
+    "tags": ["foryou", "conges", "rh", "thales", "markdown"]
+  },
+  {
+    "id": "rag-foryou-002",
+    "input": "À quoi sert l'outil FORYOU chez Thales ?",
+    "tags": ["foryou", "rh", "thales", "markdown"]
+  },
+  {
+    "id": "rag-arxiv-001",
+    "input": "What is RAGuard and what problem does it solve in Offshore Wind maintenance?",
+    "tags": ["rag", "safety", "offshore-wind", "retrieval", "pdf"]
+  },
+  {
+    "id": "rag-arxiv-002",
+    "input": "What is CoT-Space and what does it explain about the 'overthinking' phenomenon in LLM reasoning?",
+    "tags": ["llm", "reasoning", "reinforcement-learning", "chain-of-thought", "pdf"]
+  }
+]
