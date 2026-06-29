@@ -1618,6 +1618,24 @@
                 }
             }
         ],
+        "./fred_evaluation_backend/datasets/models.py": [
+            {
+                "code": "reportUnannotatedClassAttribute",
+                "range": {
+                    "startColumn": 4,
+                    "endColumn": 17,
+                    "lineCount": 1
+                }
+            },
+            {
+                "code": "reportUnannotatedClassAttribute",
+                "range": {
+                    "startColumn": 4,
+                    "endColumn": 17,
+                    "lineCount": 1
+                }
+            }
+        ],
         "./fred_evaluation_backend/execution/agent_client.py": [
             {
                 "code": "reportMissingTypeStubs",
@@ -2180,6 +2198,14 @@
                     "endColumn": 47,
                     "lineCount": 1
                 }
+            },
+            {
+                "code": "reportUnusedImport",
+                "range": {
+                    "startColumn": 7,
+                    "endColumn": 46,
+                    "lineCount": 1
+                }
             }
         ],
         "./fred_evaluation_backend/migrations/versions/527dc30e79d2_add_evaluation_tables.py": [
@@ -2395,6 +2421,64 @@
                     "startColumn": 12,
                     "endColumn": 17,
                     "lineCount": 1
+                }
+            }
+        ],
+        "./fred_evaluation_backend/migrations/versions/c5d3a2b1e4f7_add_dataset_tables.py": [
+            {
+                "code": "reportDeprecated",
+                "range": {
+                    "startColumn": 19,
+                    "endColumn": 27,
+                    "lineCount": 1
+                }
+            },
+            {
+                "code": "reportDeprecated",
+                "range": {
+                    "startColumn": 29,
+                    "endColumn": 34,
+                    "lineCount": 1
+                }
+            },
+            {
+                "code": "reportDeprecated",
+                "range": {
+                    "startColumn": 15,
+                    "endColumn": 20,
+                    "lineCount": 1
+                }
+            },
+            {
+                "code": "reportDeprecated",
+                "range": {
+                    "startColumn": 15,
+                    "endColumn": 20,
+                    "lineCount": 1
+                }
+            },
+            {
+                "code": "reportDeprecated",
+                "range": {
+                    "startColumn": 12,
+                    "endColumn": 17,
+                    "lineCount": 1
+                }
+            },
+            {
+                "code": "reportUnusedCallResult",
+                "range": {
+                    "startColumn": 4,
+                    "endColumn": 5,
+                    "lineCount": 15
+                }
+            },
+            {
+                "code": "reportUnusedCallResult",
+                "range": {
+                    "startColumn": 4,
+                    "endColumn": 5,
+                    "lineCount": 13
                 }
             }
         ],
