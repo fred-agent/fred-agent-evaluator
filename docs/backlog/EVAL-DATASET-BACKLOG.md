@@ -93,7 +93,9 @@ _Package layering (to remove the recurring fred-core vs fred-runtime confusion):
 - **fred-core** (library): the shared toolbox — defines `SessionHistoryRow` (the table)
   and `PostgresHistoryStore`. **All history code lives here.** Imported by everyone.
 - **fred-runtime** (library): the agent engine — owns the migration that creates
-  `session_history` and the write path (agents persist conversations). Depends on fred-core.
+  `session_history`, the write path (agents persist conversations), and the agent HTTP
+  routes in its `app/` layer (e.g. `/agents/evaluate`). A library *defines* routes; it
+  does not run a server. Depends on fred-core.
 - **fred-agents** (app): the running service that uses fred-runtime + fred-core and owns
   the actual populated database. Depends on both.
 
@@ -105,12 +107,20 @@ The read path is split in two layers:
    (b) fred-core is imported by *both* fred-agents and control-plane, so the endpoint can
    be hosted by either without coupling it to fred-runtime (control-plane does NOT depend
    on fred-runtime). **DONE** (fred repo, branch `1874-...`).
-2. **HTTP endpoint (route)** — in the host **app** that owns the populated DB + auth.
-   **Recommended host: fred-agents** — it owns the `session_history` DB (direct access,
-   no extra hop) and already has Keycloak. control-plane would have to read another
-   service's table (coupling) or proxy to fred-agents (extra hop), since it does not own
-   the conversation data. Logic stays in fred-core, so the endpoint can move to
-   control-plane later without rewrite. The evaluator calls it over HTTP in M2M (same
+2. **HTTP endpoint (route)** — a thin route that just calls the fred-core reader.
+   **Defined in fred-runtime's `app/` layer** (next to the existing `/agents/evaluate`
+   and `/sessions/{id}/messages` routes) and **exposed/run by the fred-agents app**
+   (which starts the server, owns the populated `session_history` DB and has Keycloak).
+   This is the same define-in-runtime / run-in-fred-agents pattern as the other agent
+   routes. The route is deliberately a small, removable adapter (~15 lines: auth check +
+   call `fetch_page` + return). It is small **because all logic lives in the fred-core
+   reader** — had the SQL/cursor/capping/projection lived in the route instead, it would
+   be large, not reusable (control-plane would copy it), hard to test (needs a running
+   server), and hard to move. Keeping the route thin gives: reusable logic, unit-testable
+   without HTTP, and a movable endpoint. If it later moves to control-plane, control-plane
+   defines its own thin route reusing the same fred-core reader — only the route is
+   rewritten, never the logic. The evaluator calls
+   it over HTTP in M2M (same
    channel as `evaluate_url`). **TODO** (fred repo, #1874).
 
 **`HistoryCaptureReader` contract (fred-core, done):**
@@ -181,6 +191,7 @@ frozen) before the evaluator's `history_client` can be finalized.
 - Where retention of `QuestionSet` / `EvaluationDataset` is defined.
 - Runtime endpoint bounds to confirm with runtime owner: max period (≤ 90 d?) and
   hard page limit (~1000/call?).
-- Endpoint **hosting**: **fred-agents (recommended** — owns the populated DB, no extra
-  hop, has Keycloak) vs control-plane (does not own the conversation data → coupling or
-  proxy). Deferred; component kept isolated in fred-core so it can move without rewrite.
+- Endpoint **hosting**: **recommended = route defined in fred-runtime `app/`, run by
+  fred-agents** (owns the populated DB, no extra hop, has Keycloak). Alternative =
+  control-plane (does not own the conversation data → coupling or proxy). Deferred;
+  the reader stays isolated in fred-core so the route can move without rewrite.
