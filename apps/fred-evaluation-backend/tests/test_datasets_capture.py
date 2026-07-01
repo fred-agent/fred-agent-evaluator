@@ -52,6 +52,18 @@ def test_pairs_user_and_assistant_by_exchange_id():
     assert candidates[0].source_exchange_id == "ex1"
 
 
+def test_answer_is_the_final_assistant_message_not_the_empty_tool_call():
+    # A turn: user → assistant tool-call (no text) → assistant final answer.
+    messages = [
+        _msg("s1", "ex1", "user", "q1", _T0),
+        _msg("s1", "ex1", "assistant", "", _T0),  # tool-call message, no text
+        _msg("s1", "ex1", "assistant", "the real answer", _T0),
+    ]
+    candidates = messages_to_candidates(messages)
+    assert len(candidates) == 1
+    assert candidates[0].answer == "the real answer"
+
+
 def test_user_without_answer_yields_candidate_with_none_answer():
     candidates = messages_to_candidates([_msg("s1", "ex1", "user", "q1", _T0)])
     assert len(candidates) == 1

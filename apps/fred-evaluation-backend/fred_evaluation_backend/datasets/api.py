@@ -46,7 +46,14 @@ def _get_dataset_store(request: Request) -> DatasetStore:
 
 
 def _get_history_client(config: EvaluationConfig) -> HistoryClient:
-    return HistoryClient(runtime_base_url=config.control_plane.runtime_base_url)
+    # Falls back to runtime_base_url when the dedicated history base is unset, so
+    # existing setups keep working; configure runtime_history_base_url (with the
+    # runtime app prefix) to decouple capture from campaign evaluate_url resolution.
+    base_url = (
+        config.control_plane.runtime_history_base_url
+        or config.control_plane.runtime_base_url
+    )
+    return HistoryClient(runtime_base_url=base_url)
 
 
 def build_datasets_router(prefix: str = "") -> APIRouter:

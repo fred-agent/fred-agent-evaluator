@@ -27,6 +27,12 @@ class ControlPlaneConfig(BaseModel):
     # Base URL used to resolve relative evaluate_url paths returned by prepare-execution.
     # In prod this is empty (ingress handles routing). In local dev, set to http://localhost:8000.
     runtime_base_url: str = ""
+    # Base URL of the runtime app that serves the history capture endpoint
+    # (`/agents/{id}/history`). Unlike runtime_base_url (host only, for resolving
+    # relative evaluate_url paths), this must include the runtime app's path prefix
+    # (e.g. http://localhost:8000/fred/agents/v2). Kept separate so capture and
+    # campaign execution can use different bases without conflict.
+    runtime_history_base_url: str = ""
 
 
 class StorageConfig(BaseModel):

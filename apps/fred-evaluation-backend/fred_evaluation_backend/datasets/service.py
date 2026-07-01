@@ -56,12 +56,22 @@ def messages_to_candidates(messages: list[CapturedMessage]) -> list[QuestionCand
         user_msg = next((m for m in group if m.role == "user"), None)
         if user_msg is None:
             continue  # no question → not a candidate
-        assistant_msg = next((m for m in group if m.role == "assistant"), None)
+        # A turn can hold several assistant messages: intermediate tool-call
+        # messages (no text) then the final answer. Pick the last assistant
+        # message that actually carries text, so `answer` is the real reply.
+        answer = next(
+            (
+                m.content
+                for m in reversed(group)
+                if m.role == "assistant" and m.content.strip()
+            ),
+            None,
+        )
         candidates.append(
             QuestionCandidate(
                 candidate_id=str(uuid.uuid4()),
                 question=user_msg.content,
-                answer=assistant_msg.content if assistant_msg else None,
+                answer=answer,
                 source_session_id=user_msg.session_id,
                 source_exchange_id=user_msg.exchange_id,
                 captured_at=user_msg.timestamp,
