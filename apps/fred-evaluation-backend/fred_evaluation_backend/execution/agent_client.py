@@ -5,7 +5,6 @@ import logging
 import httpx
 from fred_core import M2MBearerAuth, M2MTokenProvider
 from fred_sdk.contracts.eval import EvalTrace
-from fred_sdk.contracts.execution import ExecutionGrant
 
 logger = logging.getLogger(__name__)
 
@@ -18,18 +17,16 @@ class AgentClient:
         self,
         *,
         evaluate_url: str,
-        execution_grant: ExecutionGrant,
+        team_id: str,
         agent_id: str | None,
         agent_instance_id: str | None = None,
         session_id: str,
         input: str,
         token_provider: M2MTokenProvider | None = None,
     ) -> EvalTrace:
-        token = execution_grant.model_dump_json()
-        headers = {
-            "Content-Type": "application/json",
-            "X-Execution-Grant": token,
-        }
+        # RUNTIME-07 rev.2: no signed grant. The runtime authorizes via the caller's
+        # JWT (the worker's M2M token) + pod-side OpenFGA, scoped to runtime_context.team_id.
+        headers = {"Content-Type": "application/json"}
         # When M2M is configured the bearer token is injected by M2MBearerAuth;
         # otherwise fall back to a dev token (local stacks run agents without auth).
         auth = M2MBearerAuth(token_provider) if token_provider else None
@@ -38,7 +35,7 @@ class AgentClient:
         body: dict = {
             "session_id": session_id,
             "input": input,
-            "execution_grant": execution_grant.model_dump(),
+            "runtime_context": {"team_id": team_id},
         }
         if agent_instance_id:
             body["agent_instance_id"] = agent_instance_id
