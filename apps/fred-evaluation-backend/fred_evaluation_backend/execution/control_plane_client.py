@@ -1,23 +1,22 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 
 import httpx
 from fred_core import M2MBearerAuth, M2MTokenProvider
-from fred_sdk.contracts.execution import ExecutionGrant
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
 
+# RUNTIME-07 rev.2: prepare-execution no longer returns a signed execution_grant.
+# Authorization happens at the runtime pod via the caller's JWT + OpenFGA. These
+# preparations therefore only carry routing (evaluate_url) and the team scope.
 class RuntimeAgentExecutionPreparation(BaseModel):
     runtime_id: str
     agent_id: str
     team_id: str
     evaluate_url: str
-    execution_grant: ExecutionGrant
-    expires_at: datetime
 
 
 class ManagedInstanceExecutionPreparation(BaseModel):
@@ -25,8 +24,6 @@ class ManagedInstanceExecutionPreparation(BaseModel):
     runtime_id: str
     team_id: str
     evaluate_url: str
-    execution_grant: ExecutionGrant
-    expires_at: datetime
 
 
 class ControlPlaneClient:
@@ -101,6 +98,4 @@ class ControlPlaneClient:
                 runtime_id=data["runtime_id"],
                 team_id=str(data["team_id"]),
                 evaluate_url=evaluate_url,
-                execution_grant=ExecutionGrant.model_validate(data["execution_grant"]),
-                expires_at=data["expires_at"],
             )

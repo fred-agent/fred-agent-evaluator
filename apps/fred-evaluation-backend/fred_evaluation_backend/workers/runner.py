@@ -91,14 +91,12 @@ class CampaignRunner:
                     agent_id=campaign.target_agent_id,
                 )
                 evaluate_url = prep.evaluate_url
-                execution_grant = prep.execution_grant
             else:
                 prep = await self._cp_client.prepare_managed_instance_execution(
                     team_id=campaign.team_id,
                     agent_instance_id=campaign.target_instance_id,
                 )
                 evaluate_url = prep.evaluate_url
-                execution_grant = prep.execution_grant
         except Exception as exc:
             logger.error(
                 "[RUNNER] campaign=%s cannot prepare execution: %s", campaign_id, exc
@@ -148,7 +146,7 @@ class CampaignRunner:
                         else None,
                         session_id=str(uuid.uuid4()),
                         evaluate_url=evaluate_url,
-                        execution_grant=execution_grant,
+                        team_id=campaign.team_id,
                         token_provider=self._cp_client._token_provider,
                         profile=campaign.profile,
                         judge=judge,

@@ -4,7 +4,6 @@ import json
 import logging
 
 from fred_core import M2MTokenProvider
-from fred_sdk.contracts.execution import ExecutionGrant
 from opentelemetry.trace import Status, StatusCode
 
 from fred_evaluation_backend.campaigns.store import EvaluationStore
@@ -25,7 +24,7 @@ async def execute_and_score_case(
     agent_instance_id: str | None = None,
     session_id: str,
     evaluate_url: str,
-    execution_grant: ExecutionGrant,
+    team_id: str,
     token_provider: M2MTokenProvider | None = None,
     profile: str,
     judge,
@@ -52,7 +51,7 @@ async def execute_and_score_case(
             agent_instance_id=agent_instance_id,
             session_id=session_id,
             evaluate_url=evaluate_url,
-            execution_grant=execution_grant,
+            team_id=team_id,
             token_provider=token_provider,
             profile=profile,
             judge=judge,
@@ -73,7 +72,7 @@ async def _execute_and_score_case_inner(
     agent_instance_id: str | None = None,
     session_id: str,
     evaluate_url: str,
-    execution_grant: ExecutionGrant,
+    team_id: str,
     token_provider: M2MTokenProvider | None = None,
     profile: str,
     judge,
@@ -101,7 +100,7 @@ async def _execute_and_score_case_inner(
     try:
         eval_trace = await agent_client.evaluate(
             evaluate_url=evaluate_url,
-            execution_grant=execution_grant,
+            team_id=team_id,
             agent_id=agent_id,
             agent_instance_id=agent_instance_id,
             session_id=session_id,

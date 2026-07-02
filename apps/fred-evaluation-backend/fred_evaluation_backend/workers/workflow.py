@@ -103,7 +103,7 @@ async def run_case(payload: CaseInput) -> None:
         else None,
         session_id=str(uuid.uuid4()),
         evaluate_url=prep.evaluate_url,
-        execution_grant=prep.execution_grant,
+        team_id=campaign.team_id,
         token_provider=cp_client._token_provider,
         profile=campaign.profile,
         judge=judge,
