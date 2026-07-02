@@ -24,7 +24,8 @@ async def resolve_runtime_agent(
     Resolve a runtime_agent target into an execution preparation.
 
     Calls the Control Plane to validate the runtime exists and obtain
-    an ingress-safe evaluate_url + short-lived execution_grant.
+    an ingress-safe evaluate_url (RUNTIME-07 rev.2: no execution_grant — the
+    runtime authorizes via the worker's JWT + OpenFGA on the request team_id).
     """
     try:
         return await control_plane_client.prepare_runtime_agent_execution(

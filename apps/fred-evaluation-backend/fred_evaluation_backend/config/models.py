@@ -95,8 +95,8 @@ def _default_security() -> SecurityConfiguration:
             "m2m": {
                 "enabled": False,
                 "realm_url": "http://localhost:8080/realms/app",
-                "client_id": "evaluation",
-                "secret_env_var": "KEYCLOAK_EVALUATION_CLIENT_SECRET",  # nosec B105  # pragma: allowlist secret
+                "client_id": "fred-evaluation-worker",
+                "secret_env_var": "KEYCLOAK_EVAL_WORKER_CLIENT_SECRET",  # nosec B105  # pragma: allowlist secret
             },
             "user": {
                 "enabled": False,
