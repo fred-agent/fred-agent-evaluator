@@ -119,9 +119,9 @@ rights (unlike the purge worker).
 ## 7. Decision — Solution A (chosen, pending security review)
 
 Give Fworker the existing **`service_agent`** role (not `admin`), and **extend the
-authorization layer** (runtime + control-plane) so that a `service_agent` is allowed
-to perform the **"run an evaluation"** action **scoped to the `team_id` carried in the
-request** — i.e. the team of the legitimately-created campaign.
+authorization layer** (runtime, control-plane, **and knowledge-flow**) so that a
+`service_agent` is allowed to perform the **"run an evaluation"** action **scoped to the
+`team_id` carried in the request** — i.e. the team of the legitimately-created campaign.
 
 - Least privilege: Fworker can only **run evaluations**, and only **for the team in
   the request** — not org-wide admin, not arbitrary actions.
@@ -137,7 +137,8 @@ creates campaigns (that is the API) nor modifies team resources. Mapped per leve
 | --- | --- | --- |
 | **Keycloak** | `service_agent` | service identity marker (no ReBAC power by itself) |
 | **ReBAC — org** | **none** | the worker does not create agents (`editor`) or teams (`admin`) |
-| **ReBAC — team** | **`can_read` only** | prepare-execution and execute are both gated by `can_read`; that is all the async worker calls |
+| **ReBAC — team** | **`can_read` only** | prepare-execution and execute are both gated by `can_read` |
+| **ReBAC — team corpus (knowledge-flow)** | **read on the team's tags/libraries + documents** | a RAG agent run by the worker calls knowledge-flow vector search, which authorizes libraries/documents by ReBAC on the caller; without team-scoped read the corpus search is skipped and every RAG case retrieves nothing (discovered in end-to-end testing) |
 | **ReBAC — resource (agent)** | **none** | executing an agent is gated by the team's `can_read`, not by an agent-level relation |
 
 So Solution A grants `service_agent` the **team `can_read` level, scoped to the request
@@ -182,10 +183,18 @@ So Solution A grants `service_agent` the **team `can_read` level, scoped to the 
    - Its **secret**, delivered to Fworker via env var (e.g. `KEYCLOAK_EVAL_WORKER_SECRET`).
    - Assign the **`service_agent`** role — **NOT `admin`**.
 
-2. **Authorization layer (runtime + control-plane) — Solution A**
+2. **Authorization layer (runtime + control-plane + knowledge-flow) — Solution A**
    - Recognize a `service_agent` caller as authorized for the **"run an evaluation"**
      action, **scoped to the request's `team_id`** (the campaign's team).
-   - Keep the runtime and control-plane as the **enforcement points** (defense in depth).
+   - Enforcement points (defense in depth):
+     - **control-plane** — `prepare-execution` (team `can_read`).
+     - **runtime** — `execute`/`evaluate` (team `can_read`).
+     - **knowledge-flow** — vector search / corpus read: recognize `service_agent`
+       for **team-scoped read of tags/libraries + documents**, so a RAG agent run by
+       the worker can retrieve the team's indexed corpus. Without this, the caller
+       identity (`service_agent`) propagates from worker → runtime → knowledge-flow,
+       resolves to **zero authorized libraries**, and every RAG case returns "nothing
+       found in corpus". Read-only, scoped to `team_id` (no cross-team leak).
 
 3. **Legitimacy anchoring**
    - The campaign records `created_by` and `team_id` at creation (created by a user
@@ -197,6 +206,7 @@ So Solution A grants `service_agent` the **team `can_read` level, scoped to the 
 > - [ ] Keycloak client `fred-evaluation-worker` (confidential, service accounts ON) + secret
 > - [ ] Role `service_agent` on that client — **never** `admin`
 > - [ ] Runtime + control-plane: accept `service_agent` for the evaluation action, scoped to `team_id`
+> - [ ] Knowledge-flow: accept `service_agent` for team-scoped corpus read (tags/libraries + documents), scoped to `team_id` — required for RAG evaluations
 > - [ ] Campaign record carries `created_by` + `team_id` (legitimacy anchor)
 > - [ ] Audit: execution attributed to the service, referencing the campaign + `created_by`
 
