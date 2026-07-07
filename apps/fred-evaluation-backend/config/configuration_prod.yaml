@@ -7,14 +7,11 @@ app:
 
 storage:
   postgres:
-    sqlite_path: "~/.fred/evaluation/evaluation.sqlite3"
-# # storage:
-# # postgres:
-#   host: postgres
-#     port: 5432
-#     database: evaluation
-#     username: evaluation
-#     # password is read from the FRED_POSTGRES_PASSWORD environment variable
+    host: postgres
+    port: 5432
+    database: evaluation
+    username: evaluation
+    # password is read from the FRED_POSTGRES_PASSWORD environment variable
 
 security:
   user:
