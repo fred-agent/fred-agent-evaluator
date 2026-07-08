@@ -10,7 +10,12 @@ include scripts/makefiles/python-clean.mk
 include scripts/makefiles/help.mk
 
 ENV_FILE := $(ROOT_DIR)/config/.env
-export ENV_FILE 
+export ENV_FILE
+
+# The offline unit suite constructs real deepeval.test_case.LLMTestCase objects
+# (metric execution is mocked to stay offline), so it needs the scoring stack
+# installed. `test` comes from python-test.mk; add the eval extra as a prereq.
+test: eval-dev
 
 .PHONY: cli
 cli: dev ## Run the external EvalTrace CLI

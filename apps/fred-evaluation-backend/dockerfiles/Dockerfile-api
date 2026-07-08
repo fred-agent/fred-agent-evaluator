@@ -52,6 +52,14 @@ COPY --chown=${USER_ID}:${GROUP_ID} apps/fred-evaluation-backend/pyproject.toml 
 COPY --chown=${USER_ID}:${GROUP_ID} apps/fred-evaluation-backend/README.md /workspace/apps/fred-evaluation-backend/README.md
 COPY --chown=${USER_ID}:${GROUP_ID} apps/fred-evaluation-backend/fred_evaluation_backend /workspace/apps/fred-evaluation-backend/fred_evaluation_backend
 
+# Alembic migrations run `alembic upgrade head` from WORKDIR /app (the Job overrides no
+# workingDir). Ship alembic.ini + the package (which carries fred_evaluation_backend/
+# migrations) under /app so alembic finds its config and resolves script_location
+# (%(here)s/fred_evaluation_backend/migrations). Mirrors control-plane / knowledge-flow.
+# The uvicorn entrypoint imports the package from the venv, so this is only for migrations.
+COPY --chown=${USER_ID}:${GROUP_ID} apps/fred-evaluation-backend/fred_evaluation_backend /app/fred_evaluation_backend
+COPY --chown=${USER_ID}:${GROUP_ID} apps/fred-evaluation-backend/alembic.ini /app/alembic.ini
+
 USER ${USER_NAME}
 
 EXPOSE 8336
