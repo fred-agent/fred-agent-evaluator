@@ -43,10 +43,13 @@ def build_judge_model(cfg: ModelConfiguration):
     """Map a `ModelConfiguration` to a DeepEval model instance.
 
     Supported providers:
-    - ``litellm``  — provider-agnostic; `name` carries the `provider/model` prefix
-      (e.g. ``mistral/mistral-small-latest``). Preferred.
-    - ``ollama``   — local models via litellm's ollama routing.
-    - ``openai``   — OpenAI or any OpenAI-compatible endpoint (set `settings.base_url`).
+    - ``litellm``    — provider-agnostic; `name` carries the `provider/model` prefix
+      (e.g. ``mistral/mistral-small-latest``). Preferred for keyed providers.
+    - ``vertex_ai``  — Google Vertex AI via Application Default Credentials (Workload
+      Identity), no API key. `name` is the bare model (e.g. ``gemini-2.5-flash``);
+      project/region come from the ``VERTEXAI_PROJECT`` / ``VERTEXAI_LOCATION`` env.
+    - ``ollama``     — local models via litellm's ollama routing.
+    - ``openai``     — OpenAI or any OpenAI-compatible endpoint (set `settings.base_url`).
     """
     from deepeval.models.llms import LiteLLMModel
 
@@ -60,6 +63,24 @@ def build_judge_model(cfg: ModelConfiguration):
         return LiteLLMModel(
             model=name,
             api_key=_require_api_key(settings, "LITELLM_API_KEY"),
+            base_url=base_url,
+            request_timeout=request_timeout,
+            num_retries=0,
+        )
+
+    if provider in ("vertex_ai", "vertex"):
+        # Google Vertex AI, authenticated by Application Default Credentials — on GKE
+        # that is Workload Identity (the pod's service account), NOT an API key. This
+        # matches how knowledge-flow and fred-agents reach Vertex, so the evaluator judge
+        # stays inside the platform (no external egress, no Mistral/OpenAI key).
+        #
+        # litellm routes the `vertex_ai/<model>` prefix and reads the project + region
+        # from the VERTEXAI_PROJECT / VERTEXAI_LOCATION env vars (set on the Deployment).
+        # `name` may be bare ("gemini-2.5-flash") or already prefixed ("vertex_ai/...").
+        model = name if name.startswith("vertex_ai/") else f"vertex_ai/{name}"
+        return LiteLLMModel(
+            model=model,
+            api_key=None,  # ADC / Workload Identity — deepeval tolerates a null key
             base_url=base_url,
             request_timeout=request_timeout,
             num_retries=0,
