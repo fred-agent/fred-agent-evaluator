@@ -14,6 +14,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from fred_core.tasks.service import TaskService
+
     from fred_evaluation_backend.campaigns.store import EvaluationStore
     from fred_evaluation_backend.config.models import EvaluationConfig
     from fred_evaluation_backend.execution.agent_client import AgentClient
@@ -25,6 +27,7 @@ _store: "EvaluationStore | None" = None
 _config: "EvaluationConfig | None" = None
 _agent_client: "AgentClient | None" = None
 _cp_client: "ControlPlaneClient | None" = None
+_task_service: "TaskService | None" = None
 
 
 def init(
@@ -33,12 +36,14 @@ def init(
     config: "EvaluationConfig",
     agent_client: "AgentClient",
     cp_client: "ControlPlaneClient",
+    task_service: "TaskService",
 ) -> None:
-    global _store, _config, _agent_client, _cp_client
+    global _store, _config, _agent_client, _cp_client, _task_service
     _store = store
     _config = config
     _agent_client = agent_client
     _cp_client = cp_client
+    _task_service = task_service
 
 
 def get_store() -> "EvaluationStore":
@@ -63,3 +68,11 @@ def get_cp_client() -> "ControlPlaneClient":
     if _cp_client is None:
         raise RuntimeError("Activity context not initialised — call init() first")
     return _cp_client
+
+
+def get_task_service() -> "TaskService":
+    """EVAL-02: the shared task-event bus, so activities can publish the campaign's
+    lifecycle instead of writing it only to the evaluator's private event table."""
+    if _task_service is None:
+        raise RuntimeError("Activity context not initialised — call init() first")
+    return _task_service

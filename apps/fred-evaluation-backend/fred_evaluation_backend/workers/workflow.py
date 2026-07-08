@@ -43,6 +43,72 @@ class CaseInput:
 # ---------------------------------------------------------------------------
 
 
+async def _publish(campaign_id: str, state, *, progress: float, detail_counts: dict):
+    """Publish one campaign lifecycle event on the shared task bus (EVAL-02).
+
+    Only two callers, and that is deliberate: ``record_event`` reads ``task_run.seq``
+    and writes ``seq + 1`` without locking the row, while ``task_event_log`` carries a
+    ``UNIQUE (task_id, seq)`` constraint. Two writers on the *same* task would collide.
+    Knowledge-flow escapes this by minting one task per file; a campaign is one task, so
+    we may only publish where a single writer exists — before the cases fan out, and
+    after they have all joined. Never from ``run_case``, which runs in parallel.
+
+    A campaign created before EVAL-02 has no bus task; publishing is then a no-op.
+    """
+    from datetime import datetime, timezone
+
+    from fred_core.tasks import EvaluationDetail, EvaluationTaskEvent
+
+    from fred_evaluation_backend.workers._activity_context import (
+        get_store,
+        get_task_service,
+    )
+
+    campaign = await get_store().get_campaign(campaign_id)
+    if campaign is None or not campaign.task_id:
+        return
+
+    await get_task_service().record(
+        EvaluationTaskEvent(
+            task_id=campaign.task_id,
+            state=state,
+            seq=0,  # reassigned by record()
+            timestamp=datetime.now(timezone.utc),
+            progress=progress,
+            owner=campaign.created_by,
+            detail=EvaluationDetail(campaign_id=campaign_id, **detail_counts),
+        )
+    )
+
+
+@activity.defn(name="mark_campaign_running")
+async def mark_campaign_running(campaign_id: str) -> None:
+    """Announce the campaign has started, before the cases fan out.
+
+    Without this the bus task stays ``pending`` for the whole run, so the task tray
+    shows nothing moving even though the workflow is well under way.
+    """
+    from fred_core.tasks import TaskState
+
+    from fred_evaluation_backend.workers._activity_context import get_store
+
+    campaign = await get_store().get_campaign(campaign_id)
+    total = campaign.total_cases if campaign else 0
+    await _publish(
+        campaign_id,
+        TaskState.running,
+        progress=0.0,
+        detail_counts=dict(
+            completed=0,
+            total=total,
+            passed=0,
+            failed=0,
+            execution_errors=0,
+            scoring_errors=0,
+        ),
+    )
+
+
 @activity.defn(name="fetch_campaign_cases")
 async def fetch_campaign_cases(campaign_id: str) -> list[str]:
     """Return the list of case_ids for a campaign."""
@@ -162,6 +228,27 @@ async def finalize_campaign(campaign_id: str) -> None:
     )
     await store.create_event(campaign_id, kind="campaign_completed", payload_json=None)
 
+    # EVAL-02: the cases have all joined, so this is the second (and last) single-writer
+    # moment. `succeeded` here means "the campaign ran to the end", not "the agent scored
+    # well" — the business outcome is `verdict`, above, and a poor score must not look
+    # like a broken run. Without this publish the sweeper later finds a workflow Temporal
+    # calls completed whose task never reported success, and marks the task `failed`.
+    from fred_core.tasks import TaskState
+
+    await _publish(
+        campaign_id,
+        TaskState.succeeded,
+        progress=1.0,
+        detail_counts=dict(
+            completed=completed,
+            total=campaign.total_cases,
+            passed=passed,
+            failed=failed,
+            execution_errors=exec_errors,
+            scoring_errors=scoring_errors,
+        ),
+    )
+
 
 # ---------------------------------------------------------------------------
 # Workflow — orchestration only, no I/O
@@ -183,6 +270,15 @@ class CampaignWorkflow:
     async def run(self, payload: CampaignInput) -> None:
         campaign_id = payload.campaign_id
         workflow.logger.info("[CAMPAIGN-WORKFLOW] starting campaign=%s", campaign_id)
+
+        # EVAL-02: announce the start on the shared bus, while this is still the only
+        # writer on the task. Once the cases fan out below, nothing may publish.
+        await workflow.execute_activity(
+            mark_campaign_running,
+            campaign_id,
+            start_to_close_timeout=timedelta(minutes=1),
+            retry_policy=RetryPolicy(maximum_attempts=3),
+        )
 
         # Fetch all case IDs — done in an activity to keep DB access outside the sandbox
         case_ids: list[str] = await workflow.execute_activity(

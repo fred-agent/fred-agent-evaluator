@@ -16,6 +16,7 @@ from fred_core.sql import create_async_engine_from_config
 
 from fred_evaluation_backend.campaigns.api import build_evaluations_router
 from fred_evaluation_backend.tasks.api import build_tasks_router
+from fred_evaluation_backend.tasks.factory import build_task_service
 from fred_evaluation_backend.config.loader import load_configuration
 from fred_evaluation_backend.execution.analysis_client import AnalysisClient
 from fred_evaluation_backend.execution.auth import build_m2m_token_provider
@@ -73,6 +74,10 @@ def create_app() -> FastAPI:
         )
         temporal_task_queue = configuration.scheduler.temporal.task_queue
 
+    # EVAL-02: the shared task-event bus service (fred_core.tasks). Campaigns are
+    # driven as bus tasks (kind "evaluation"), like control-plane / knowledge-flow.
+    task_service = build_task_service(configuration, engine)
+
     @contextlib.asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.db_engine = engine
@@ -80,6 +85,7 @@ def create_app() -> FastAPI:
         app.state.analysis_client = analysis_client
         app.state.temporal_client_provider = temporal_client_provider
         app.state.temporal_task_queue = temporal_task_queue
+        app.state.task_service = task_service
         yield
         await engine.dispose()
 

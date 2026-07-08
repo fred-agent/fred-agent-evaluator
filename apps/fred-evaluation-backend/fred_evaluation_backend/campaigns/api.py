@@ -5,12 +5,18 @@ import base64
 import json
 import logging
 import os
+from datetime import datetime, timedelta, timezone
 from typing import Annotated, AsyncGenerator
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
 from fred_core import KeycloakUser, get_current_user
+from fred_core.tasks import (
+    StartEvaluationParams,
+    StartEvaluationRequest,
+    TaskTarget,
+)
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -31,8 +37,22 @@ from fred_evaluation_backend.execution.analysis_client import (
 )
 from fred_evaluation_backend.campaigns.store import EvaluationStore
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
+from fred_evaluation_backend.tasks.factory import get_task_service
 
 logger = logging.getLogger(__name__)
+
+
+def _start_delay(scheduled_for: datetime | None) -> timedelta | None:
+    """Translate an absolute schedule into the relative delay Temporal expects.
+
+    Temporal owns the timer (it lives in Temporal's own database), which is what makes a
+    "+7 days" campaign survive redeploys of the API and the worker. A schedule already in
+    the past means "run now" — Temporal rejects a negative delay.
+    """
+    if scheduled_for is None:
+        return None
+    delay = scheduled_for - datetime.now(timezone.utc)
+    return delay if delay > timedelta(0) else None
 
 
 class TelemetryInfoResponse(BaseModel):
@@ -100,31 +120,70 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         store: Annotated[EvaluationStore, Depends(_get_evaluation_store)],
         cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> CampaignCreatedResponse:
-        result = await service.create_campaign(
-            body,
+        # EVAL-02 — a campaign run is a task on the shared bus, exactly as an ingestion is
+        # in knowledge-flow. The four steps below must happen in this order:
+        #
+        #   1. open the bus task      — before anything else, so a failure to schedule can
+        #                               be recorded against a real task_run row
+        #   2. persist the campaign   — domain data, carrying the bus-minted task_id
+        #   3. ask Temporal to run it — with the delay, if the campaign is scheduled
+        #   4. bind task ↔ workflow   — only now does the workflow id exist
+        #
+        # Between 1 and 4 the task has no execution_id, and `reconcile_stale` skips tasks
+        # with no execution behind them. If step 2 or 3 raises, nothing would ever drive
+        # the task terminal and it would sit "pending" forever — the exact RGPD limbo this
+        # work exists to remove. Hence `fail_task` in the except branch.
+        task_service = get_task_service(request)
+        campaign_id = service.new_campaign_id()
+
+        started = await task_service.start(
+            StartEvaluationRequest(
+                params=StartEvaluationParams(campaign_id=campaign_id)
+            ),
             created_by=user.uid,
-            store=store,
-            control_plane_client=cp_client,
+            team_id=body.team_id,
+            target=TaskTarget(
+                type="evaluation_campaign", id=campaign_id, label=body.name
+            ),
+            scheduled_for=body.execution.scheduled_for,
         )
+        task_id = started.task_id
 
-        temporal_provider = _get_temporal_client_provider(request)
-        if temporal_provider is not None:
-            from fred_evaluation_backend.workers.workflow import (
-                CampaignInput,
-                CampaignWorkflow,
+        try:
+            result = await service.create_campaign(
+                body,
+                created_by=user.uid,
+                campaign_id=campaign_id,
+                task_id=task_id,
+                store=store,
+                control_plane_client=cp_client,
             )
 
-            task_queue = (
-                getattr(request.app.state, "temporal_task_queue", "evaluation")
-                or "evaluation"
-            )
-            client = await temporal_provider.get_client()
-            await client.start_workflow(
-                CampaignWorkflow.run,
-                CampaignInput(campaign_id=result.campaign_id),
-                id=f"campaign-eval-{result.campaign_id}",
-                task_queue=task_queue,
-            )
+            temporal_provider = _get_temporal_client_provider(request)
+            if temporal_provider is not None:
+                from fred_evaluation_backend.workers.workflow import (
+                    CampaignInput,
+                    CampaignWorkflow,
+                )
+
+                task_queue = (
+                    getattr(request.app.state, "temporal_task_queue", "evaluation")
+                    or "evaluation"
+                )
+                client = await temporal_provider.get_client()
+                handle = await client.start_workflow(
+                    CampaignWorkflow.run,
+                    CampaignInput(campaign_id=campaign_id),
+                    id=f"campaign-eval-{campaign_id}",
+                    task_queue=task_queue,
+                    start_delay=_start_delay(body.execution.scheduled_for),
+                )
+                await task_service.bind_execution(task_id, execution_id=handle.id)
+            # MEMORY backend (local dev only): no durable executor, so nothing to bind.
+            # The polling runner picks the campaign up; reconcile is a no-op there.
+        except Exception as exc:
+            await task_service.fail_task(task_id, f"could not schedule campaign: {exc}")
+            raise
 
         return result
 

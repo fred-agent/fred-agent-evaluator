@@ -30,13 +30,33 @@ logger = logging.getLogger(__name__)
 _MAX_CASES = 200
 
 
+def new_campaign_id() -> str:
+    """Mint a campaign id before the campaign row exists.
+
+    EVAL-02: the bus task must be opened *before* the campaign is persisted (so a failure
+    to schedule can be recorded against a real task), and ``StartEvaluationParams`` needs
+    the campaign id at that moment. Minting it here keeps the naming convention in the
+    domain layer instead of leaking it into the router.
+    """
+    return f"eval-cmp-{uuid4().hex[:8]}"
+
+
 async def create_campaign(
     request: CreateEvaluationCampaignRequest,
     *,
     created_by: str,
+    campaign_id: str,
+    task_id: str,
     store: EvaluationStore,
     control_plane_client: ControlPlaneClient,
 ) -> CampaignCreatedResponse:
+    """Persist the campaign (domain data) under an already-opened bus task.
+
+    EVAL-02: the ``task_id`` is minted by the task bus (``TaskService.start``), not here,
+    so ``task_run`` is the single source of truth for the run's lifecycle while this table
+    stays the source of truth for the campaign itself. The caller opens the task first —
+    see ``campaigns/api.py`` for the ordering and the failure net.
+    """
     if len(request.dataset.cases) > _MAX_CASES:
         raise HTTPException(
             status_code=422,
@@ -65,12 +85,7 @@ async def create_campaign(
         target_agent_id = None
         target_instance_id = request.target.agent_instance_id
 
-    campaign_id = f"eval-cmp-{uuid4().hex[:8]}"
     run_id = f"eval-run-{uuid4().hex[:8]}"
-    # The task id is the campaign run's identity in the canonical task-event API.
-    # It is intentionally distinct from campaign_id (a campaign may later have many
-    # runs / tasks), so the frontend tracks the run via /tasks/{task_id}.
-    task_id = f"eval-task-{uuid4().hex[:8]}"
 
     await store.create_campaign(
         campaign_id=campaign_id,
