@@ -190,11 +190,25 @@ So Solution A grants `service_agent` the **team `can_read` level, scoped to the 
      - **control-plane** — `prepare-execution` (team `can_read`).
      - **runtime** — `execute`/`evaluate` (team `can_read`).
      - **knowledge-flow** — vector search / corpus read: recognize `service_agent`
-       for **team-scoped read of tags/libraries + documents**, so a RAG agent run by
-       the worker can retrieve the team's indexed corpus. Without this, the caller
-       identity (`service_agent`) propagates from worker → runtime → knowledge-flow,
-       resolves to **zero authorized libraries**, and every RAG case returns "nothing
-       found in corpus". Read-only, scoped to `team_id` (no cross-team leak).
+       for **team-scoped read of the team's tags/libraries** (the corpus-scoping path),
+       so a RAG agent run by the worker can retrieve the team's indexed corpus. Without
+       this, the caller identity (`service_agent`) propagates from worker → runtime →
+       knowledge-flow, resolves to **zero authorized libraries**, and every RAG case
+       returns "nothing found in corpus". Read-only, scoped to `team_id` (no cross-team
+       leak). **Implemented** in `TagService.resolve_authorized_tag_ids_in_rebac`
+       (`apps/knowledge-flow-backend/.../features/tag/tag_service.py`, fred PR #1923):
+       when `is_service_agent(user)`, the per-user READ baseline (empty for a service
+       identity) is bypassed and the **team's** owner/editor/viewer tags are authorized
+       directly, scoped to the request `team_id`; fail-closed (empty set) with no team
+       or a personal team.
+       > **Scope note.** This covers the **corpus-scoping** path (`tag_ids`), which is
+       > what corpus RAG search uses — chunks are filtered by `tag_ids` in the vector
+       > index. The separate **explicit per-document** path
+       > (`MetadataService.filter_readable_document_uids`, used only when a caller passes
+       > explicit `document_uids`) is **not** widened for `service_agent`: the async
+       > evaluation worker does corpus search and never passes explicit document UIDs.
+       > If a future case needs explicit-document reads under a service identity, extend
+       > that path the same way.
 
 3. **Legitimacy anchoring**
    - The campaign records `created_by` and `team_id` at creation (created by a user
@@ -202,13 +216,24 @@ So Solution A grants `service_agent` the **team `can_read` level, scoped to the 
      (mirroring the purge-queue precedent), while re-checking the service's own
      scoped rights at time T.
 
-> **Provisioning checklist**
-> - [ ] Keycloak client `fred-evaluation-worker` (confidential, service accounts ON) + secret
-> - [ ] Role `service_agent` on that client — **never** `admin`
-> - [ ] Runtime + control-plane: accept `service_agent` for the evaluation action, scoped to `team_id`
-> - [ ] Knowledge-flow: accept `service_agent` for team-scoped corpus read (tags/libraries + documents), scoped to `team_id` — required for RAG evaluations
+> **Provisioning checklist** (code enforcement done; deployment provisioning in `fred-deployment-factory`)
+> - [x] Runtime: accept `service_agent` for `execute`/`evaluate`, scoped to `team_id` — `fred-runtime/.../agent_app.py` (`_authorize_execution_or_raise`), audited, fail-closed if no team
+> - [x] Control-plane: accept `service_agent` for `prepare-execution` (team `can_read`), scoped to `team_id` — `control-plane/.../teams/service.py` (`_validate_team_and_check_permission`); write permissions fall through to normal ReBAC → denied
+> - [x] Knowledge-flow: accept `service_agent` for team-scoped **corpus** read (tags/libraries), scoped to `team_id` — `knowledge-flow/.../features/tag/tag_service.py` (fred PR #1923); required for RAG evaluations
+> - [x] `fred-core` shared predicate + allow-list: `is_service_agent()` and `SERVICE_AGENT_ALLOWED_TEAM_PERMISSIONS = {CAN_READ}`
+> - [ ] Keycloak client `fred-evaluation-worker` (confidential, service accounts ON) + secret — **deployment (`fred-deployment-factory`)**
+> - [ ] Role `service_agent` on that client — **never** `admin`; the role must **never** be assignable to end users or public clients (see security boundary below)
 > - [ ] Campaign record carries `created_by` + `team_id` (legitimacy anchor)
 > - [ ] Audit: execution attributed to the service, referencing the campaign + `created_by`
+>
+> **Security boundary (deploy-time invariant).** Because a `service_agent` caller is
+> authorized for the `team_id` **carried in the request** with **no OpenFGA tuple** binding
+> the service to a team, any holder of a `service_agent` token can read **any** team's corpus
+> by supplying that `team_id`. The entire trust boundary therefore collapses to *who can obtain
+> a `service_agent` token*. The `service_agent` role MUST be granted **only** to trusted M2M
+> service clients (`agentic`, `knowledge-flow`, `control-plane`, `fred-evaluation-worker`), never
+> to a user, a public client, or a realm-default/composite role. Legitimacy of the specific team
+> is anchored **upstream** at campaign creation (`created_by` + `team_id`), not re-checked here.
 
 ---
 
@@ -235,3 +260,45 @@ So Solution A grants `service_agent` the **team `can_read` level, scoped to the 
   a limited permission).
 - Whether Fapi needs any M2M client at all, or remains 100% user-JWT propagation.
 - Secret lifecycle/rotation for the `fred-evaluation-worker` client.
+
+---
+
+## 11. Generalization — the service-account pattern for agent workers
+
+**This is a deliberate architecture choice, not an evaluator-specific hack.** Any
+**asynchronous agent worker** — a component that runs agents *without a user present*
+(evaluation campaigns today; scheduled/batch agent runs, agent-to-agent pipelines, and
+autonomous background workers tomorrow) — faces the same identity problem: it cannot
+propagate a user JWT because no user is present, and it must not hold `admin` because
+that is org-wide and turns a leaked secret into a full-platform compromise.
+
+The pattern this RFC establishes, and which **future agent workers reuse verbatim**:
+
+1. **One identity per worker** — a confidential Keycloak client with **service accounts
+   enabled**, holding the **`service_agent`** role and **nothing stronger**. Never `admin`.
+2. **`service_agent` is an identity marker, not a ReBAC power** — no OpenFGA tuple is
+   stored for it. Each enforcement point recognizes it explicitly and grants **only**
+   the least-privilege action it guards, **scoped to the `team_id` in the request**.
+3. **Read-only by construction** — the shared allow-list
+   `SERVICE_AGENT_ALLOWED_TEAM_PERMISSIONS = {CAN_READ}` is the single source of truth;
+   any write permission falls through to the normal ReBAC check and is therefore denied.
+   A new worker that needs a different action extends this allow-list *intentionally and
+   reviewably* — it does not fork the predicate.
+4. **Legitimacy anchored upstream** — the enforcement points trust the `team_id` in the
+   request; the *right* to act on that team is established at the moment the work was
+   created by an authorized user (here: campaign `created_by` + `team_id`), mirroring the
+   RGPD purge-queue precedent. Rights are re-evaluated at execution time T against current
+   state, never from a creation-time snapshot.
+5. **Defense in depth across services** — the same predicate (`is_service_agent`) is
+   enforced independently at **every** service the worker calls (runtime, control-plane,
+   knowledge-flow). Adding a worker that reaches a new backend means adding the same
+   scoped, read-only, fail-closed recognition at that backend's enforcement point — using
+   the shared `fred-core` helpers, not a parallel implementation.
+
+**Consequence for the platform.** The security posture of *every* agent worker reduces to
+the single deploy-time invariant stated in §8: **strictly control which clients hold the
+`service_agent` role.** Get that right once, and each new worker inherits a proven,
+least-privilege, team-scoped, read-only identity model with no new authorization surface to
+design. `fred-agent-evaluator` (a campaign of questions that drives agents and produces a
+DeepEval KPI report) is the **first** consumer of this pattern; it is intended to be the
+template for the ones that follow.
