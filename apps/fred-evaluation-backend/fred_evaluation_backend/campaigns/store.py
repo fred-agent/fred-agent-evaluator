@@ -46,6 +46,7 @@ class EvaluationStore:
         profile: str,
         judge_profile_id: str,
         total_cases: int,
+        custom_metrics_json: str | None = None,
         session: AsyncSession | None = None,
     ) -> EvaluationCampaignRow:
         row = EvaluationCampaignRow(
@@ -63,6 +64,7 @@ class EvaluationStore:
             dataset_version=dataset_version,
             profile=profile,
             judge_profile_id=judge_profile_id,
+            custom_metrics_json=custom_metrics_json,
             operational_state="pending",
             verdict="pending",
             total_cases=total_cases,

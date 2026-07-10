@@ -72,6 +72,12 @@ async def create_campaign(
     # runs / tasks), so the frontend tracks the run via /tasks/{task_id}.
     task_id = f"eval-task-{uuid4().hex[:8]}"
 
+    custom_metrics_json = (
+        json.dumps([m.model_dump() for m in request.custom_metrics])
+        if request.custom_metrics
+        else None
+    )
+
     await store.create_campaign(
         campaign_id=campaign_id,
         run_id=run_id,
@@ -88,6 +94,7 @@ async def create_campaign(
         profile=request.profile,
         judge_profile_id=request.judge_profile_id,
         total_cases=len(request.dataset.cases),
+        custom_metrics_json=custom_metrics_json,
     )
 
     for case_input in request.dataset.cases:

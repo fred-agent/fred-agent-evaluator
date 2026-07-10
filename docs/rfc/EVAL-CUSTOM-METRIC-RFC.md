@@ -74,14 +74,25 @@ user's criterion from the form to `GEval`. Nothing about the output model
 
 ---
 
-## 4. The cross-repo constraint
+## 4. The cross-repo constraint — resolved
 
-The metric definition lives in `fred-deepeval-cli`. For the evaluator this package is a
-**local lib** (`libs/fred-deepeval-cli`), so it is editable directly. **But if the same
-package is also published on PyPI and consumed elsewhere, the change reaches those
-consumers only once republished** — the same trap as the `fred-core` version bump in
-EVAL-SCHEDULING-BUS. Confirm the publication story before implementing, and version the
-package if the payload of `score_trace` changes.
+The metric definition lives in `fred-deepeval-cli`, which is published on PyPI. **But the
+evaluator does not consume the PyPI build — it consumes the local source as an editable
+install:**
+
+```toml
+fred-deepeval-cli = { path = "../../libs/fred-deepeval-cli", editable = true }
+```
+
+So editing `libs/fred-deepeval-cli/.../scorer.py` takes effect **immediately** at the next
+worker start — no republish needed. The `>=0.1.2` floor in `pyproject.toml` is only a
+lower bound; the resolved source is the local path.
+
+The PyPI build matters only for *other* consumers of the package, if any exist outside
+this repo. The package is authored and published by the same team, so propagating the
+change to those consumers is a version bump (currently `0.1.3` → `0.1.4`) done at will —
+not a blocker. **Bump the version when `score_trace`'s signature changes**, so external
+consumers pin the new contract; the evaluator itself needs no bump to pick it up.
 
 ---
 
@@ -109,7 +120,9 @@ package if the payload of `score_trace` changes.
 2. Which `GEvalParam` values do we expose in the UI? All of DeepEval's, or a curated
    subset (`INPUT`, `ACTUAL_OUTPUT`, `EXPECTED_OUTPUT`, `RETRIEVAL_CONTEXT`, `TOOLS_CALLED`)?
 3. Max number of custom metrics per campaign (cost bound)?
-4. Is `fred-deepeval-cli` published/consumed outside this repo (§4)?
+4. ~~Is `fred-deepeval-cli` published/consumed outside this repo (§4)?~~ **Resolved:**
+   published on PyPI but consumed here as an editable local install — local edits are live;
+   version-bump only propagates to external consumers. No blocker.
 
 ---
 

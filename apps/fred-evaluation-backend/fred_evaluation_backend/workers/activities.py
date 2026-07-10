@@ -28,6 +28,7 @@ async def execute_and_score_case(
     token_provider: M2MTokenProvider | None = None,
     profile: str,
     judge,
+    custom_metrics: list | None = None,
     store: EvaluationStore,
     agent_client: AgentClient,
 ) -> None:
@@ -55,6 +56,7 @@ async def execute_and_score_case(
             token_provider=token_provider,
             profile=profile,
             judge=judge,
+            custom_metrics=custom_metrics,
             store=store,
             agent_client=agent_client,
         )
@@ -76,6 +78,7 @@ async def _execute_and_score_case_inner(
     token_provider: M2MTokenProvider | None = None,
     profile: str,
     judge,
+    custom_metrics: list | None = None,
     store: EvaluationStore,
     agent_client: AgentClient,
 ) -> None:
@@ -153,6 +156,7 @@ async def _execute_and_score_case_inner(
                 profile=resolved_profile,
                 expected_output=expected_output,
                 judge=judge,
+                custom_metrics=custom_metrics,
             )
     except Exception as exc:
         logger.error("[ACTIVITY] scoring failed case=%s: %s", case_id, exc)

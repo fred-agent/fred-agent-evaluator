@@ -57,7 +57,10 @@ async def fetch_campaign_cases(campaign_id: str) -> list[str]:
 @activity.defn(name="run_case")
 async def run_case(payload: CaseInput) -> None:
     """Execute and score one evaluation case."""
+    import json
     import uuid
+
+    from fred_deepeval_cli.core.models import CustomMetricSpec
 
     from fred_evaluation_backend.workers._activity_context import (
         get_agent_client,
@@ -91,6 +94,11 @@ async def run_case(payload: CaseInput) -> None:
     judge_profile = config.worker.judge_profiles.get(campaign.judge_profile_id)
     judge = build_judge_model(judge_profile) if judge_profile is not None else None
 
+    custom_metrics = [
+        CustomMetricSpec.model_validate(m)
+        for m in json.loads(campaign.custom_metrics_json or "[]")
+    ]
+
     await execute_and_score_case(
         case_id=case.case_id,
         campaign_id=payload.campaign_id,
@@ -107,6 +115,7 @@ async def run_case(payload: CaseInput) -> None:
         token_provider=cp_client._token_provider,
         profile=campaign.profile,
         judge=judge,
+        custom_metrics=custom_metrics,
         store=store,
         agent_client=agent_client,
     )
