@@ -564,16 +564,18 @@ wheels = [
 
 [[package]]
 name = "fastapi"
-version = "0.116.1"
+version = "0.139.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "annotated-doc" },
     { name = "pydantic" },
     { name = "starlette" },
     { name = "typing-extensions" },
+    { name = "typing-inspection" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/78/d7/6c8b3bfe33eeffa208183ec037fee0cce9f7f024089ab1c5d12ef04bd27c/fastapi-0.116.1.tar.gz", hash = "sha256:ed52cbf946abfd70c5a0dccb24673f0670deeb517a88b3544d03c2a6bf283143", size = 296485, upload-time = "2025-07-11T16:22:32.057Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d3/af/a5f50ccfa659ec1802cb4ca842c23f06d906a8cc9aef6016a2caeea3d4ed/fastapi-0.139.0.tar.gz", hash = "sha256:99ab7b2d92223c76d6cf10757ab3f89d45b38267fc20b2a136cf02f6beac3145", size = 423016, upload-time = "2026-07-01T16:35:33.436Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e5/47/d63c60f59a59467fda0f93f46335c9d18526d7071f025cb5b89d5353ea42/fastapi-0.116.1-py3-none-any.whl", hash = "sha256:c46ac7c312df840f0c9e220f7964bada936781bc4e2e6eb71f1c4d7553786565", size = 95631, upload-time = "2025-07-11T16:22:30.485Z" },
+    { url = "https://files.pythonhosted.org/packages/9e/7c/8e3c6ad324ea5cb36604fc3f968554887891c316d9dfde57761611d907ad/fastapi-0.139.0-py3-none-any.whl", hash = "sha256:cf15e1e9e667ddb0ad63811e60bd11390d1aac838ca4a7a23f421807b2308189", size = 130339, upload-time = "2026-07-01T16:35:32.19Z" },
 ]
 
 [[package]]
@@ -615,7 +617,7 @@ wheels = [
 
 [[package]]
 name = "fred-core"
-version = "3.1.0"
+version = "3.4.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiosqlite" },
@@ -623,8 +625,10 @@ dependencies = [
     { name = "authzed" },
     { name = "azure-identity" },
     { name = "fastapi" },
+    { name = "google-cloud-storage" },
     { name = "greenlet" },
     { name = "httpx" },
+    { name = "langchain-anthropic" },
     { name = "langchain-core" },
     { name = "langchain-google-genai" },
     { name = "langchain-google-vertexai" },
@@ -643,17 +647,18 @@ dependencies = [
     { name = "python-keycloak" },
     { name = "sqlalchemy" },
     { name = "sqlparse" },
+    { name = "starlette" },
     { name = "temporalio" },
     { name = "uv" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2e/52/0c0dc42cbefa40a372572e93ef09a82fb0f6445ccac65eeb50f96489a332/fred_core-3.1.0.tar.gz", hash = "sha256:dc56c4194a8be75cff1aeeed17902b0ebd1c954e9a3d15e8a989d3fba2e8ed8e", size = 172822, upload-time = "2026-06-22T10:50:43.959Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/66/17/e1cf4bedc7f4200460312467ec167402d08dcb22f630efe3c7e57973c146/fred_core-3.4.2.tar.gz", hash = "sha256:8f259ef990658b871f10614da5f06929a322fcf221c520ddb2035941ed155c3c", size = 208761, upload-time = "2026-07-13T13:15:32.246Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a7/32/64f257ba794ab0cbe75eeeb0755e90ad676b7627c3083a5d1c7d3cac8707/fred_core-3.1.0-py3-none-any.whl", hash = "sha256:3d0b597a9201701fa69535271bbbe98db5be1d155dd09aa5a312f8a2dcb50c48", size = 263898, upload-time = "2026-06-22T10:50:45.947Z" },
+    { url = "https://files.pythonhosted.org/packages/28/34/ccdf8d8f6bb8c73533e797c0d2014ed0a239af1cf5b26ffafd756800a9a6/fred_core-3.4.2-py3-none-any.whl", hash = "sha256:3aca754560e2f616f02fef30d76028e72432b5310543dc9ac98dd11b15602dd7", size = 310833, upload-time = "2026-07-13T13:15:30.179Z" },
 ]
 
 [[package]]
 name = "fred-deepeval-cli"
-version = "0.1.3"
+version = "0.1.4"
 source = { editable = "." }
 dependencies = [
     { name = "fred-runtime" },
@@ -684,8 +689,8 @@ requires-dist = [
     { name = "basedpyright", marker = "extra == 'dev'", specifier = "==1.31.0" },
     { name = "deepeval", marker = "extra == 'eval'" },
     { name = "detect-secrets", marker = "extra == 'dev'", specifier = ">=1.5.0" },
-    { name = "fred-runtime", specifier = ">=3.1.0" },
-    { name = "fred-sdk", specifier = ">=3.1.0" },
+    { name = "fred-runtime", specifier = ">=3.3.2" },
+    { name = "fred-sdk", specifier = ">=3.3.2" },
     { name = "litellm", marker = "extra == 'eval'" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.4.2" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6.2.1" },
@@ -699,7 +704,7 @@ provides-extras = ["dev", "eval"]
 
 [[package]]
 name = "fred-runtime"
-version = "3.1.0"
+version = "3.3.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "alembic" },
@@ -715,14 +720,14 @@ dependencies = [
     { name = "pyyaml" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9e/2e/41edfc2c8dbe8d064a83fb35e943ae8eac8098e18f0fd10370dd11d5a949/fred_runtime-3.1.0.tar.gz", hash = "sha256:8eebfa7bbc001dfc8d4b166b7540e434dedfe4e8633d0839c9ef1c47933de3a6", size = 247073, upload-time = "2026-06-22T10:51:13.084Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e4/db/84785d79438be128ef90e1bd68c973916d127ed43396cacfca3c234dcbef/fred_runtime-3.3.2.tar.gz", hash = "sha256:5454cefb80e97bd4777433f543f2b694be05f1032b20377bac225729238c66ae", size = 274612, upload-time = "2026-07-13T13:15:43.081Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0d/e0/bb2504e1dfd38de7b46383ea2b580e7d8cc94cde3263851737c2feb2ecd3/fred_runtime-3.1.0-py3-none-any.whl", hash = "sha256:bba7c5d761d271f83b6ce10eaecab012c150d892b7abf167e339b2d5ec1692ec", size = 245769, upload-time = "2026-06-22T10:51:11.254Z" },
+    { url = "https://files.pythonhosted.org/packages/78/49/ef0ce593828aca89d6b0a60475639f14ab5de95b0371bbfaa57aa83487ca/fred_runtime-3.3.2-py3-none-any.whl", hash = "sha256:582da285d8cc83deeda010e0b3d8b2d06afd2651b5ad6eac80f0a6e9473db2fe", size = 263854, upload-time = "2026-07-13T13:15:44.485Z" },
 ]
 
 [[package]]
 name = "fred-sdk"
-version = "3.1.0"
+version = "3.3.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fred-core" },
@@ -732,9 +737,9 @@ dependencies = [
     { name = "langgraph" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/26/2f/dc61c860403126a29fc655a595d7b4ff229dcabb60cf2f8f250b1625aaa5/fred_sdk-3.1.0.tar.gz", hash = "sha256:f2332ce2b8d9fe13d57ba1b2b6569cb8187ae64028f2cffa96fb6c7b315132e9", size = 113772, upload-time = "2026-06-22T10:51:00.696Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/09/e2/5051b926fa5b52d6a5946a58d536d22330fe12cf966e25377bcf19aa6898/fred_sdk-3.3.2.tar.gz", hash = "sha256:2a26ce872fb4ddd3f5f780b3987dd406697e961cc053f729c8c6a8bdf92001ab", size = 111847, upload-time = "2026-07-13T13:27:58.217Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/20/1e/c2b23e4dd1d6283c8a2963e43d0808ef2ecff7e57e5936bccc061b0eb0bb/fred_sdk-3.1.0-py3-none-any.whl", hash = "sha256:193fee7d0cd10e716cc26e9109ea099e02f986e53f330d812bd53e446bde9f5f", size = 118499, upload-time = "2026-06-22T10:50:58.754Z" },
+    { url = "https://files.pythonhosted.org/packages/73/21/7eb114aa59685e601616bfe06647f617334a41596d4b09ff9f9ba8edfaa0/fred_sdk-3.3.2-py3-none-any.whl", hash = "sha256:577187f5f60339b725052f3debb3a31d9c17ac3ba4e9ebdc9fe4b5c9446c9150", size = 117144, upload-time = "2026-07-13T13:27:59.452Z" },
 ]
 
 [[package]]
@@ -2733,15 +2738,15 @@ wheels = [
 
 [[package]]
 name = "starlette"
-version = "0.47.3"
+version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/15/b9/cc3017f9a9c9b6e27c5106cc10cc7904653c3eec0729793aec10479dd669/starlette-0.47.3.tar.gz", hash = "sha256:6bc94f839cc176c4858894f1f8908f0ab79dfec1a6b8402f6da9be26ebea52e9", size = 2584144, upload-time = "2025-08-24T13:36:42.122Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/eb/e3/7c1dc7381d9f8ab7d854328ebfa884e62cb3f3d8549ddfd37c7814f42afa/starlette-1.3.1.tar.gz", hash = "sha256:05d0213193f2fbaae60e2ecb593b4add4262ad4e46536b54abe36f11a71724e0", size = 2703240, upload-time = "2026-06-12T09:23:11.602Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ce/fd/901cfa59aaa5b30a99e16876f11abe38b59a1a2c51ffb3d7142bb6089069/starlette-0.47.3-py3-none-any.whl", hash = "sha256:89c0778ca62a76b826101e7c709e70680a1699ca7da6b44d38eb0a7e61fe4b51", size = 72991, upload-time = "2025-08-24T13:36:40.887Z" },
+    { url = "https://files.pythonhosted.org/packages/ec/bb/2799cc2ede3ed41131f8975621e7213dfc7ef4acbbaadfa440f32500c370/starlette-1.3.1-py3-none-any.whl", hash = "sha256:c7372aae11c3c3f26a42df7bd626cec2f47d03483d261d369516a615a53714c6", size = 73632, upload-time = "2026-06-12T09:23:10.017Z" },
 ]
 
 [[package]]

@@ -25,6 +25,17 @@ dev-scoring: $(TARGET)/.uv-installed ## Install scoring+worker+otel extras requi
 	flock $(TARGET)/.compiled.lock sh -c '$(UV) sync --extra dev --extra scoring --extra worker --extra otel --refresh-package fred-deepeval-cli && touch $(TARGET)/.compiled'
 	@echo "✅ Scoring dependencies installed."
 
+# tests/ and fred_evaluation_backend/workers/ import fred_deepeval_cli (worker
+# scoring code path). The shared `test` and `type-check` targets only pull in
+# `--extra dev`, so require dev-scoring here too — running `make test` or
+# `make type-check` on a fresh checkout must not assume `dev-scoring` or
+# `run-worker` ran first.
+.PHONY: test
+test: dev-scoring
+
+.PHONY: type-check
+type-check: dev-scoring
+
 .PHONY: run-worker
 run-worker: dev-scoring ## Run the evaluation worker (installs scoring deps automatically)
 	ENV_FILE=$(ROOT_DIR)/config/.env $(UV) run python -m fred_evaluation_backend.main_worker
