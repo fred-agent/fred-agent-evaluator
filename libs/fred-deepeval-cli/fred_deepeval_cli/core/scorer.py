@@ -2,12 +2,19 @@ from __future__ import annotations
 
 import logging
 
+import litellm
 from deepeval.test_case import LLMTestCase
 
-from fred_deepeval_cli.core.models import EvaluationMetricResult
+from fred_deepeval_cli.core.models import CustomMetricSpec, EvaluationMetricResult
 
 logging.getLogger("LiteLLM").setLevel(logging.CRITICAL)
 logging.getLogger("root").setLevel(logging.CRITICAL)
+
+# GEval asks the judge for token logprobs to compute a fine-grained score. Providers like
+# Mistral reject `logprobs`/`top_logprobs` outright, which would fail every custom metric.
+# Telling litellm to drop unsupported params lets GEval fall back to a direct score on
+# those providers; the built-in metrics never send these params, so they are unaffected.
+litellm.drop_params = True
 
 
 def _normalize_retrieval_context(raw: list) -> list[str]:
@@ -36,6 +43,7 @@ def score_trace(
     profile: str = "default",
     expected_output: str | None = None,
     judge=None,
+    custom_metrics: list[CustomMetricSpec] | None = None,
 ) -> tuple[list[EvaluationMetricResult], list[str]]:
     from deepeval.metrics import (
         AnswerRelevancyMetric,
@@ -43,6 +51,7 @@ def score_trace(
         ContextualRecallMetric,
         ContextualRelevancyMetric,
         FaithfulnessMetric,
+        GEval,
     )
 
     test_case = _trace_to_test_case(trace, expected_output=expected_output)
@@ -60,15 +69,33 @@ def score_trace(
             metrics.append(_metric(ContextualPrecisionMetric))
             metrics.append(_metric(ContextualRecallMetric))
 
+    # User-defined criteria: each becomes a GEval judged in plain language. The result
+    # slots into the same measure/verdict loop below, indistinguishable from a built-in.
+    for spec in custom_metrics or []:
+        metrics.append(
+            _metric(
+                GEval,
+                name=spec.name,
+                criteria=spec.criteria,
+                evaluation_params=spec.to_llm_params(),
+                threshold=spec.threshold,
+            )
+        )
+
     results: list[EvaluationMetricResult] = []
     scoring_errors: list[str] = []
 
     for metric in metrics:
+        # Built-in metrics report their class name (AnswerRelevancyMetric, …). A GEval is
+        # generic — every custom criterion is the same class — so it must report the
+        # user-given name instead, or all custom metrics would collapse to "GEval".
+        is_geval = type(metric).__name__ == "GEval"
+        name = metric.name if is_geval else metric.__class__.__name__
         try:
             metric.measure(test_case)
             results.append(
                 EvaluationMetricResult(
-                    name=metric.__class__.__name__,
+                    name=name,
                     provider="deepeval",
                     score=metric.score,
                     verdict="passed" if metric.success else "insufficient",
@@ -76,10 +103,10 @@ def score_trace(
                 )
             )
         except Exception as e:
-            scoring_errors.append(f"{metric.__class__.__name__}: {e}")
+            scoring_errors.append(f"{name}: {e}")
             results.append(
                 EvaluationMetricResult(
-                    name=metric.__class__.__name__,
+                    name=name,
                     provider="deepeval",
                     score=None,
                     verdict="error",

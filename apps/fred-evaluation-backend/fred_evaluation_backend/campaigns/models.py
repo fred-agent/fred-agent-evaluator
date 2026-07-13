@@ -25,6 +25,9 @@ class EvaluationCampaignRow(Base):
     dataset_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
     profile: Mapped[str] = mapped_column(String(64), nullable=False)
     judge_profile_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    # EVAL-CUSTOM-METRIC: user-defined GEval criteria, JSON list of CustomMetricSpec.
+    # Read back by the worker; null for campaigns created without any.
+    custom_metrics_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     operational_state: Mapped[str] = mapped_column(
         String(32), nullable=False, default="pending"
     )

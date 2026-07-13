@@ -1,7 +1,47 @@
 from __future__ import annotations
 
 from typing import Literal
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
+
+
+class CustomMetricSpec(BaseModel):
+    """A user-defined evaluation criterion, scored by DeepEval's GEval.
+
+    Unlike the built-in metrics — which judge the *form* of a response (relevance,
+    faithfulness) and are fixed per profile — a criterion says, in plain language, *what*
+    the response must contain. GEval turns that sentence into a judge.
+
+    ``parameters`` names the fields GEval may read, as ``LLMTestCaseParams`` names
+    (e.g. "INPUT", "ACTUAL_OUTPUT", "EXPECTED_OUTPUT", "RETRIEVAL_CONTEXT"). Invalid
+    names are rejected here, so a bad spec fails at campaign creation, not mid-run.
+    """
+
+    name: str = Field(min_length=1)
+    criteria: str = Field(min_length=1)
+    parameters: list[str] = Field(min_length=1)
+    threshold: float = Field(default=0.5, ge=0.0, le=1.0)
+
+    @classmethod
+    def valid_parameters(cls) -> set[str]:
+        from deepeval.test_case import LLMTestCaseParams
+
+        return {p.name for p in LLMTestCaseParams}
+
+    @field_validator("parameters")
+    @classmethod
+    def _known_parameters(cls, value: list[str]) -> list[str]:
+        unknown = set(value) - cls.valid_parameters()
+        if unknown:
+            raise ValueError(
+                f"unknown GEval parameters {sorted(unknown)}; "
+                f"allowed: {sorted(cls.valid_parameters())}"
+            )
+        return value
+
+    def to_llm_params(self):
+        from deepeval.test_case import LLMTestCaseParams
+
+        return [LLMTestCaseParams[p] for p in self.parameters]
 
 
 class EvaluationMetricResult(BaseModel):
