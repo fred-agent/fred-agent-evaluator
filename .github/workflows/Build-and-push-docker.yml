@@ -1,0 +1,97 @@
+name: Build and Push Docker Images
+
+on:
+  push:
+    branches: ["swift"]
+    tags: ["code/v*"]
+
+env:
+  REGISTRY: ghcr.io
+  PRODUCTION_FASTAPI_DOCS_ENABLED: "false"
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      # matrix will trigger the creation of a different parallel job for each case
+      matrix:
+        include:
+          - name: fred-evaluation-api
+            context: .
+            dockerfile: ./apps/fred-evaluation-backend/dockerfiles/Dockerfile-api
+            image: fred-evaluation-api
+          - name: fred-evaluation-worker
+            context: .
+            dockerfile: ./apps/fred-evaluation-backend/dockerfiles/Dockerfile-worker
+            image: fred-evaluation-worker
+
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Login to Github Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # the next step defines a "meta" variable containing the image path with
+      # associated tags. Namespace is this repo's own owner (fred-agent), not
+      # thalesgroup/fred-agent as in the fred monorepo — GHCR packages belong to
+      # whichever org's repo pushes them; there is no cross-org shortcut here.
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}
+          tags: |
+            type=match,enable=${{ startsWith(github.ref, 'refs/tags/code/v') }},pattern=code/(v.*),group=1
+            type=raw,enable=${{ github.ref == 'refs/heads/swift' }},value=swift-dev
+            type=sha,enable=${{ github.ref == 'refs/heads/swift' }},prefix=swift-dev-,format=short
+
+      # Release tags keep the semver contract. Swift branch pushes publish dev
+      # images under dedicated tags so they never collide with a release.
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          build-args: |
+            PRODUCTION_FASTAPI_DOCS_ENABLED=${{ env.PRODUCTION_FASTAPI_DOCS_ENABLED }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }} # oci://<registry>/<image>:<version>
+          labels: ${{ steps.meta.outputs.labels }} # many various informations
+
+  create-release:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/code/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: dummy # we do not care about the image, we only want to extract the version
+          tags: |
+            type=match,pattern=code/(v.*),group=1
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ steps.meta.outputs.version }}
+          body: |
+            # images:
+            ```
+            oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/fred-evaluation-api:${{ steps.meta.outputs.version }}
+            oci://${{ env.REGISTRY }}/${{ github.repository_owner }}/fred-evaluation-worker:${{ steps.meta.outputs.version }}
+            ```
+          draft: false
+          prerelease: false
