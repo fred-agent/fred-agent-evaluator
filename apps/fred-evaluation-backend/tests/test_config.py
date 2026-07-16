@@ -15,6 +15,7 @@ from pathlib import Path
 import yaml
 
 from fred_evaluation_backend.config.models import EvaluationConfig
+from fred_evaluation_backend.config.loader import load_configuration
 from fred_evaluation_backend.execution.auth import build_m2m_token_provider
 
 _CONFIG_DIR = Path(__file__).resolve().parents[1] / "config"
@@ -57,6 +58,23 @@ def test_prod_configuration_parses_and_is_canonical() -> None:
     assert cfg.security.user.enabled is True
     assert cfg.security.m2m.enabled is True
     assert cfg.scheduler.temporal.task_queue == "evaluation"
+
+
+def test_env_file_selects_configuration_file(monkeypatch, tmp_path: Path) -> None:
+    """The Make targets set ENV_FILE only; CONFIG_FILE is selected by dotenv."""
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        f'CONFIG_FILE="{_CONFIG_DIR / "configuration_prod.yaml"}"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("ENV_FILE", str(env_file))
+    monkeypatch.delenv("CONFIG_FILE", raising=False)
+
+    cfg = load_configuration()
+
+    assert cfg.security.user.enabled is True
+    assert cfg.security.m2m.enabled is True
+    assert cfg.storage.postgres.database == "evaluation"
 
 
 def test_m2m_token_provider_disabled_returns_none() -> None:

@@ -14,8 +14,6 @@ include ../../scripts/makefiles/help.mk
 
 ENV_FILE := $(ROOT_DIR)/config/.env
 export ENV_FILE
-CONFIG_FILE ?= ./config/configuration.yaml
-export CONFIG_FILE
 
 ##@ Run
 
