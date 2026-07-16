@@ -31,10 +31,10 @@ jobs:
 
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Login to Github Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -46,7 +46,7 @@ jobs:
       # whichever org's repo pushes them; there is no cross-org shortcut here.
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}
           tags: |
@@ -57,7 +57,7 @@ jobs:
       # Release tags keep the semver contract. Swift branch pushes publish dev
       # images under dedicated tags so they never collide with a release.
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
@@ -76,14 +76,14 @@ jobs:
     steps:
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: dummy # we do not care about the image, we only want to extract the version
           tags: |
             type=match,pattern=code/(v.*),group=1
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ steps.meta.outputs.version }}
