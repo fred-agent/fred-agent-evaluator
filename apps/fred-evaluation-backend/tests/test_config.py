@@ -53,6 +53,7 @@ def test_dev_configuration_parses_and_is_canonical() -> None:
 
 def test_prod_configuration_parses_and_is_canonical() -> None:
     cfg = _load("configuration_prod.yaml")
+    assert cfg.storage.postgres.host == "localhost"
     assert cfg.storage.postgres.database == "evaluation"
     assert cfg.storage.postgres.username == "evaluation"
     assert cfg.security.user.enabled is True

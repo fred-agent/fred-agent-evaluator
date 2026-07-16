@@ -7,7 +7,10 @@ app:
 
 storage:
   postgres:
-    host: postgres
+    # The evaluator is started on the host with `make run` while the shared
+    # deployment-factory Compose stack exposes PostgreSQL on localhost:5432.
+    # Container/Kubernetes deployments provide their own generated config.
+    host: localhost
     port: 5432
     database: evaluation
     username: evaluation
