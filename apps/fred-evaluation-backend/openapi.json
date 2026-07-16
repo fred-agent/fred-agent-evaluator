@@ -74,15 +74,82 @@
               }
             }
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluatorErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluatorErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluatorErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluatorErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/EvaluatorErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HTTPValidationError"
+                    }
+                  ]
                 }
               }
             }
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluatorErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluatorErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         }
       },
@@ -557,6 +624,130 @@
         }
       }
     },
+    "/evaluation/v1/datasets": {
+      "post": {
+        "tags": [
+          "Datasets"
+        ],
+        "summary": "Create Dataset",
+        "operationId": "create_dataset_evaluation_v1_datasets_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDatasetRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetDetailResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluatorErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluatorErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Validation Error"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Datasets"
+        ],
+        "summary": "List Datasets",
+        "operationId": "list_datasets_evaluation_v1_datasets_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluatorErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluatorErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/evaluation/v1/tasks": {
       "get": {
         "tags": [
@@ -927,103 +1118,277 @@
         ],
         "title": "CampaignCreatedResponse"
       },
+      "CreateDatasetRequest": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "upload",
+              "manual"
+            ],
+            "title": "Origin"
+          },
+          "source_filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Filename"
+          },
+          "cases": {
+            "items": {
+              "$ref": "#/components/schemas/DatasetCase"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Cases"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "origin",
+          "cases"
+        ],
+        "title": "CreateDatasetRequest"
+      },
       "CreateEvaluationCampaignRequest": {
         "properties": {
-          "name": {
-            "type": "string",
-            "maxLength": 255,
-            "minLength": 1,
-            "title": "Name"
-          },
           "team_id": {
             "type": "string",
             "title": "Team Id"
           },
           "target": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ManagedInstanceTarget"
-              },
-              {
-                "$ref": "#/components/schemas/RuntimeAgentTarget"
-              }
-            ],
-            "title": "Target"
+            "$ref": "#/components/schemas/ManagedInstanceTarget"
           },
-          "dataset": {
-            "$ref": "#/components/schemas/EvaluationDataset"
-          },
-          "profile": {
+          "dataset_id": {
             "type": "string",
-            "title": "Profile",
-            "default": "auto"
-          },
-          "judge_profile_id": {
-            "type": "string",
-            "title": "Judge Profile Id"
-          },
-          "custom_metrics": {
-            "items": {
-              "$ref": "#/components/schemas/CustomMetric"
-            },
-            "type": "array",
-            "title": "Custom Metrics",
-            "default": []
-          },
-          "execution": {
-            "$ref": "#/components/schemas/EvaluationExecutionOptions",
-            "default": {
-              "max_concurrency": 3,
-              "case_timeout_seconds": 600
-            }
+            "title": "Dataset Id"
           }
         },
         "type": "object",
         "required": [
-          "name",
           "team_id",
           "target",
-          "dataset",
-          "judge_profile_id"
+          "dataset_id"
         ],
         "title": "CreateEvaluationCampaignRequest"
       },
-      "CustomMetric": {
+      "DatasetCase": {
         "properties": {
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "title": "Name"
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Id"
           },
-          "criteria": {
+          "input": {
             "type": "string",
-            "minLength": 1,
-            "title": "Criteria"
+            "title": "Input"
           },
-          "parameters": {
+          "expected_output": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Output"
+          },
+          "tags": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "minItems": 1,
-            "title": "Parameters"
+            "title": "Tags"
           },
-          "threshold": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "title": "Threshold",
-            "default": 0.5
+          "source_candidate_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Candidate Id"
+          },
+          "source_session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Session Id"
           }
         },
         "type": "object",
         "required": [
-          "name",
-          "criteria",
-          "parameters"
+          "input"
         ],
-        "title": "CustomMetric",
-        "description": "A user-defined evaluation criterion, judged in plain language by GEval.\n\nValidated at campaign creation — an unknown parameter is rejected here, not mid-run."
+        "title": "DatasetCase"
+      },
+      "DatasetCompleteness": {
+        "type": "string",
+        "enum": [
+          "minimal",
+          "complete"
+        ],
+        "title": "DatasetCompleteness"
+      },
+      "DatasetDetailResponse": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "capture",
+              "upload",
+              "manual"
+            ],
+            "title": "Origin"
+          },
+          "completeness": {
+            "$ref": "#/components/schemas/DatasetCompleteness"
+          },
+          "case_count": {
+            "type": "integer",
+            "title": "Case Count"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "cases": {
+            "items": {
+              "$ref": "#/components/schemas/DatasetCase"
+            },
+            "type": "array",
+            "title": "Cases"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id",
+          "name",
+          "version",
+          "team_id",
+          "origin",
+          "completeness",
+          "case_count",
+          "created_at",
+          "cases"
+        ],
+        "title": "DatasetDetailResponse"
+      },
+      "DatasetListResponse": {
+        "properties": {
+          "datasets": {
+            "items": {
+              "$ref": "#/components/schemas/DatasetSummaryResponse"
+            },
+            "type": "array",
+            "title": "Datasets"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "datasets",
+          "total"
+        ],
+        "title": "DatasetListResponse"
+      },
+      "DatasetSummaryResponse": {
+        "properties": {
+          "dataset_id": {
+            "type": "string",
+            "title": "Dataset Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "capture",
+              "upload",
+              "manual"
+            ],
+            "title": "Origin"
+          },
+          "completeness": {
+            "$ref": "#/components/schemas/DatasetCompleteness"
+          },
+          "case_count": {
+            "type": "integer",
+            "title": "Case Count"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset_id",
+          "name",
+          "version",
+          "team_id",
+          "origin",
+          "completeness",
+          "case_count",
+          "created_at"
+        ],
+        "title": "DatasetSummaryResponse"
       },
       "EvaluationCampaignListResponse": {
         "properties": {
@@ -1103,20 +1468,15 @@
             ],
             "title": "Target"
           },
-          "dataset_name": {
-            "type": "string",
-            "title": "Dataset Name"
-          },
-          "dataset_version": {
+          "dataset": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/DatasetSummaryResponse"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Dataset Version"
+            ]
           },
           "profile": {
             "type": "string",
@@ -1211,8 +1571,7 @@
           "team_id",
           "created_by",
           "target",
-          "dataset_name",
-          "dataset_version",
+          "dataset",
           "profile",
           "judge_profile_id",
           "operational_state",
@@ -1229,49 +1588,6 @@
           "completed_at"
         ],
         "title": "EvaluationCampaignResponse"
-      },
-      "EvaluationCaseInput": {
-        "properties": {
-          "external_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "External Id"
-          },
-          "input": {
-            "type": "string",
-            "title": "Input"
-          },
-          "expected_output": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Expected Output"
-          },
-          "tags": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Tags",
-            "default": []
-          }
-        },
-        "type": "object",
-        "required": [
-          "input"
-        ],
-        "title": "EvaluationCaseInput"
       },
       "EvaluationCaseListResponse": {
         "properties": {
@@ -1473,39 +1789,6 @@
         ],
         "title": "EvaluationCaseResponse"
       },
-      "EvaluationDataset": {
-        "properties": {
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "version": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Version"
-          },
-          "cases": {
-            "items": {
-              "$ref": "#/components/schemas/EvaluationCaseInput"
-            },
-            "type": "array",
-            "minItems": 1,
-            "title": "Cases"
-          }
-        },
-        "type": "object",
-        "required": [
-          "name",
-          "cases"
-        ],
-        "title": "EvaluationDataset"
-      },
       "EvaluationDetail": {
         "properties": {
           "campaign_id": {
@@ -1549,26 +1832,6 @@
         ],
         "title": "EvaluationDetail",
         "description": "Compact campaign-level counters. Never carries inputs/outputs/explanations."
-      },
-      "EvaluationExecutionOptions": {
-        "properties": {
-          "max_concurrency": {
-            "type": "integer",
-            "maximum": 10.0,
-            "minimum": 1.0,
-            "title": "Max Concurrency",
-            "default": 3
-          },
-          "case_timeout_seconds": {
-            "type": "integer",
-            "maximum": 900.0,
-            "minimum": 30.0,
-            "title": "Case Timeout Seconds",
-            "default": 600
-          }
-        },
-        "type": "object",
-        "title": "EvaluationExecutionOptions"
       },
       "EvaluationMetricResultResponse": {
         "properties": {
@@ -1746,6 +2009,50 @@
         ],
         "title": "EvaluationTaskEvent"
       },
+      "EvaluatorErrorDetail": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "authentication_required",
+              "access_forbidden",
+              "control_plane_authentication_failed",
+              "target_forbidden",
+              "target_not_found",
+              "target_unavailable",
+              "target_invalid",
+              "control_plane_unavailable",
+              "control_plane_invalid_response",
+              "dataset_not_found"
+            ],
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "EvaluatorErrorDetail",
+        "description": "The `detail` body of an evaluator error response \u2014 stable code + safe message."
+      },
+      "EvaluatorErrorResponse": {
+        "properties": {
+          "detail": {
+            "$ref": "#/components/schemas/EvaluatorErrorDetail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "EvaluatorErrorResponse",
+        "description": "The one canonical, truthful public error envelope: `{\"detail\": {...}}`.\n\n`HTTPException(detail=EvaluatorErrorDetail(...).model_dump())` is what\nStarlette actually serializes \u2014 this model documents that exact shape in\nOpenAPI. Use it (not `EvaluatorErrorDetail` directly) in route `responses=`."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1836,7 +2143,8 @@
           "runtime_id",
           "agent_id"
         ],
-        "title": "RuntimeAgentTarget"
+        "title": "RuntimeAgentTarget",
+        "description": "Historical target kind \u2014 no longer accepted on creation (EVAL-04).\n\nKept only so `EvaluationCampaignResponse.target` can still render campaigns\ncreated before EVAL-04 removed this path. Never used by\n`CreateEvaluationCampaignRequest`, which is `ManagedInstanceTarget`-only."
       },
       "StructuralCheckResponse": {
         "properties": {
@@ -1978,6 +2286,18 @@
             "type": "string",
             "format": "date-time",
             "title": "Updated At"
+          },
+          "scheduled_for": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduled For"
           }
         },
         "type": "object",
@@ -2013,7 +2333,7 @@
           "label"
         ],
         "title": "TaskTarget",
-        "description": "The object a task is operating on (document, user, database, …)."
+        "description": "The object a task is operating on (document, user, database, \u2026)."
       },
       "TelemetryInfoResponse": {
         "properties": {
@@ -2086,6 +2406,13 @@
           "type": {
             "type": "string",
             "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
           }
         },
         "type": "object",

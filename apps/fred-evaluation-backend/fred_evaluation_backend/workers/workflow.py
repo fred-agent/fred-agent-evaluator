@@ -69,6 +69,7 @@ async def run_case(payload: CaseInput) -> None:
         get_store,
     )
     from fred_evaluation_backend.workers.activities import execute_and_score_case
+    from fred_evaluation_backend.execution.outbound_auth import ServiceAuthentication
     from fred_evaluation_backend.model.factory import build_judge_model
 
     store = get_store()
@@ -84,11 +85,13 @@ async def run_case(payload: CaseInput) -> None:
             team_id=campaign.team_id,
             runtime_id=campaign.target_runtime_id,
             agent_id=campaign.target_agent_id,
+            auth=ServiceAuthentication(),
         )
     else:
         prep = await cp_client.prepare_managed_instance_execution(
             team_id=campaign.team_id,
             agent_instance_id=campaign.target_instance_id,
+            auth=ServiceAuthentication(),
         )
 
     judge_profile = config.worker.judge_profiles.get(campaign.judge_profile_id)
@@ -112,7 +115,7 @@ async def run_case(payload: CaseInput) -> None:
         session_id=str(uuid.uuid4()),
         evaluate_url=prep.evaluate_url,
         team_id=campaign.team_id,
-        token_provider=cp_client._token_provider,
+        token_provider=cp_client.m2m_token_provider,
         profile=campaign.profile,
         judge=judge,
         custom_metrics=custom_metrics,

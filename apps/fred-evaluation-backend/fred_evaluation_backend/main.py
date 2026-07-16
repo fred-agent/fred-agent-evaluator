@@ -4,7 +4,7 @@ import contextlib
 import logging
 from typing import Literal
 
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fred_core import get_config, initialize_user_security, log_setup
 from fred_core.users.store.postgres_user_store import init_user_store
@@ -15,11 +15,14 @@ from pydantic import BaseModel
 from fred_core.sql import create_async_engine_from_config
 
 from fred_evaluation_backend.campaigns.api import build_evaluations_router
+from fred_evaluation_backend.datasets.api import build_datasets_router
 from fred_evaluation_backend.tasks.api import build_tasks_router
 from fred_evaluation_backend.config.loader import load_configuration
 from fred_evaluation_backend.execution.analysis_client import AnalysisClient
-from fred_evaluation_backend.execution.auth import build_m2m_token_provider
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
+from fred_evaluation_backend.execution.evaluator_errors import (
+    normalize_unstructured_auth_error,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,10 +50,12 @@ def create_app() -> FastAPI:
     engine = create_async_engine_from_config(configuration.storage.postgres)
     init_user_store(engine)
 
-    token_provider = build_m2m_token_provider(configuration.security)
+    # The API acts on behalf of the interactive caller (RFC EVAL-AUTH §3): every
+    # outbound Control Plane call carries the caller's own bearer token, never a
+    # service identity. No M2M token provider is wired here — only the worker
+    # (main_worker.py) authenticates as the `fred-evaluation-worker` service account.
     control_plane_client = ControlPlaneClient(
         base_url=configuration.control_plane.base_url,
-        token_provider=token_provider,
         runtime_base_url=configuration.control_plane.runtime_base_url,
     )
 
@@ -100,6 +105,11 @@ def create_app() -> FastAPI:
         allow_headers=["Content-Type", "Authorization"],
     )
 
+    # fred-core's auth dependencies (get_current_user) run before any route body
+    # and raise their own unstructured HTTPException on failure — normalize those
+    # (and only those) into the evaluator's one public error envelope.
+    app.add_exception_handler(HTTPException, normalize_unstructured_auth_error)
+
     router = APIRouter(prefix=configuration.app.base_url)
 
     @router.get("/healthz", response_model=HealthResponse)
@@ -113,6 +123,7 @@ def create_app() -> FastAPI:
     app.dependency_overrides[get_config] = lambda: configuration
 
     router.include_router(build_evaluations_router())
+    router.include_router(build_datasets_router())
     router.include_router(build_tasks_router())
     app.include_router(router)
     return app

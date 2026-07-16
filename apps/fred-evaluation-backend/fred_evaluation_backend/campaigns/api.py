@@ -10,7 +10,7 @@ from typing import Annotated, AsyncGenerator
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
-from fred_core import KeycloakUser, get_current_user
+from fred_core import KeycloakUser, get_config, get_current_user
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -30,7 +30,12 @@ from fred_evaluation_backend.execution.analysis_client import (
     CaseMetricDetail,
 )
 from fred_evaluation_backend.campaigns.store import EvaluationStore
+from fred_evaluation_backend.datasets.store import DatasetStore
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
+from fred_evaluation_backend.execution.evaluator_errors import (
+    EvaluatorErrorResponse,
+)
+from fred_evaluation_backend.execution.outbound_auth import resolve_interactive_auth
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +53,11 @@ class TelemetrySessionResponse(BaseModel):
 def _get_evaluation_store(request: Request) -> EvaluationStore:
     engine: AsyncEngine = request.app.state.db_engine
     return EvaluationStore(engine)
+
+
+def _get_dataset_store(request: Request) -> DatasetStore:
+    engine: AsyncEngine = request.app.state.db_engine
+    return DatasetStore(engine)
 
 
 def _get_control_plane_client(request: Request) -> ControlPlaneClient:
@@ -92,19 +102,56 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         "/campaigns",
         status_code=202,
         response_model=CampaignCreatedResponse,
+        responses={
+            401: {"model": EvaluatorErrorResponse},
+            403: {"model": EvaluatorErrorResponse},
+            404: {"model": EvaluatorErrorResponse},
+            409: {"model": EvaluatorErrorResponse},
+            # 422 has two possible bodies on this route: our EvaluatorErrorResponse
+            # (target could not be prepared) or FastAPI's own request-validation
+            # error (malformed request body) — documented truthfully via oneOf
+            # rather than picking one and lying about the other.
+            422: {
+                "description": "Validation Error",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "oneOf": [
+                                {"$ref": "#/components/schemas/EvaluatorErrorResponse"},
+                                {"$ref": "#/components/schemas/HTTPValidationError"},
+                            ]
+                        }
+                    }
+                },
+            },
+            502: {"model": EvaluatorErrorResponse},
+            503: {"model": EvaluatorErrorResponse},
+        },
     )
     async def create_campaign(
         body: CreateEvaluationCampaignRequest,
         request: Request,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[EvaluationStore, Depends(_get_evaluation_store)],
+        dataset_store: Annotated[DatasetStore, Depends(_get_dataset_store)],
         cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> CampaignCreatedResponse:
+        # Interactive request: act as the caller. The outbound auth is resolved
+        # explicitly per-request — never defaulted, never the worker's M2M identity.
+        configuration = request.app.dependency_overrides.get(get_config, get_config)()
+        auth = resolve_interactive_auth(
+            request, user_security_enabled=configuration.security.user.enabled
+        )
         result = await service.create_campaign(
             body,
             created_by=user.uid,
             store=store,
+            dataset_store=dataset_store,
             control_plane_client=cp_client,
+            auth=auth,
+            judge_profile_id=service.default_judge_profile_id(
+                configuration.worker.judge_profiles
+            ),
         )
 
         temporal_provider = _get_temporal_client_provider(request)
@@ -135,9 +182,12 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     async def list_campaigns(
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[EvaluationStore, Depends(_get_evaluation_store)],
+        dataset_store: Annotated[DatasetStore, Depends(_get_dataset_store)],
         team_id: str = Query(...),
     ) -> EvaluationCampaignListResponse:
-        campaigns = await service.list_campaigns(team_id, store=store)
+        campaigns = await service.list_campaigns(
+            team_id, store=store, dataset_store=dataset_store
+        )
         return EvaluationCampaignListResponse(campaigns=campaigns, total=len(campaigns))
 
     @router.get(
@@ -148,8 +198,11 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         campaign_id: str,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[EvaluationStore, Depends(_get_evaluation_store)],
+        dataset_store: Annotated[DatasetStore, Depends(_get_dataset_store)],
     ) -> EvaluationCampaignResponse:
-        return await service.get_campaign(campaign_id, store=store)
+        return await service.get_campaign(
+            campaign_id, store=store, dataset_store=dataset_store
+        )
 
     @router.get(
         "/campaigns/{campaign_id}/cases",
@@ -187,8 +240,9 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         campaign_id: str,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[EvaluationStore, Depends(_get_evaluation_store)],
+        dataset_store: Annotated[DatasetStore, Depends(_get_dataset_store)],
     ) -> StreamingResponse:
-        await service.get_campaign(campaign_id, store=store)
+        await service.get_campaign(campaign_id, store=store, dataset_store=dataset_store)
 
         async def event_generator() -> AsyncGenerator[str, None]:
             last_seq = -1

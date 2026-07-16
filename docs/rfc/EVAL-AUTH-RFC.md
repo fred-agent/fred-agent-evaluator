@@ -8,6 +8,19 @@
 **Track:** `EVAL-AUTH`
 **Related:** `docs/rfc/EVAL-DATASET-RFC.md` (capture), fred `#1874` (runtime history endpoint)
 
+**Implementation note (fred-agent-evaluator issue #33, 2026-07-16):** Fapi's
+user-JWT propagation (§3) is implemented — `POST /campaigns` now builds
+outbound Control Plane auth from the caller's own `Authorization` header,
+never a service identity (`campaigns/api.py`, `execution/outbound_auth.py`,
+`execution/control_plane_client.py`). Campaign `created_by` + `team_id`
+anchoring (§8.3) was already persisted and is now covered by tests. This
+remains a **fred-agent-evaluator-only** change: the RFC's core open item —
+the FRED Control Plane / runtime `service_agent` authorization mismatch that
+causes managed-instance `prepare-execution` to 403 for the worker — is
+**not** fixed here (see §8 provisioning checklist and §10). Worker
+execution-audit correlation (execution attributed to the service, referencing
+`created_by`) also remains pending. Status stays draft/pending security review.
+
 ---
 
 ## 1. Decision requested
@@ -223,7 +236,7 @@ So Solution A grants `service_agent` the **team `can_read` level, scoped to the 
 > - [x] `fred-core` shared predicate + allow-list: `is_service_agent()` and `SERVICE_AGENT_ALLOWED_TEAM_PERMISSIONS = {CAN_READ}`
 > - [ ] Keycloak client `fred-evaluation-worker` (confidential, service accounts ON) + secret — **deployment (`fred-deployment-factory`)**
 > - [ ] Role `service_agent` on that client — **never** `admin`; the role must **never** be assignable to end users or public clients (see security boundary below)
-> - [ ] Campaign record carries `created_by` + `team_id` (legitimacy anchor)
+> - [x] Campaign record carries `created_by` + `team_id` (legitimacy anchor) — `fred-agent-evaluator` `campaigns/models.py::EvaluationCampaignRow`; no credential column (tests: `test_worker_identity_isolation.py`)
 > - [ ] Audit: execution attributed to the service, referencing the campaign + `created_by`
 >
 > **Security boundary (deploy-time invariant).** Because a `service_agent` caller is

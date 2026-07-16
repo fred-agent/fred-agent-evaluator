@@ -21,7 +21,14 @@ class EvaluationCampaignRow(Base):
     target_runtime_id: Mapped[str | None] = mapped_column(String, nullable=True)
     target_agent_id: Mapped[str | None] = mapped_column(String, nullable=True)
     target_instance_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    dataset_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    # EVAL-04: canonical dataset reference. Nullable because pre-EVAL-04 rows
+    # have none; new rows always set it. `dataset_name`/`dataset_version` are
+    # legacy, read-only remnants for those pre-EVAL-04 rows only — never
+    # written for new campaigns (the joined dataset is the sole source now).
+    dataset_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("evaluation_dataset.dataset_id"), nullable=True, index=True
+    )
+    dataset_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     dataset_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
     profile: Mapped[str] = mapped_column(String(64), nullable=False)
     judge_profile_id: Mapped[str] = mapped_column(String(255), nullable=False)

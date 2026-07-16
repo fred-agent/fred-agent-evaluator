@@ -10,10 +10,15 @@ storage:
     sqlite_path: "~/.fred/evaluation/evaluation.sqlite3"
 
 security:
+  # user: consumed by the API (interactive requests) — outbound Control Plane
+  # calls propagate the caller's own JWT (RFC EVAL-AUTH), never a service token.
   user:
     enabled: false
     realm_url: http://localhost:8080/realms/app
     client_id: app
+  # m2m: consumed by the worker only (main_worker.py), for its own
+  # `fred-evaluation-worker` service identity. The API and worker load this
+  # same config file, but main.py never builds an M2M client from this block.
   m2m:
     enabled: false
     realm_url: http://localhost:8080/realms/app

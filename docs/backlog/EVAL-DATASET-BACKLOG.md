@@ -154,19 +154,36 @@ frozen) before the evaluator's `history_client` can be finalized.
 - [ ] `POST /evaluation/v1/question-sets/{id}:score` (3-criteria /5 triage judge)
 - [ ] `kept` logic (threshold >= 4/5) and `captured → scoring → curated` transition
 
-### Phase 4 — Dataset
+### Phase 4 — Dataset (EVAL-04: direct creation shipped; promotion pipeline still open)
 
 - [ ] `POST /evaluation/v1/question-sets/{id}:promote` → `EvaluationDataset`
-- [ ] Derived `completeness` computation + immutable versioning
-- [ ] `GET /datasets`, `/datasets/{id}`, `/datasets/{id}/versions`
-- [ ] Manual upload path (`origin=upload`)
+- [ ] Derived `completeness` computation + immutable versioning (via the promotion pipeline)
+- [x] `POST /evaluation/v1/datasets` — direct creation, `origin: upload | manual`, no
+      question-set promotion; server derives `name` (upload: source filename basename;
+      manual: `"Manual dataset — <timestamp>"`) and `version` (fixed `"v1"`, no versioning
+      UI yet). Shipped under `EVAL-04` (2026-07-16), see RFC §12 amendment.
+- [x] `GET /evaluation/v1/datasets?team_id=...` — list, team-scoped. Shipped under
+      `EVAL-04`.
+- [ ] `GET /datasets/{id}`, `/datasets/{id}/versions` — not needed by the first-release UI
+      (list response already carries selection-sufficient metadata); deferred to a future
+      standalone dataset-management UI.
+- [ ] Manual upload path via the capture/curation pipeline (`origin=upload` from
+      `:promote`) — direct `POST /datasets` above covers `origin=upload`/`manual` without
+      going through `QuestionSet`; this item is about the promotion-pipeline variant,
+      still open.
 
 ### Phase 5 — Campaign / scoring integration
 
-- [ ] Campaign creation accepts `dataset_id`
-- [ ] `DatasetCase → LLMTestCase` adapter in the scoring worker
+- [x] Campaign creation accepts `dataset_id` — shipped under `EVAL-04` (2026-07-16); the
+      old inline `dataset`/`cases` request path was removed, not kept in parallel (see RFC
+      §12 amendment).
+- [ ] ~~`DatasetCase → LLMTestCase` adapter in the scoring worker~~ — **superseded**: the
+      worker already scores `EvaluationCaseRow.input`/`expected_output` (unchanged shape);
+      campaign creation now copies `EvaluationDataset.cases` into those rows instead of
+      inline request cases, so no new adapter was needed.
 - [ ] Pre-campaign validation via the metric → required-fields matrix
-      (reject `minimal` dataset + reference-based metric)
+      (reject `minimal` dataset + reference-based metric) — moot in this release: no
+      custom metrics or metric selection exist in the `EVAL-04` request contract.
 
 ### Phase 6 — Frontend
 
