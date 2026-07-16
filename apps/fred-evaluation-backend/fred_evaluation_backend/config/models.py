@@ -83,6 +83,12 @@ def _default_security() -> SecurityConfiguration:
 
     Both flows are disabled by default so local dev runs without Keycloak; the
     deployed config (configuration_prod.yaml / Helm ConfigMap) enables them.
+
+    `user` is consumed by the API (interactive requests propagate the caller's
+    own JWT); `m2m` is consumed by the worker only, for its own
+    `fred-evaluation-worker` service identity (RFC EVAL-AUTH). The API and
+    worker load this same config shape, but `main.py` never builds an M2M
+    client from the `m2m` block.
     """
     return SecurityConfiguration.model_validate(
         {

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Literal, cast
 from uuid import uuid4
 
@@ -19,15 +20,32 @@ from fred_evaluation_backend.campaigns.schemas import (
     StructuralCheckResponse,
 )
 from fred_evaluation_backend.campaigns.store import EvaluationStore
+from fred_evaluation_backend.datasets.schemas import DatasetCase, DatasetSummaryResponse
+from fred_evaluation_backend.datasets.store import DatasetStore
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
-from fred_evaluation_backend.execution.runtime_resolver import (
-    resolve_managed_instance,
-    resolve_runtime_agent,
-)
+from fred_evaluation_backend.execution.evaluator_errors import dataset_not_found_error
+from fred_evaluation_backend.execution.outbound_auth import OutboundAuth
+from fred_evaluation_backend.execution.runtime_resolver import resolve_managed_instance
 
 logger = logging.getLogger(__name__)
 
-_MAX_CASES = 200
+# Server-owned default (EVAL-04): the client no longer supplies a profile.
+# (The old `execution: EvaluationExecutionOptions` field — max_concurrency /
+# case_timeout_seconds — was accepted by the request but never actually
+# persisted or read anywhere in the old code either; removed with nothing to
+# replace it. Concurrency is governed globally by `WorkerConfig.max_concurrent_cases`.)
+_DEFAULT_PROFILE = "auto"
+_FALLBACK_JUDGE_PROFILE_ID = "mistral-small"
+
+
+def default_judge_profile_id(configured_profiles: dict[str, object]) -> str:
+    """The single configured judge profile is the server-owned default.
+
+    No request field selects it this release — `worker.judge_profiles` is
+    reused as-is (no new config surface) per the task's instruction to prefer
+    existing configuration over inventing new fields.
+    """
+    return next(iter(configured_profiles.keys()), _FALLBACK_JUDGE_PROFILE_ID)
 
 
 async def create_campaign(
@@ -35,35 +53,27 @@ async def create_campaign(
     *,
     created_by: str,
     store: EvaluationStore,
+    dataset_store: DatasetStore,
     control_plane_client: ControlPlaneClient,
+    auth: OutboundAuth,
+    judge_profile_id: str,
 ) -> CampaignCreatedResponse:
-    if len(request.dataset.cases) > _MAX_CASES:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Dataset exceeds maximum of {_MAX_CASES} cases.",
-        )
+    dataset_row = await dataset_store.get_dataset(request.dataset_id)
+    if dataset_row is None or dataset_row.team_id != request.team_id:
+        # Same error for "doesn't exist" and "belongs to another team" —
+        # avoids a cross-team existence leak.
+        raise dataset_not_found_error()
+    dataset_cases = [
+        DatasetCase.model_validate(c)
+        for c in json.loads(dataset_row.cases_json or "[]")
+    ]
 
-    if isinstance(request.target, RuntimeAgentTarget):
-        await resolve_runtime_agent(
-            team_id=request.team_id,
-            runtime_id=request.target.runtime_id,
-            agent_id=request.target.agent_id,
-            control_plane_client=control_plane_client,
-        )
-        target_kind = "runtime_agent"
-        target_runtime_id = request.target.runtime_id
-        target_agent_id = request.target.agent_id
-        target_instance_id = None
-    else:
-        await resolve_managed_instance(
-            team_id=request.team_id,
-            agent_instance_id=request.target.agent_instance_id,
-            control_plane_client=control_plane_client,
-        )
-        target_kind = "managed_instance"
-        target_runtime_id = None
-        target_agent_id = None
-        target_instance_id = request.target.agent_instance_id
+    await resolve_managed_instance(
+        team_id=request.team_id,
+        agent_instance_id=request.target.agent_instance_id,
+        control_plane_client=control_plane_client,
+        auth=auth,
+    )
 
     campaign_id = f"eval-cmp-{uuid4().hex[:8]}"
     run_id = f"eval-run-{uuid4().hex[:8]}"
@@ -71,40 +81,39 @@ async def create_campaign(
     # It is intentionally distinct from campaign_id (a campaign may later have many
     # runs / tasks), so the frontend tracks the run via /tasks/{task_id}.
     task_id = f"eval-task-{uuid4().hex[:8]}"
-
-    custom_metrics_json = (
-        json.dumps([m.model_dump() for m in request.custom_metrics])
-        if request.custom_metrics
-        else None
-    )
+    created_at = datetime.now(timezone.utc).replace(microsecond=0)
+    # Server-generated name (EVAL-04: no campaign-name input) — the dataset it
+    # runs against plus a timestamp is enough to disambiguate in the list view.
+    name = f"{dataset_row.name} — {created_at:%Y-%m-%d %H:%M}"
 
     await store.create_campaign(
         campaign_id=campaign_id,
         run_id=run_id,
         task_id=task_id,
-        name=request.name,
+        name=name,
         team_id=request.team_id,
         created_by=created_by,
-        target_kind=target_kind,
-        target_runtime_id=target_runtime_id,
-        target_agent_id=target_agent_id,
-        target_instance_id=target_instance_id,
-        dataset_name=request.dataset.name,
-        dataset_version=request.dataset.version,
-        profile=request.profile,
-        judge_profile_id=request.judge_profile_id,
-        total_cases=len(request.dataset.cases),
-        custom_metrics_json=custom_metrics_json,
+        target_kind="managed_instance",
+        target_runtime_id=None,
+        target_agent_id=None,
+        target_instance_id=request.target.agent_instance_id,
+        dataset_id=dataset_row.dataset_id,
+        dataset_name=None,
+        dataset_version=None,
+        profile=_DEFAULT_PROFILE,
+        judge_profile_id=judge_profile_id,
+        total_cases=len(dataset_cases),
+        custom_metrics_json=None,
     )
 
-    for case_input in request.dataset.cases:
+    for case in dataset_cases:
         await store.create_case(
             case_id=f"case-{uuid4().hex[:8]}",
             campaign_id=campaign_id,
             run_id=run_id,
-            external_id=case_input.external_id,
-            input=case_input.input,
-            expected_output=case_input.expected_output,
+            external_id=case.external_id,
+            input=case.input,
+            expected_output=case.expected_output,
         )
 
     return CampaignCreatedResponse(
@@ -115,7 +124,23 @@ async def create_campaign(
     )
 
 
-def _campaign_row_to_response(row) -> EvaluationCampaignResponse:
+def _dataset_summary(row) -> DatasetSummaryResponse | None:
+    if row is None:
+        return None
+    cases = json.loads(row.cases_json) if row.cases_json else []
+    return DatasetSummaryResponse(
+        dataset_id=row.dataset_id,
+        name=row.name,
+        version=row.version,
+        team_id=row.team_id,
+        origin=row.origin,
+        completeness=row.completeness,
+        case_count=len(cases),
+        created_at=row.created_at,
+    )
+
+
+def _campaign_row_to_response(row, dataset_row) -> EvaluationCampaignResponse:
     if row.target_kind == "runtime_agent":
         target = RuntimeAgentTarget(
             kind="runtime_agent",
@@ -136,8 +161,7 @@ def _campaign_row_to_response(row) -> EvaluationCampaignResponse:
         team_id=row.team_id,
         created_by=row.created_by,
         target=target,
-        dataset_name=row.dataset_name,
-        dataset_version=row.dataset_version,
+        dataset=_dataset_summary(dataset_row),
         profile=row.profile,
         judge_profile_id=row.judge_profile_id,
         operational_state=row.operational_state,
@@ -161,22 +185,34 @@ async def get_campaign(
     campaign_id: str,
     *,
     store: EvaluationStore,
+    dataset_store: DatasetStore,
 ) -> EvaluationCampaignResponse:
     row = await store.get_campaign(campaign_id)
     if row is None:
         raise HTTPException(
             status_code=404, detail=f"Campaign '{campaign_id}' not found."
         )
-    return _campaign_row_to_response(row)
+    dataset_row = (
+        await dataset_store.get_dataset(row.dataset_id) if row.dataset_id else None
+    )
+    return _campaign_row_to_response(row, dataset_row)
 
 
 async def list_campaigns(
     team_id: str,
     *,
     store: EvaluationStore,
+    dataset_store: DatasetStore,
 ) -> list[EvaluationCampaignResponse]:
     rows = await store.list_campaigns_by_team(team_id)
-    return [_campaign_row_to_response(row) for row in rows]
+    dataset_ids = [row.dataset_id for row in rows if row.dataset_id]
+    datasets_by_id = await dataset_store.get_datasets_by_ids(dataset_ids)
+    return [
+        _campaign_row_to_response(
+            row, datasets_by_id.get(row.dataset_id) if row.dataset_id else None
+        )
+        for row in rows
+    ]
 
 
 async def cancel_campaign(

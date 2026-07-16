@@ -1,0 +1,112 @@
+name: Package and push Helm Charts
+
+on:
+  push:
+    tags: [ 'chart/v*' ]
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  package-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      # matrix will trigger the creation of a different parallel job for each case
+      matrix:
+        include:
+          - name: fred-evaluator
+            chart_path: ./deploy/charts/fred-evaluator
+            registry_name: fred-evaluator
+
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v5
+
+      - name: Install yq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yq
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v5
+
+      - name: Login to Helm registry
+        run: |
+          echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ${{ env.REGISTRY }} --username ${{ github.actor }} --password-stdin
+
+      # the next step defines a "meta" variable containing the version extracted
+      # from the tag. NOTE: excludes the leading "v" from the version.
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: dummy   # we do not care about the image, we just want the version
+          tags: |
+              type=match,pattern=chart/v?(.*),group=1
+
+      - name: Compute chart appVersion from release image tags
+        id: image_tag
+        run: |
+          IMAGE_TAG="v${{ steps.meta.outputs.version }}"
+          echo "Release image tag: $IMAGE_TAG"
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Inject version and appVersion into Chart.yaml
+        id: inject_version
+        run: |
+          CHART_FILE="${{ matrix.chart_path }}/Chart.yaml"
+
+          # Define appVersion, it doesn't have to be semver2
+          APP_VERSION="${{ steps.image_tag.outputs.image_tag }}"
+
+          echo "Injecting version=${{ steps.meta.outputs.version }} and appVersion=$APP_VERSION into $CHART_FILE"
+          yq -y --arg version "${{ steps.meta.outputs.version }}" --arg appVersion "$APP_VERSION" \
+            '.version = $version | .appVersion = $appVersion' "$CHART_FILE" > tmp.yaml && mv tmp.yaml "$CHART_FILE"
+
+      - name: Package chart ${{ matrix.name }}
+        run: |
+          echo "Packaging ${{ matrix.name }} chart with version ${{ steps.meta.outputs.version }}"
+          helm package ${{ matrix.chart_path }} \
+            --version ${{ steps.meta.outputs.version }} \
+            --destination ./packages
+
+      - name: Push ${{ matrix.name }} to registry
+        run: |
+          PACKAGE_FILE=$(ls ./packages/${{ matrix.registry_name }}-${{ steps.meta.outputs.version }}.tgz)
+          echo "Pushing $PACKAGE_FILE"
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          helm push "$PACKAGE_FILE" oci://${{ env.REGISTRY }}/${REPO_OWNER}/fred-evaluator-helm
+
+  create-release:
+    needs: package-and-push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: dummy
+          tags: |
+              type=match,pattern=chart/v?(.*),group=1
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Helm Charts Release ${{ steps.meta.outputs.version }}
+          body: |
+           ## Setup
+
+            ```bash
+            # Install chart
+            helm install fred-evaluator oci://ghcr.io/fred-agent/fred-evaluator-helm/fred-evaluator --version ${{ steps.meta.outputs.version }}
+            ```
+          draft: false
+          prerelease: false

@@ -316,6 +316,31 @@ fields. This enables pre-campaign validation (reject incompatible selections ear
 - The scoring worker gains a `DatasetCase → LLMTestCase` adapter; metric implementations are
   unchanged (DeepEval-owned).
 
+### Amendment 2026-07-16 (EVAL-04 first release)
+
+Supersedes the paragraph above: the first release ships as a deliberately small, breaking
+change, not an additive one.
+
+- The inline-cases campaign-creation path (`CreateEvaluationCampaignRequest.dataset` blob)
+  is **removed outright**, not kept alongside `dataset_id`. There is exactly one campaign
+  creation contract: `{team_id, target, dataset_id}`. No compatibility field, no second
+  code path.
+- `EvaluationDataset` gains a direct creation route this release —
+  `POST /evaluation/v1/datasets` with `origin: "upload" | "manual"` — independent of, and
+  simpler than, the `QuestionSet` capture → curate → `:promote` pipeline described in §7-10
+  and the evaluator backlog's Phase 2-4. That pipeline remains future work; direct creation
+  is the only path implemented so far. `GET /evaluation/v1/datasets` lists a team's
+  datasets; no `GET /evaluation/v1/datasets/{id}` route exists yet (the list response
+  already carries every field the first-release UI needs — see
+  `docs/backlog/EVAL-DATASET-BACKLOG.md`).
+- No `DatasetCase → LLMTestCase` adapter was added: campaign creation copies
+  `EvaluationDataset.cases` into `EvaluationCaseRow` at creation time, the same shape the
+  worker already scored from the inline-cases path — the adapter item in §12's second
+  bullet and the backlog's Phase 5 is superseded, not implemented.
+- Scope: `docs/swift/data/id-legend.yaml` `EVAL-04` (parent `EVAL-01`); see also
+  `docs/swift/rfc/AGENT-EVALUATION-RFC.md` §12 amendment for the matching frontend scope
+  reduction.
+
 ---
 
 ## 13. Open questions

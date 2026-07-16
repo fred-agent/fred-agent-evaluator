@@ -3,40 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel
 
-# GEval parameters exposed to campaign authors — the fields the judge may read. A curated
-# subset of DeepEval's LLMTestCaseParams, kept here as plain strings *on purpose*: the API
-# process must not import fred_deepeval_cli (it carries deepeval/litellm, kept to the
-# worker image). The worker re-parses these into the package's CustomMetricSpec, where they
-# map to real LLMTestCaseParams. The two field shapes match, so the JSON round-trips.
-ALLOWED_GEVAL_PARAMS = frozenset(
-    {"INPUT", "ACTUAL_OUTPUT", "EXPECTED_OUTPUT", "RETRIEVAL_CONTEXT", "TOOLS_CALLED"}
-)
-
-
-class CustomMetric(BaseModel):
-    """A user-defined evaluation criterion, judged in plain language by GEval.
-
-    Validated at campaign creation — an unknown parameter is rejected here, not mid-run.
-    """
-
-    name: str = Field(min_length=1)
-    criteria: str = Field(min_length=1)
-    parameters: list[str] = Field(min_length=1)
-    threshold: float = Field(default=0.5, ge=0.0, le=1.0)
-
-    @field_validator("parameters")
-    @classmethod
-    def _known_parameters(cls, value: list[str]) -> list[str]:
-        unknown = set(value) - ALLOWED_GEVAL_PARAMS
-        if unknown:
-            raise ValueError(
-                f"unknown GEval parameters {sorted(unknown)}; "
-                f"allowed: {sorted(ALLOWED_GEVAL_PARAMS)}"
-            )
-        return value
-
+from fred_evaluation_backend.datasets.schemas import DatasetSummaryResponse
 
 # ── Cible ────────────────────────────────────────────────────────────────────
 
@@ -47,44 +16,36 @@ class ManagedInstanceTarget(BaseModel):
 
 
 class RuntimeAgentTarget(BaseModel):
+    """Historical target kind — no longer accepted on creation (EVAL-04).
+
+    Kept only so `EvaluationCampaignResponse.target` can still render campaigns
+    created before EVAL-04 removed this path. Never used by
+    `CreateEvaluationCampaignRequest`, which is `ManagedInstanceTarget`-only.
+    """
+
     kind: Literal["runtime_agent"]
     runtime_id: str
     agent_id: str
 
 
+# Response-only union — see RuntimeAgentTarget's docstring. Request bodies use
+# `ManagedInstanceTarget` directly, no union, no discriminator needed.
 EvaluationTarget = ManagedInstanceTarget | RuntimeAgentTarget
 
 
-# ── Création de campagne ──────────────────────────────────────────────────────
-
-
-class EvaluationCaseInput(BaseModel):
-    external_id: str | None = None
-    input: str
-    expected_output: str | None = None
-    tags: list[str] = []
-
-
-class EvaluationDataset(BaseModel):
-    name: str
-    version: str | None = None
-    cases: list[EvaluationCaseInput] = Field(min_length=1)
-
-
-class EvaluationExecutionOptions(BaseModel):
-    max_concurrency: int = Field(default=3, ge=1, le=10)
-    case_timeout_seconds: int = Field(default=600, ge=30, le=900)
+# ── Création de campagne (EVAL-04: dataset_id only, no inline cases) ─────────
+#
+# The old inline dataset/cases/profile/judge/custom_metrics/execution-options
+# request shape is removed outright, not kept alongside this one — see
+# fred-agent-evaluator/docs/rfc/EVAL-DATASET-RFC.md §12 amendment (2026-07-16).
+# Everything this request used to let the client set is now a server-owned
+# default (campaigns/service.py).
 
 
 class CreateEvaluationCampaignRequest(BaseModel):
-    name: str = Field(min_length=1, max_length=255)
     team_id: str
-    target: EvaluationTarget
-    dataset: EvaluationDataset
-    profile: str = "auto"
-    judge_profile_id: str
-    custom_metrics: list[CustomMetric] = []
-    execution: EvaluationExecutionOptions = EvaluationExecutionOptions()
+    target: ManagedInstanceTarget
+    dataset_id: str
 
 
 # ── Réponses ──────────────────────────────────────────────────────────────────
@@ -142,8 +103,10 @@ class EvaluationCampaignResponse(BaseModel):
     team_id: str
     created_by: str
     target: EvaluationTarget
-    dataset_name: str
-    dataset_version: str | None
+    # `None` only for campaigns created before EVAL-04 (no `dataset_id` on the
+    # row) — the dataset relation is the sole source for this field going
+    # forward, never a campaign-local name/version string.
+    dataset: DatasetSummaryResponse | None
     profile: str
     judge_profile_id: str
     operational_state: str

@@ -89,10 +89,12 @@ async def main() -> None:
         setup_otel(host=configuration.observability.langfuse.host)
 
     engine = create_async_engine_from_config(configuration.storage.postgres)
-    token_provider = build_m2m_token_provider(configuration.security)
+    # The worker never impersonates a user (RFC EVAL-AUTH §3/§9): it always
+    # authenticates to the Control Plane as its own M2M service identity.
+    m2m_token_provider = build_m2m_token_provider(configuration.security)
     cp_client = ControlPlaneClient(
         base_url=configuration.control_plane.base_url,
-        token_provider=token_provider,
+        m2m_token_provider=m2m_token_provider,
         runtime_base_url=configuration.control_plane.runtime_base_url,
     )
 

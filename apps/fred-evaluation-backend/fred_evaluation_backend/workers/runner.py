@@ -11,6 +11,7 @@ from fred_evaluation_backend.campaigns.store import EvaluationStore
 from fred_evaluation_backend.config.models import EvaluationConfig
 from fred_evaluation_backend.execution.agent_client import AgentClient
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
+from fred_evaluation_backend.execution.outbound_auth import ServiceAuthentication
 from fred_evaluation_backend.model.factory import build_judge_model
 from fred_evaluation_backend.workers.activities import execute_and_score_case
 
@@ -89,12 +90,14 @@ class CampaignRunner:
                     team_id=campaign.team_id,
                     runtime_id=campaign.target_runtime_id,
                     agent_id=campaign.target_agent_id,
+                    auth=ServiceAuthentication(),
                 )
                 evaluate_url = prep.evaluate_url
             else:
                 prep = await self._cp_client.prepare_managed_instance_execution(
                     team_id=campaign.team_id,
                     agent_instance_id=campaign.target_instance_id,
+                    auth=ServiceAuthentication(),
                 )
                 evaluate_url = prep.evaluate_url
         except Exception as exc:
@@ -147,7 +150,7 @@ class CampaignRunner:
                         session_id=str(uuid.uuid4()),
                         evaluate_url=evaluate_url,
                         team_id=campaign.team_id,
-                        token_provider=self._cp_client._token_provider,
+                        token_provider=self._cp_client.m2m_token_provider,
                         profile=campaign.profile,
                         judge=judge,
                         store=self._store,

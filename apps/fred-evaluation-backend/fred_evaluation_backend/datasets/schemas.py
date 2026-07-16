@@ -118,3 +118,42 @@ class EvaluationDataset(BaseModel):
             else DatasetCompleteness.minimal
         )
         return self
+
+
+# ── EVAL-04 API surface — direct creation (no capture/curation pipeline) ──────
+#
+# A second, minimal path to `EvaluationDataset`, alongside the still-unbuilt
+# QuestionSet capture -> curate -> :promote pipeline (RFC §7-10). See
+# docs/rfc/EVAL-DATASET-RFC.md §12 amendment (2026-07-16).
+
+_MAX_DATASET_CASES = 200
+
+
+class CreateDatasetRequest(BaseModel):
+    team_id: str
+    origin: Literal["upload", "manual"]
+    # The literal filename from the caller's file picker (JSON import only) —
+    # used solely to derive a friendly name server-side. Never user-typed
+    # metadata; absent for manual-row datasets.
+    source_filename: str | None = None
+    cases: list[DatasetCase] = Field(min_length=1, max_length=_MAX_DATASET_CASES)
+
+
+class DatasetSummaryResponse(BaseModel):
+    dataset_id: str
+    name: str
+    version: str
+    team_id: str
+    origin: DatasetOrigin
+    completeness: DatasetCompleteness
+    case_count: int
+    created_at: datetime
+
+
+class DatasetDetailResponse(DatasetSummaryResponse):
+    cases: list[DatasetCase]
+
+
+class DatasetListResponse(BaseModel):
+    datasets: list[DatasetSummaryResponse]
+    total: int
