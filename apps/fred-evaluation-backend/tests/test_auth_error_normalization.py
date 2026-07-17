@@ -27,7 +27,7 @@ from pytest import MonkeyPatch
 from fred_evaluation_backend.campaigns.api import (
     _get_control_plane_client,
     _get_evaluation_catalog_store,
-    _get_evaluation_store,
+    _get_run_store,
     build_evaluations_router,
 )
 from fred_evaluation_backend.execution.evaluator_errors import (
@@ -84,7 +84,7 @@ def _build_app(
     )
     # get_current_user's own sub-dependency — unrelated to what's under test here.
     app.dependency_overrides[get_user_store] = lambda: None
-    app.dependency_overrides[_get_evaluation_store] = lambda: _FakeStore()
+    app.dependency_overrides[_get_run_store] = lambda: _FakeStore()
     app.dependency_overrides[_get_evaluation_catalog_store] = (
         lambda: _FakeEvaluationStore()
     )

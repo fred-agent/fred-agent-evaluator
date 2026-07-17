@@ -3,12 +3,14 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 # ── Cible ────────────────────────────────────────────────────────────────────
 
 
 class ManagedInstanceTarget(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     kind: Literal["managed_instance"]
     agent_instance_id: str
 
@@ -53,6 +55,8 @@ class RunSnapshot(BaseModel):
 
 
 class StartRunRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     team_id: str
     target: ManagedInstanceTarget
 

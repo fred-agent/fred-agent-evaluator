@@ -20,7 +20,7 @@ from fred_core import KeycloakUser, get_config, get_current_user
 from fred_evaluation_backend.campaigns.api import (
     _get_control_plane_client,
     _get_evaluation_catalog_store,
-    _get_evaluation_store,
+    _get_run_store,
     build_evaluations_router,
 )
 from fred_evaluation_backend.execution.evaluator_errors import (
@@ -34,10 +34,9 @@ from fred_evaluation_backend.execution.outbound_auth import (
 
 EVALUATION_ID = "eval-1"
 
-CAMPAIGN_BODY = {
+RUN_BODY = {
     "team_id": "team-1",
     "target": {"kind": "managed_instance", "agent_instance_id": "inst-1"},
-    "evaluation_id": EVALUATION_ID,
 }
 
 
@@ -144,7 +143,7 @@ def _build_app(
         security=SimpleNamespace(user=SimpleNamespace(enabled=security_enabled)),
         worker=SimpleNamespace(judge_profiles={}),
     )
-    app.dependency_overrides[_get_evaluation_store] = lambda: store or _FakeStore()
+    app.dependency_overrides[_get_run_store] = lambda: store or _FakeStore()
     app.dependency_overrides[_get_evaluation_catalog_store] = lambda: (
         evaluation_store or _FakeEvaluationStore()
     )
@@ -160,7 +159,7 @@ async def test_start_run_propagates_the_caller_authorization_header():
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
             f"/evaluations/{EVALUATION_ID}/runs",
-            json=CAMPAIGN_BODY,
+            json=RUN_BODY,
             headers={"Authorization": "Bearer alice-token"},
         )
 
@@ -179,7 +178,7 @@ async def test_start_run_never_uses_service_authentication_interactively():
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
             f"/evaluations/{EVALUATION_ID}/runs",
-            json=CAMPAIGN_BODY,
+            json=RUN_BODY,
             headers={"Authorization": "Bearer alice-token"},
         )
 
@@ -196,7 +195,7 @@ async def test_start_run_dev_mode_security_disabled_is_explicit_not_m2m():
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         # No Authorization header at all — mirrors local dev without Keycloak.
-        resp = await client.post(f"/evaluations/{EVALUATION_ID}/runs", json=CAMPAIGN_BODY)
+        resp = await client.post(f"/evaluations/{EVALUATION_ID}/runs", json=RUN_BODY)
 
     assert resp.status_code == 202
     assert len(cp_client.received_auths) == 1
@@ -211,12 +210,12 @@ async def test_two_requests_with_different_bearer_tokens_do_not_leak_into_each_o
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp_a = await client.post(
             f"/evaluations/{EVALUATION_ID}/runs",
-            json=CAMPAIGN_BODY,
+            json=RUN_BODY,
             headers={"Authorization": "Bearer token-A"},
         )
         resp_b = await client.post(
             f"/evaluations/{EVALUATION_ID}/runs",
-            json=CAMPAIGN_BODY,
+            json=RUN_BODY,
             headers={"Authorization": "Bearer token-B"},
         )
 
@@ -236,7 +235,7 @@ async def test_upstream_403_returns_the_exact_structured_envelope_and_status():
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
             f"/evaluations/{EVALUATION_ID}/runs",
-            json=CAMPAIGN_BODY,
+            json=RUN_BODY,
             headers={"Authorization": "Bearer alice-token"},
         )
 
@@ -288,7 +287,7 @@ async def test_cross_team_evaluation_id_is_rejected() -> None:
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
             f"/evaluations/{EVALUATION_ID}/runs",
-            json=CAMPAIGN_BODY,
+            json=RUN_BODY,
             headers={"Authorization": "Bearer alice-token"},
         )
 
@@ -314,7 +313,7 @@ async def test_unknown_evaluation_id_is_rejected_the_same_way_as_cross_team() ->
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
             f"/evaluations/{EVALUATION_ID}/runs",
-            json=CAMPAIGN_BODY,
+            json=RUN_BODY,
             headers={"Authorization": "Bearer alice-token"},
         )
 
@@ -354,7 +353,7 @@ async def test_run_copies_cases_from_the_referenced_evaluation() -> None:
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
             f"/evaluations/{EVALUATION_ID}/runs",
-            json=CAMPAIGN_BODY,
+            json=RUN_BODY,
             headers={"Authorization": "Bearer alice-token"},
         )
 

@@ -49,7 +49,7 @@ class TelemetrySessionResponse(BaseModel):
     url: str | None = None
 
 
-def _get_evaluation_store(request: Request) -> RunStore:
+def _get_run_store(request: Request) -> RunStore:
     engine: AsyncEngine = request.app.state.db_engine
     return RunStore(engine)
 
@@ -117,7 +117,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         body: StartRunRequest,
         request: Request,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
-        store: Annotated[RunStore, Depends(_get_evaluation_store)],
+        store: Annotated[RunStore, Depends(_get_run_store)],
         evaluation_store: Annotated[
             EvaluationStore, Depends(_get_evaluation_catalog_store)
         ],
@@ -167,14 +167,14 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     async def list_runs(
         evaluation_id: str,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
-        store: Annotated[RunStore, Depends(_get_evaluation_store)],
+        store: Annotated[RunStore, Depends(_get_run_store)],
     ) -> list[EvaluationRun]:
         return await service.list_runs(evaluation_id, store=store)
 
     @router.get("/runs", response_model=list[EvaluationRun])
     async def list_team_runs(
         user: Annotated[KeycloakUser, Depends(get_current_user)],
-        store: Annotated[RunStore, Depends(_get_evaluation_store)],
+        store: Annotated[RunStore, Depends(_get_run_store)],
         team_id: str = Query(...),
     ) -> list[EvaluationRun]:
         return await service.list_team_runs(team_id, store=store)
@@ -183,7 +183,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     async def get_run(
         run_id: str,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
-        store: Annotated[RunStore, Depends(_get_evaluation_store)],
+        store: Annotated[RunStore, Depends(_get_run_store)],
     ) -> EvaluationRun:
         return await service.get_run(run_id, store=store)
 
@@ -194,7 +194,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     async def list_run_cases(
         run_id: str,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
-        store: Annotated[RunStore, Depends(_get_evaluation_store)],
+        store: Annotated[RunStore, Depends(_get_run_store)],
         offset: int = Query(default=0, ge=0),
         limit: int = Query(default=50, ge=1, le=200),
     ) -> EvaluationCaseListResponse:
@@ -210,7 +210,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         run_id: str,
         case_id: str,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
-        store: Annotated[RunStore, Depends(_get_evaluation_store)],
+        store: Annotated[RunStore, Depends(_get_run_store)],
     ) -> EvaluationCaseResponse:
         return await service.get_run_case(run_id, case_id, store=store)
 
@@ -218,7 +218,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     async def stream_run_events(
         run_id: str,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
-        store: Annotated[RunStore, Depends(_get_evaluation_store)],
+        store: Annotated[RunStore, Depends(_get_run_store)],
     ) -> StreamingResponse:
         if await store.get_run(run_id) is None:
             raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found.")
@@ -254,7 +254,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     async def cancel_run(
         run_id: str,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
-        store: Annotated[RunStore, Depends(_get_evaluation_store)],
+        store: Annotated[RunStore, Depends(_get_run_store)],
     ) -> dict:
         await service.cancel_run(run_id, store=store)
         return {"run_id": run_id, "state": "cancelled"}
@@ -263,7 +263,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     async def delete_run(
         run_id: str,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
-        store: Annotated[RunStore, Depends(_get_evaluation_store)],
+        store: Annotated[RunStore, Depends(_get_run_store)],
     ) -> Response:
         await service.delete_run(run_id, store=store)
         return Response(status_code=204)
@@ -272,7 +272,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     async def get_telemetry_session(
         run_id: str,
         request: Request,
-        store: Annotated[RunStore, Depends(_get_evaluation_store)],
+        store: Annotated[RunStore, Depends(_get_run_store)],
         user: Annotated[KeycloakUser, Depends(get_current_user)],
     ) -> TelemetrySessionResponse:
         from fred_core import get_config
@@ -330,7 +330,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         run_id: str,
         request: Request,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
-        store: Annotated[RunStore, Depends(_get_evaluation_store)],
+        store: Annotated[RunStore, Depends(_get_run_store)],
     ) -> RunAnalysisResponse:
         run = await store.get_run(run_id)
         if run is None:
@@ -422,3 +422,6 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         )
 
     return router
+
+
+_get_evaluation_store = _get_run_store
