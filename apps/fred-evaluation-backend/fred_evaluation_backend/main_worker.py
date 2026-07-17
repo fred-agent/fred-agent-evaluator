@@ -32,9 +32,13 @@ async def _run_temporal_worker(configuration, engine, cp_client) -> None:
     from fred_evaluation_backend.workers import _activity_context
     from fred_evaluation_backend.workers.workflow import (
         CampaignWorkflow,
+        RunWorkflow,
         fetch_campaign_cases,
+        fetch_run_cases,
         finalize_campaign,
+        finalize_run,
         run_case,
+        run_case_for_run,
     )
 
     store = EvaluationStore(engine)
@@ -64,8 +68,15 @@ async def _run_temporal_worker(configuration, engine, cp_client) -> None:
     worker = Worker(
         client=client,
         task_queue=temporal_cfg.task_queue,
-        workflows=[CampaignWorkflow],
-        activities=[fetch_campaign_cases, run_case, finalize_campaign],
+        workflows=[CampaignWorkflow, RunWorkflow],
+        activities=[
+            fetch_campaign_cases,
+            run_case,
+            finalize_campaign,
+            fetch_run_cases,
+            run_case_for_run,
+            finalize_run,
+        ],
         activity_executor=executor,
         max_concurrent_activities=max_concurrent,
         workflow_runner=SandboxedWorkflowRunner(

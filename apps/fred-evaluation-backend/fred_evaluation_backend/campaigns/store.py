@@ -390,6 +390,34 @@ class EvaluationStore:
             )
             s.add(event)
 
+    async def create_run_event(
+        self,
+        run_id: str,
+        *,
+        kind: str,
+        payload_json: str | None = None,
+        session: AsyncSession | None = None,
+    ) -> None:
+        """EVAL-05: an event keyed on the Run (campaign_id null). seq is per-run."""
+        from sqlalchemy import func
+
+        async with use_session(self._sessions, session) as s:
+            next_seq_result = await s.execute(
+                select(func.coalesce(func.max(EvaluationEventRow.seq), -1) + 1).where(
+                    EvaluationEventRow.run_id == run_id
+                )
+            )
+            next_seq = next_seq_result.scalar() or 0
+            s.add(
+                EvaluationEventRow(
+                    campaign_id=None,
+                    run_id=run_id,
+                    seq=next_seq,
+                    kind=kind,
+                    payload_json=payload_json,
+                )
+            )
+
     async def list_metrics_by_case(
         self,
         case_id: str,
@@ -467,6 +495,8 @@ class EvaluationStore:
         *,
         run_id: str,
         evaluation_id: str,
+        team_id: str,
+        created_by: str,
         task_id: str,
         target_kind: str,
         target_runtime_id: str | None,
@@ -483,6 +513,8 @@ class EvaluationStore:
             run_id=run_id,
             campaign_id=None,
             evaluation_id=evaluation_id,
+            team_id=team_id,
+            created_by=created_by,
             task_id=task_id,
             target_kind=target_kind,
             target_runtime_id=target_runtime_id,

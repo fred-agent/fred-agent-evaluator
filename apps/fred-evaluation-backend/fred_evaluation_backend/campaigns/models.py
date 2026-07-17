@@ -110,6 +110,8 @@ class EvaluationRunRow(Base):
     evaluation_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("evaluation_dataset.dataset_id"), nullable=True, index=True
     )
+    team_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    created_by: Mapped[str | None] = mapped_column(String, nullable=True)
     task_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     target_kind: Mapped[str | None] = mapped_column(String(32), nullable=True)
     target_runtime_id: Mapped[str | None] = mapped_column(String, nullable=True)

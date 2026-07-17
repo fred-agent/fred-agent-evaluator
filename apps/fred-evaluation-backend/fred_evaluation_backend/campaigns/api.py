@@ -242,7 +242,9 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         store: Annotated[EvaluationStore, Depends(_get_evaluation_store)],
         dataset_store: Annotated[DatasetStore, Depends(_get_dataset_store)],
     ) -> StreamingResponse:
-        await service.get_campaign(campaign_id, store=store, dataset_store=dataset_store)
+        await service.get_campaign(
+            campaign_id, store=store, dataset_store=dataset_store
+        )
 
         async def event_generator() -> AsyncGenerator[str, None]:
             last_seq = -1

@@ -151,8 +151,7 @@ async def start_run(
         # Same error for "doesn't exist" and "belongs to another team" — no cross-team leak.
         raise dataset_not_found_error()
     cases = [
-        DatasetCase.model_validate(c)
-        for c in json.loads(evaluation.cases_json or "[]")
+        DatasetCase.model_validate(c) for c in json.loads(evaluation.cases_json or "[]")
     ]
 
     await resolve_managed_instance(
@@ -176,6 +175,8 @@ async def start_run(
     await store.create_run(
         run_id=run_id,
         evaluation_id=evaluation_id,
+        team_id=team_id,
+        created_by=created_by,
         task_id=task_id,
         target_kind="managed_instance",
         target_runtime_id=None,
