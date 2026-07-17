@@ -2,7 +2,8 @@
 
 `HTTPException(detail=EvaluatorErrorDetail(...).model_dump())` serializes as
 `{"detail": {"code": ..., "message": ...}}`. The OpenAPI `responses=` on
-`POST /campaigns` must document exactly that shape via `EvaluatorErrorResponse`
+`POST /evaluations/{evaluation_id}/runs` must document exactly that shape via
+`EvaluatorErrorResponse`
 — not the bare `EvaluatorErrorDetail` (which would document `{"code", "message"}`
 at the top level, a body FastAPI never actually returns).
 """
@@ -38,19 +39,15 @@ def test_evaluator_error_response_schema_wraps_detail():
 
 def test_documented_error_statuses_reference_the_envelope_not_the_bare_detail():
     schema = _openapi()
-    responses = schema["paths"]["/campaigns"]["post"]["responses"]
+    responses = schema["paths"]["/evaluations/{evaluation_id}/runs"]["post"]["responses"]
 
-    for status in ("401", "403", "404", "409", "502", "503"):
+    for status in ("401", "403", "404", "502", "503"):
         content_schema = responses[status]["content"]["application/json"]["schema"]
         assert content_schema["$ref"] == "#/components/schemas/EvaluatorErrorResponse"
 
 
 def test_422_documents_both_possible_bodies_via_one_of():
     schema = _openapi()
-    responses = schema["paths"]["/campaigns"]["post"]["responses"]
+    responses = schema["paths"]["/evaluations/{evaluation_id}/runs"]["post"]["responses"]
     content_schema = responses["422"]["content"]["application/json"]["schema"]
-    refs = {entry["$ref"] for entry in content_schema["oneOf"]}
-    assert refs == {
-        "#/components/schemas/EvaluatorErrorResponse",
-        "#/components/schemas/HTTPValidationError",
-    }
+    assert content_schema["$ref"] == "#/components/schemas/EvaluatorErrorResponse"

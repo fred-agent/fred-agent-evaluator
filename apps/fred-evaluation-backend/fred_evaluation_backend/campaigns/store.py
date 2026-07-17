@@ -23,7 +23,7 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(microsecond=0)
 
 
-class EvaluationStore:
+class RunStore:
     def __init__(self, engine: AsyncEngine) -> None:
         self._sessions = make_session_factory(engine)
 
@@ -560,6 +560,83 @@ class EvaluationStore:
             )
         return list(rows)
 
+    async def list_runs_by_state(
+        self,
+        operational_state: str,
+        limit: int = 10,
+        session: AsyncSession | None = None,
+    ) -> list[EvaluationRunRow]:
+        async with use_session(self._sessions, session) as s:
+            rows = (
+                (
+                    await s.execute(
+                        select(EvaluationRunRow)
+                        .where(EvaluationRunRow.operational_state == operational_state)
+                        .limit(limit)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        return list(rows)
+
+    async def list_runs_by_team(
+        self,
+        team_id: str,
+        session: AsyncSession | None = None,
+    ) -> list[EvaluationRunRow]:
+        async with use_session(self._sessions, session) as s:
+            rows = (
+                (
+                    await s.execute(
+                        select(EvaluationRunRow)
+                        .where(EvaluationRunRow.team_id == team_id)
+                        .order_by(EvaluationRunRow.created_at.desc())
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        return list(rows)
+
+    async def list_runs_by_creator(
+        self,
+        created_by: str,
+        session: AsyncSession | None = None,
+    ) -> list[EvaluationRunRow]:
+        async with use_session(self._sessions, session) as s:
+            rows = (
+                (
+                    await s.execute(
+                        select(EvaluationRunRow)
+                        .where(EvaluationRunRow.created_by == created_by)
+                        .order_by(EvaluationRunRow.created_at.desc())
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        return list(rows)
+
+    async def get_run_by_task_id(
+        self,
+        task_id: str,
+        session: AsyncSession | None = None,
+    ) -> EvaluationRunRow | None:
+        async with use_session(self._sessions, session) as s:
+            rows = (
+                (
+                    await s.execute(
+                        select(EvaluationRunRow)
+                        .where(EvaluationRunRow.task_id == task_id)
+                        .limit(1)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        return rows[0] if rows else None
+
     async def list_metrics_by_run(
         self,
         run_id: str,
@@ -590,6 +667,7 @@ class EvaluationStore:
         scoring_error_cases: int,
         verdict: str,
         operational_state: str,
+        metric_averages_json: str | None = None,
         session: AsyncSession | None = None,
     ) -> None:
         async with use_session(self._sessions, session) as s:
@@ -602,3 +680,71 @@ class EvaluationStore:
                 row.scoring_error_cases = scoring_error_cases
                 row.verdict = verdict
                 row.operational_state = operational_state
+                row.metric_averages_json = metric_averages_json
+
+    async def update_run_analysis(
+        self,
+        run_id: str,
+        analysis_json: str,
+        session: AsyncSession | None = None,
+    ) -> None:
+        async with use_session(self._sessions, session) as s:
+            row = await s.get(EvaluationRunRow, run_id)
+            if row is None:
+                raise ValueError(f"Run {run_id} not found")
+            row.analysis_json = analysis_json
+            await s.flush()
+
+    async def list_run_events(
+        self,
+        run_id: str,
+        after_seq: int = -1,
+        session: AsyncSession | None = None,
+    ) -> list[EvaluationEventRow]:
+        async with use_session(self._sessions, session) as s:
+            rows = (
+                (
+                    await s.execute(
+                        select(EvaluationEventRow)
+                        .where(EvaluationEventRow.run_id == run_id)
+                        .where(EvaluationEventRow.seq > after_seq)
+                        .order_by(EvaluationEventRow.seq)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        return list(rows)
+
+    async def update_run_state(
+        self,
+        run_id: str,
+        operational_state: str,
+        session: AsyncSession | None = None,
+    ) -> None:
+        async with use_session(self._sessions, session) as s:
+            row = await s.get(EvaluationRunRow, run_id)
+            if row:
+                row.operational_state = operational_state
+
+    async def delete_run(
+        self,
+        run_id: str,
+        session: AsyncSession | None = None,
+    ) -> bool:
+        async with use_session(self._sessions, session) as s:
+            row = await s.get(EvaluationRunRow, run_id)
+            if row is None:
+                return False
+            for table in (
+                EvaluationMetricResultRow,
+                EvaluationEventRow,
+                EvaluationExportDeliveryRow,
+                EvaluationCaseRow,
+            ):
+                await s.execute(delete(table).where(table.run_id == run_id))
+            await s.delete(row)
+            return True
+
+
+EvaluationStore = RunStore

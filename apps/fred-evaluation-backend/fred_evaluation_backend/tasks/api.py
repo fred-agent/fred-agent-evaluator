@@ -9,28 +9,27 @@ from fred_core import KeycloakUser, get_current_user
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from fred_evaluation_backend.campaigns import service
-from fred_evaluation_backend.campaigns.store import EvaluationStore
+from fred_evaluation_backend.campaigns.store import RunStore
 from fred_evaluation_backend.tasks.models import (
     EvaluationTaskEvent,
     TaskListResponse,
     TaskState,
     TaskSummary,
-    campaign_to_event,
-    campaign_to_summary,
     map_state,
+    run_to_event,
+    run_to_summary,
 )
 
 
-def _get_evaluation_store(request: Request) -> EvaluationStore:
+def _get_evaluation_store(request: Request) -> RunStore:
     engine: AsyncEngine = request.app.state.db_engine
-    return EvaluationStore(engine)
+    return RunStore(engine)
 
 
 def build_tasks_router(prefix: str = "") -> APIRouter:
-    """Canonical task-event surface over evaluation campaigns.
+    """Canonical task-event surface over evaluation runs.
 
-    A campaign run is one task, addressed by its own ``task_id`` (distinct from
-    ``campaign_id`` — a campaign may later have several runs/tasks). State and
+    One evaluation run is one task, addressed by its own ``task_id``. State and
     counters are mapped onto the platform-canonical task shape so the frontend
     drives the shared Task components (TaskStateBadge / TaskProgressBar / TaskTray).
     """
@@ -39,18 +38,18 @@ def build_tasks_router(prefix: str = "") -> APIRouter:
     @router.get("/tasks", response_model=TaskListResponse)
     async def list_tasks(
         user: Annotated[KeycloakUser, Depends(get_current_user)],
-        store: Annotated[EvaluationStore, Depends(_get_evaluation_store)],
+        store: Annotated[RunStore, Depends(_get_evaluation_store)],
         scope: Literal["user", "team"] = Query("team"),
         team_id: str | None = Query(default=None),
         exclude_terminal: bool = Query(default=False),
     ) -> TaskListResponse:
         if scope == "user":
-            rows = await store.list_campaigns_by_creator(user.uid)
+            rows = await store.list_runs_by_creator(user.uid)
         elif team_id:
-            rows = await store.list_campaigns_by_team(team_id)
+            rows = await store.list_runs_by_team(team_id)
         else:
             rows = []
-        summaries = [campaign_to_summary(r) for r in rows]
+        summaries = [run_to_summary(r) for r in rows]
         if exclude_terminal:
             summaries = [s for s in summaries if not s.state.is_terminal]
         return TaskListResponse(tasks=summaries)
@@ -59,31 +58,31 @@ def build_tasks_router(prefix: str = "") -> APIRouter:
     async def get_task(
         task_id: str,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
-        store: Annotated[EvaluationStore, Depends(_get_evaluation_store)],
+        store: Annotated[RunStore, Depends(_get_evaluation_store)],
     ) -> TaskSummary:
-        row = await store.get_campaign_by_task_id(task_id)
+        row = await store.get_run_by_task_id(task_id)
         if row is None:
             raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
-        return campaign_to_summary(row)
+        return run_to_summary(row)
 
     @router.get("/tasks/{task_id}/latest", response_model=EvaluationTaskEvent)
     async def get_latest_event(
         task_id: str,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
-        store: Annotated[EvaluationStore, Depends(_get_evaluation_store)],
+        store: Annotated[RunStore, Depends(_get_evaluation_store)],
     ) -> EvaluationTaskEvent:
-        row = await store.get_campaign_by_task_id(task_id)
+        row = await store.get_run_by_task_id(task_id)
         if row is None:
             raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
-        return campaign_to_event(row, seq=0)
+        return run_to_event(row, seq=0)
 
     @router.get("/tasks/{task_id}/events")
     async def stream_task_events(
         task_id: str,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
-        store: Annotated[EvaluationStore, Depends(_get_evaluation_store)],
+        store: Annotated[RunStore, Depends(_get_evaluation_store)],
     ) -> StreamingResponse:
-        row = await store.get_campaign_by_task_id(task_id)
+        row = await store.get_run_by_task_id(task_id)
         if row is None:
             raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
 
@@ -91,10 +90,10 @@ def build_tasks_router(prefix: str = "") -> APIRouter:
             seq = 0
             last: tuple[TaskState, float | None] | None = None
             while True:
-                current = await store.get_campaign_by_task_id(task_id)
+                current = await store.get_run_by_task_id(task_id)
                 if current is None:
                     break
-                event = campaign_to_event(current, seq)
+                event = run_to_event(current, seq)
                 snapshot = (event.state, event.progress)
                 if snapshot != last:
                     last = snapshot
@@ -110,12 +109,12 @@ def build_tasks_router(prefix: str = "") -> APIRouter:
     async def cancel_task(
         task_id: str,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
-        store: Annotated[EvaluationStore, Depends(_get_evaluation_store)],
+        store: Annotated[RunStore, Depends(_get_evaluation_store)],
     ) -> dict[str, str]:
-        row = await store.get_campaign_by_task_id(task_id)
+        row = await store.get_run_by_task_id(task_id)
         if row is None:
             raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
-        await service.cancel_campaign(row.campaign_id, store=store)
+        await service.cancel_run(row.run_id, store=store)
         return {"task_id": task_id, "state": "cancelling"}
 
     return router

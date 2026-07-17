@@ -1,4 +1,4 @@
-"""POST /campaigns identity propagation (EVAL-AUTH RFC — issue #33, parts 1+2).
+"""POST /evaluations/{evaluation_id}/runs identity propagation (EVAL-AUTH RFC — issue #33, parts 1+2).
 
 Drives the real FastAPI route (`campaigns/api.py` -> `campaigns/service.py` ->
 `execution/runtime_resolver.py`) end-to-end over an in-process ASGI transport
@@ -57,7 +57,7 @@ class _FakeStore:
     def __init__(self) -> None:
         self.created_cases: list[dict[str, object]] = []
 
-    async def create_campaign(self, **kwargs):
+    async def create_run(self, **kwargs):
         return None
 
     async def create_case(self, **kwargs):
@@ -153,13 +153,13 @@ def _build_app(
 
 
 @pytest.mark.asyncio
-async def test_create_campaign_propagates_the_caller_authorization_header():
+async def test_start_run_propagates_the_caller_authorization_header():
     cp_client = _RecordingControlPlaneClient()
     app = _build_app(security_enabled=True, cp_client=cp_client)
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
-            "/campaigns",
+            f"/evaluations/{DATASET_ID}/runs",
             json=CAMPAIGN_BODY,
             headers={"Authorization": "Bearer alice-token"},
         )
@@ -172,13 +172,13 @@ async def test_create_campaign_propagates_the_caller_authorization_header():
 
 
 @pytest.mark.asyncio
-async def test_create_campaign_never_uses_service_authentication_interactively():
+async def test_start_run_never_uses_service_authentication_interactively():
     cp_client = _RecordingControlPlaneClient()
     app = _build_app(security_enabled=True, cp_client=cp_client)
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
-            "/campaigns",
+            f"/evaluations/{DATASET_ID}/runs",
             json=CAMPAIGN_BODY,
             headers={"Authorization": "Bearer alice-token"},
         )
@@ -190,13 +190,13 @@ async def test_create_campaign_never_uses_service_authentication_interactively()
 
 
 @pytest.mark.asyncio
-async def test_create_campaign_dev_mode_security_disabled_is_explicit_not_m2m():
+async def test_start_run_dev_mode_security_disabled_is_explicit_not_m2m():
     cp_client = _RecordingControlPlaneClient()
     app = _build_app(security_enabled=False, cp_client=cp_client)
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         # No Authorization header at all — mirrors local dev without Keycloak.
-        resp = await client.post("/campaigns", json=CAMPAIGN_BODY)
+        resp = await client.post(f"/evaluations/{DATASET_ID}/runs", json=CAMPAIGN_BODY)
 
     assert resp.status_code == 202
     assert len(cp_client.received_auths) == 1
@@ -210,12 +210,12 @@ async def test_two_requests_with_different_bearer_tokens_do_not_leak_into_each_o
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp_a = await client.post(
-            "/campaigns",
+            f"/evaluations/{DATASET_ID}/runs",
             json=CAMPAIGN_BODY,
             headers={"Authorization": "Bearer token-A"},
         )
         resp_b = await client.post(
-            "/campaigns",
+            f"/evaluations/{DATASET_ID}/runs",
             json=CAMPAIGN_BODY,
             headers={"Authorization": "Bearer token-B"},
         )
@@ -235,7 +235,7 @@ async def test_upstream_403_returns_the_exact_structured_envelope_and_status():
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
-            "/campaigns",
+            f"/evaluations/{DATASET_ID}/runs",
             json=CAMPAIGN_BODY,
             headers={"Authorization": "Bearer alice-token"},
         )
@@ -264,7 +264,9 @@ async def test_inline_dataset_or_cases_payload_is_rejected() -> None:
     }
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
-            "/campaigns", json=body, headers={"Authorization": "Bearer alice-token"}
+            f"/evaluations/{DATASET_ID}/runs",
+            json=body,
+            headers={"Authorization": "Bearer alice-token"},
         )
 
     assert resp.status_code == 422
@@ -285,7 +287,7 @@ async def test_cross_team_dataset_id_is_rejected() -> None:
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
-            "/campaigns",
+            f"/evaluations/{DATASET_ID}/runs",
             json=CAMPAIGN_BODY,
             headers={"Authorization": "Bearer alice-token"},
         )
@@ -311,7 +313,7 @@ async def test_unknown_dataset_id_is_rejected_the_same_way_as_cross_team() -> No
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
-            "/campaigns",
+            f"/evaluations/{DATASET_ID}/runs",
             json=CAMPAIGN_BODY,
             headers={"Authorization": "Bearer alice-token"},
         )
@@ -321,7 +323,7 @@ async def test_unknown_dataset_id_is_rejected_the_same_way_as_cross_team() -> No
 
 
 @pytest.mark.asyncio
-async def test_campaign_copies_cases_from_the_referenced_dataset() -> None:
+async def test_run_copies_cases_from_the_referenced_dataset() -> None:
     cp_client = _RecordingControlPlaneClient()
     store = _FakeStore()
     dataset_store = _FakeDatasetStore(
@@ -351,7 +353,7 @@ async def test_campaign_copies_cases_from_the_referenced_dataset() -> None:
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
-            "/campaigns",
+            f"/evaluations/{DATASET_ID}/runs",
             json=CAMPAIGN_BODY,
             headers={"Authorization": "Bearer alice-token"},
         )

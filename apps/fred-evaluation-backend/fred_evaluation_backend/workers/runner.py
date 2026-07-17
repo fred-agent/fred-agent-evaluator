@@ -7,7 +7,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from fred_evaluation_backend.campaigns.store import EvaluationStore
+from fred_evaluation_backend.campaigns.store import RunStore
 from fred_evaluation_backend.config.models import EvaluationConfig
 from fred_evaluation_backend.execution.agent_client import AgentClient
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
@@ -18,7 +18,7 @@ from fred_evaluation_backend.workers.activities import execute_and_score_case
 logger = logging.getLogger(__name__)
 
 
-class CampaignRunner:
+class RunRunner:
     def __init__(
         self,
         *,
@@ -27,7 +27,7 @@ class CampaignRunner:
         cp_client: ControlPlaneClient,
     ) -> None:
         self._config = config
-        self._store = EvaluationStore(engine)
+        self._store = RunStore(engine)
         self._cp_client = cp_client
         self._agent_client = AgentClient()
         self._sem = asyncio.Semaphore(config.worker.max_concurrent_cases)
@@ -47,28 +47,28 @@ class CampaignRunner:
             await asyncio.sleep(self._config.worker.poll_interval_seconds)
 
     async def _tick(self) -> None:
-        rows = await self._store.list_campaigns_by_state("pending", limit=10)
-        for campaign in rows:
-            if campaign.campaign_id not in self._running:
-                self._running.add(campaign.campaign_id)
+        rows = await self._store.list_runs_by_state("pending", limit=10)
+        for run in rows:
+            if run.run_id not in self._running:
+                self._running.add(run.run_id)
                 asyncio.create_task(
-                    self._run_campaign(campaign),
-                    name=f"campaign-{campaign.campaign_id}",
+                    self._run_run(run),
+                    name=f"run-{run.run_id}",
                 )
 
-    async def _run_campaign(self, campaign) -> None:
-        campaign_id = campaign.campaign_id
-        logger.info("[RUNNER] starting campaign=%s", campaign_id)
+    async def _run_run(self, run) -> None:
+        run_id = run.run_id
+        logger.info("[RUNNER] starting run=%s", run_id)
         try:
-            await self._store.update_campaign_state(campaign_id, "running")
-            await self._store.create_event(
-                campaign_id, kind="campaign_started", payload_json=None
+            await self._store.update_run_state(run_id, "running")
+            await self._store.create_run_event(
+                run_id, kind="run_started", payload_json=None
             )
-            await self._execute_campaign(campaign)
+            await self._execute_run(run)
         except Exception:
-            logger.exception("[RUNNER] campaign=%s failed unexpectedly", campaign_id)
-            await self._store.update_campaign_aggregates(
-                campaign_id,
+            logger.exception("[RUNNER] run=%s failed unexpectedly", run_id)
+            await self._store.update_run_aggregates(
+                run_id,
                 completed_cases=0,
                 passed_cases=0,
                 failed_cases=0,
@@ -78,81 +78,71 @@ class CampaignRunner:
                 operational_state="error",
             )
         finally:
-            self._running.discard(campaign_id)
+            self._running.discard(run_id)
 
-    async def _execute_campaign(self, campaign) -> None:
-        campaign_id = campaign.campaign_id
+    async def _execute_run(self, run) -> None:
+        from fred_deepeval_cli.core.models import CustomMetricSpec
 
-        # Resolve execution grant from Control Plane
+        run_id = run.run_id
+
         try:
-            if campaign.target_kind == "runtime_agent":
-                prep = await self._cp_client.prepare_runtime_agent_execution(
-                    team_id=campaign.team_id,
-                    runtime_id=campaign.target_runtime_id,
-                    agent_id=campaign.target_agent_id,
-                    auth=ServiceAuthentication(),
-                )
-                evaluate_url = prep.evaluate_url
-            else:
-                prep = await self._cp_client.prepare_managed_instance_execution(
-                    team_id=campaign.team_id,
-                    agent_instance_id=campaign.target_instance_id,
-                    auth=ServiceAuthentication(),
-                )
-                evaluate_url = prep.evaluate_url
-        except Exception as exc:
-            logger.error(
-                "[RUNNER] campaign=%s cannot prepare execution: %s", campaign_id, exc
+            prep = await self._cp_client.prepare_managed_instance_execution(
+                team_id=run.team_id,
+                agent_instance_id=run.target_instance_id,
+                auth=ServiceAuthentication(),
             )
-            await self._store.update_campaign_aggregates(
-                campaign_id,
+            evaluate_url = prep.evaluate_url
+        except Exception as exc:
+            logger.error("[RUNNER] run=%s cannot prepare execution: %s", run_id, exc)
+            await self._store.update_run_aggregates(
+                run_id,
                 completed_cases=0,
                 passed_cases=0,
                 failed_cases=0,
-                execution_error_cases=campaign.total_cases,
+                execution_error_cases=run.total_cases,
                 scoring_error_cases=0,
                 verdict="failed",
                 operational_state="error",
             )
             return
 
-        # Build judge
-        judge_profile = self._config.worker.judge_profiles.get(
-            campaign.judge_profile_id
-        )
+        judge_profile = self._config.worker.judge_profiles.get(run.judge_profile_id)
         judge = None
         if judge_profile is not None:
             try:
                 judge = build_judge_model(judge_profile)
             except Exception as exc:
                 logger.warning(
-                    "[RUNNER] campaign=%s cannot build judge '%s': %s — proceeding without scoring",
-                    campaign_id,
-                    campaign.judge_profile_id,
+                    "[RUNNER] run=%s cannot build judge '%s': %s — proceeding without scoring",
+                    run_id,
+                    run.judge_profile_id,
                     exc,
                 )
 
-        cases = await self._store.list_cases_by_campaign(campaign_id, limit=10000)
+        custom_metrics = [
+            CustomMetricSpec.model_validate(m)
+            for m in json.loads(run.custom_metrics_json or "[]")
+        ]
+        cases = await self._store.list_cases_by_run(run_id, limit=10000)
 
         async def _run_case(case) -> None:
             async with self._sem:
                 try:
                     await execute_and_score_case(
                         case_id=case.case_id,
-                        campaign_id=campaign_id,
-                        created_by=campaign.created_by,
+                        run_id=run_id,
+                        created_by=run.created_by,
                         input=case.input,
                         expected_output=case.expected_output,
-                        agent_id=campaign.target_agent_id,
-                        agent_instance_id=prep.agent_instance_id
-                        if campaign.target_kind == "managed_instance"
-                        else None,
+                        agent_id=run.target_agent_id,
+                        agent_instance_id=prep.agent_instance_id,
                         session_id=str(uuid.uuid4()),
                         evaluate_url=evaluate_url,
-                        team_id=campaign.team_id,
+                        team_id=run.team_id,
                         token_provider=self._cp_client.m2m_token_provider,
-                        profile=campaign.profile,
+                        profile=run.profile,
                         judge=judge,
+                        custom_metrics=custom_metrics,
                         store=self._store,
                         agent_client=self._agent_client,
                     )
@@ -178,14 +168,13 @@ class CampaignRunner:
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 logger.error(
-                    "[RUNNER] campaign=%s case[%d] unhandled exception: %s",
-                    campaign_id,
+                    "[RUNNER] run=%s case[%d] unhandled exception: %s",
+                    run_id,
                     i,
                     result,
                 )
 
-        # Compute aggregates
-        refreshed = await self._store.list_cases_by_campaign(campaign_id, limit=10000)
+        refreshed = await self._store.list_cases_by_run(run_id, limit=10000)
         completed = len([c for c in refreshed if c.status in ("completed", "error")])
         passed = len([c for c in refreshed if c.verdict == "passed"])
         failed = len([c for c in refreshed if c.verdict == "failed"])
@@ -196,14 +185,13 @@ class CampaignRunner:
         )
 
         if failed > 0:
-            campaign_verdict = "failed"
-        elif insufficient >= campaign.total_cases / 2:
-            campaign_verdict = "insufficient"
+            run_verdict = "failed"
+        elif insufficient >= (run.total_cases or 1) / 2:
+            run_verdict = "inconclusive"
         else:
-            campaign_verdict = "passed"
+            run_verdict = "passed"
 
-        # Compute per-metric average scores
-        all_metrics = await self._store.list_metrics_by_campaign(campaign_id)
+        all_metrics = await self._store.list_metrics_by_run(run_id)
         metric_scores: dict[str, list[float]] = {}
         for m in all_metrics:
             if m.score is not None:
@@ -217,23 +205,27 @@ class CampaignRunner:
         }
         metric_averages_json = json.dumps(metric_averages) if metric_averages else None
 
-        await self._store.update_campaign_aggregates(
-            campaign_id,
+        await self._store.update_run_aggregates(
+            run_id,
             completed_cases=completed,
             passed_cases=passed,
             failed_cases=failed,
             execution_error_cases=exec_errors,
             scoring_error_cases=scoring_errors,
-            verdict=campaign_verdict,
+            verdict=run_verdict,
             operational_state="completed",
             metric_averages_json=metric_averages_json,
         )
-        await self._store.create_event(
-            campaign_id, kind="campaign_completed", payload_json=None
+        await self._store.create_run_event(
+            run_id, kind="run_completed", payload_json=None
         )
         logger.info(
-            "[RUNNER] campaign=%s completed passed=%d failed=%d",
-            campaign_id,
+            "[RUNNER] run=%s completed passed=%d failed=%d",
+            run_id,
             passed,
             failed,
         )
+
+
+# Temporary alias while the surrounding module names still say "campaigns".
+CampaignRunner = RunRunner

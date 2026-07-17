@@ -6,7 +6,7 @@ import logging
 from fred_core import M2MTokenProvider
 from opentelemetry.trace import Status, StatusCode
 
-from fred_evaluation_backend.campaigns.store import EvaluationStore
+from fred_evaluation_backend.campaigns.store import RunStore
 from fred_evaluation_backend.execution.agent_client import AgentClient
 from fred_evaluation_backend.telemetry.otel import get_tracer
 
@@ -28,7 +28,7 @@ async def execute_and_score_case(
     profile: str,
     judge,
     custom_metrics: list | None = None,
-    store: EvaluationStore,
+    store: RunStore,
     agent_client: AgentClient,
     campaign_id: str | None = None,
     run_id: str | None = None,
@@ -85,7 +85,7 @@ async def _execute_and_score_case_inner(
     profile: str,
     judge,
     custom_metrics: list | None = None,
-    store: EvaluationStore,
+    store: RunStore,
     agent_client: AgentClient,
 ) -> None:
     from fred_deepeval_cli.core.evaluator import classify_outcome
@@ -262,7 +262,7 @@ async def _emit_event(
     run_id: str | None,
     case_id: str,
     kind: str,
-    store: EvaluationStore,
+    store: RunStore,
 ) -> None:
     payload = json.dumps({"case_id": case_id})
     if run_id is not None:

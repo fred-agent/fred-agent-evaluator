@@ -41,16 +41,27 @@
         }
       }
     },
-    "/evaluation/v1/campaigns": {
+    "/evaluation/v1/evaluations/{evaluation_id}/runs": {
       "post": {
         "tags": [
           "Evaluations"
         ],
-        "summary": "Create Campaign",
-        "operationId": "create_campaign_evaluation_v1_campaigns_post",
+        "summary": "Start Run",
+        "operationId": "start_run_evaluation_v1_evaluations__evaluation_id__runs_post",
         "security": [
           {
             "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "evaluation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Evaluation Id"
+            }
           }
         ],
         "requestBody": {
@@ -58,7 +69,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateEvaluationCampaignRequest"
+                "$ref": "#/components/schemas/StartRunRequest"
               }
             }
           }
@@ -69,7 +80,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CampaignCreatedResponse"
+                  "$ref": "#/components/schemas/RunCreatedResponse"
                 }
               }
             }
@@ -104,7 +115,7 @@
             },
             "description": "Not Found"
           },
-          "409": {
+          "422": {
             "content": {
               "application/json": {
                 "schema": {
@@ -112,24 +123,7 @@
                 }
               }
             },
-            "description": "Conflict"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "oneOf": [
-                    {
-                      "$ref": "#/components/schemas/EvaluatorErrorResponse"
-                    },
-                    {
-                      "$ref": "#/components/schemas/HTTPValidationError"
-                    }
-                  ]
-                }
-              }
-            }
+            "description": "Unprocessable Entity"
           },
           "502": {
             "content": {
@@ -157,8 +151,59 @@
         "tags": [
           "Evaluations"
         ],
-        "summary": "List Campaigns",
-        "operationId": "list_campaigns_evaluation_v1_campaigns_get",
+        "summary": "List Runs",
+        "operationId": "list_runs_evaluation_v1_evaluations__evaluation_id__runs_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "evaluation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Evaluation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EvaluationRun"
+                  },
+                  "title": "Response List Runs Evaluation V1 Evaluations  Evaluation Id  Runs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/evaluation/v1/runs": {
+      "get": {
+        "tags": [
+          "Evaluations"
+        ],
+        "summary": "List Team Runs",
+        "operationId": "list_team_runs_evaluation_v1_runs_get",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -181,7 +226,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EvaluationCampaignListResponse"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EvaluationRun"
+                  },
+                  "title": "Response List Team Runs Evaluation V1 Runs Get"
                 }
               }
             }
@@ -199,13 +248,13 @@
         }
       }
     },
-    "/evaluation/v1/campaigns/{campaign_id}": {
+    "/evaluation/v1/runs/{run_id}": {
       "get": {
         "tags": [
           "Evaluations"
         ],
-        "summary": "Get Campaign",
-        "operationId": "get_campaign_evaluation_v1_campaigns__campaign_id__get",
+        "summary": "Get Run",
+        "operationId": "get_run_evaluation_v1_runs__run_id__get",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -213,12 +262,12 @@
         ],
         "parameters": [
           {
-            "name": "campaign_id",
+            "name": "run_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Campaign Id"
+              "title": "Run Id"
             }
           }
         ],
@@ -228,7 +277,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EvaluationCampaignResponse"
+                  "$ref": "#/components/schemas/EvaluationRun"
                 }
               }
             }
@@ -249,8 +298,8 @@
         "tags": [
           "Evaluations"
         ],
-        "summary": "Delete Campaign",
-        "operationId": "delete_campaign_evaluation_v1_campaigns__campaign_id__delete",
+        "summary": "Delete Run",
+        "operationId": "delete_run_evaluation_v1_runs__run_id__delete",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -258,12 +307,12 @@
         ],
         "parameters": [
           {
-            "name": "campaign_id",
+            "name": "run_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Campaign Id"
+              "title": "Run Id"
             }
           }
         ],
@@ -284,13 +333,13 @@
         }
       }
     },
-    "/evaluation/v1/campaigns/{campaign_id}/cases": {
+    "/evaluation/v1/runs/{run_id}/cases": {
       "get": {
         "tags": [
           "Evaluations"
         ],
-        "summary": "List Cases",
-        "operationId": "list_cases_evaluation_v1_campaigns__campaign_id__cases_get",
+        "summary": "List Run Cases",
+        "operationId": "list_run_cases_evaluation_v1_runs__run_id__cases_get",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -298,12 +347,12 @@
         ],
         "parameters": [
           {
-            "name": "campaign_id",
+            "name": "run_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Campaign Id"
+              "title": "Run Id"
             }
           },
           {
@@ -354,13 +403,13 @@
         }
       }
     },
-    "/evaluation/v1/campaigns/{campaign_id}/cases/{case_id}": {
+    "/evaluation/v1/runs/{run_id}/cases/{case_id}": {
       "get": {
         "tags": [
           "Evaluations"
         ],
-        "summary": "Get Case",
-        "operationId": "get_case_evaluation_v1_campaigns__campaign_id__cases__case_id__get",
+        "summary": "Get Run Case",
+        "operationId": "get_run_case_evaluation_v1_runs__run_id__cases__case_id__get",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -368,12 +417,12 @@
         ],
         "parameters": [
           {
-            "name": "campaign_id",
+            "name": "run_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Campaign Id"
+              "title": "Run Id"
             }
           },
           {
@@ -410,13 +459,13 @@
         }
       }
     },
-    "/evaluation/v1/campaigns/{campaign_id}/events": {
+    "/evaluation/v1/runs/{run_id}/events": {
       "get": {
         "tags": [
           "Evaluations"
         ],
-        "summary": "Stream Events",
-        "operationId": "stream_events_evaluation_v1_campaigns__campaign_id__events_get",
+        "summary": "Stream Run Events",
+        "operationId": "stream_run_events_evaluation_v1_runs__run_id__events_get",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -424,12 +473,12 @@
         ],
         "parameters": [
           {
-            "name": "campaign_id",
+            "name": "run_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Campaign Id"
+              "title": "Run Id"
             }
           }
         ],
@@ -455,13 +504,13 @@
         }
       }
     },
-    "/evaluation/v1/campaigns/{campaign_id}/cancel": {
+    "/evaluation/v1/runs/{run_id}/cancel": {
       "post": {
         "tags": [
           "Evaluations"
         ],
-        "summary": "Cancel Campaign",
-        "operationId": "cancel_campaign_evaluation_v1_campaigns__campaign_id__cancel_post",
+        "summary": "Cancel Run",
+        "operationId": "cancel_run_evaluation_v1_runs__run_id__cancel_post",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -469,12 +518,12 @@
         ],
         "parameters": [
           {
-            "name": "campaign_id",
+            "name": "run_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Campaign Id"
+              "title": "Run Id"
             }
           }
         ],
@@ -486,7 +535,7 @@
                 "schema": {
                   "type": "object",
                   "additionalProperties": true,
-                  "title": "Response Cancel Campaign Evaluation V1 Campaigns  Campaign Id  Cancel Post"
+                  "title": "Response Cancel Run Evaluation V1 Runs  Run Id  Cancel Post"
                 }
               }
             }
@@ -504,13 +553,13 @@
         }
       }
     },
-    "/evaluation/v1/telemetry/session/{campaign_id}": {
+    "/evaluation/v1/telemetry/session/{run_id}": {
       "get": {
         "tags": [
           "Evaluations"
         ],
         "summary": "Get Telemetry Session",
-        "operationId": "get_telemetry_session_evaluation_v1_telemetry_session__campaign_id__get",
+        "operationId": "get_telemetry_session_evaluation_v1_telemetry_session__run_id__get",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -518,12 +567,12 @@
         ],
         "parameters": [
           {
-            "name": "campaign_id",
+            "name": "run_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Campaign Id"
+              "title": "Run Id"
             }
           }
         ],
@@ -577,13 +626,13 @@
         ]
       }
     },
-    "/evaluation/v1/campaigns/{campaign_id}/analyze": {
+    "/evaluation/v1/runs/{run_id}/analyze": {
       "post": {
         "tags": [
           "Evaluations"
         ],
-        "summary": "Analyze Campaign",
-        "operationId": "analyze_campaign_evaluation_v1_campaigns__campaign_id__analyze_post",
+        "summary": "Analyze Run",
+        "operationId": "analyze_run_evaluation_v1_runs__run_id__analyze_post",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -591,12 +640,12 @@
         ],
         "parameters": [
           {
-            "name": "campaign_id",
+            "name": "run_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Campaign Id"
+              "title": "Run Id"
             }
           }
         ],
@@ -606,7 +655,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CampaignAnalysisResponse"
+                  "$ref": "#/components/schemas/RunAnalysisResponse"
                 }
               }
             }
@@ -1019,110 +1068,17 @@
   },
   "components": {
     "schemas": {
-      "CampaignAnalysisResponse": {
-        "properties": {
-          "campaign_id": {
-            "type": "string",
-            "title": "Campaign Id"
-          },
-          "analysis": {
-            "$ref": "#/components/schemas/CampaignAnalysisResult"
-          },
-          "cached": {
-            "type": "boolean",
-            "title": "Cached"
-          }
-        },
-        "type": "object",
-        "required": [
-          "campaign_id",
-          "analysis",
-          "cached"
-        ],
-        "title": "CampaignAnalysisResponse"
-      },
-      "CampaignAnalysisResult": {
-        "properties": {
-          "summary": {
-            "type": "string",
-            "title": "Summary"
-          },
-          "strengths": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Strengths"
-          },
-          "weaknesses": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Weaknesses"
-          },
-          "recommendations": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Recommendations"
-          },
-          "risk_level": {
-            "type": "string",
-            "title": "Risk Level"
-          }
-        },
-        "type": "object",
-        "required": [
-          "summary",
-          "strengths",
-          "weaknesses",
-          "recommendations",
-          "risk_level"
-        ],
-        "title": "CampaignAnalysisResult"
-      },
-      "CampaignCreatedResponse": {
-        "properties": {
-          "campaign_id": {
-            "type": "string",
-            "title": "Campaign Id"
-          },
-          "run_id": {
-            "type": "string",
-            "title": "Run Id"
-          },
-          "task_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Task Id"
-          },
-          "state": {
-            "type": "string",
-            "title": "State"
-          }
-        },
-        "type": "object",
-        "required": [
-          "campaign_id",
-          "run_id",
-          "task_id",
-          "state"
-        ],
-        "title": "CampaignCreatedResponse"
-      },
       "CreateDatasetRequest": {
         "properties": {
           "team_id": {
             "type": "string",
             "title": "Team Id"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
           },
           "origin": {
             "type": "string",
@@ -1156,32 +1112,11 @@
         "type": "object",
         "required": [
           "team_id",
+          "name",
           "origin",
           "cases"
         ],
         "title": "CreateDatasetRequest"
-      },
-      "CreateEvaluationCampaignRequest": {
-        "properties": {
-          "team_id": {
-            "type": "string",
-            "title": "Team Id"
-          },
-          "target": {
-            "$ref": "#/components/schemas/ManagedInstanceTarget"
-          },
-          "dataset_id": {
-            "type": "string",
-            "title": "Dataset Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "team_id",
-          "target",
-          "dataset_id"
-        ],
-        "title": "CreateEvaluationCampaignRequest"
       },
       "DatasetCase": {
         "properties": {
@@ -1269,6 +1204,10 @@
             "type": "string",
             "title": "Version"
           },
+          "author": {
+            "type": "string",
+            "title": "Author"
+          },
           "team_id": {
             "type": "string",
             "title": "Team Id"
@@ -1307,6 +1246,7 @@
           "dataset_id",
           "name",
           "version",
+          "author",
           "team_id",
           "origin",
           "completeness",
@@ -1351,6 +1291,10 @@
             "type": "string",
             "title": "Version"
           },
+          "author": {
+            "type": "string",
+            "title": "Author"
+          },
           "team_id": {
             "type": "string",
             "title": "Team Id"
@@ -1382,6 +1326,7 @@
           "dataset_id",
           "name",
           "version",
+          "author",
           "team_id",
           "origin",
           "completeness",
@@ -1389,205 +1334,6 @@
           "created_at"
         ],
         "title": "DatasetSummaryResponse"
-      },
-      "EvaluationCampaignListResponse": {
-        "properties": {
-          "campaigns": {
-            "items": {
-              "$ref": "#/components/schemas/EvaluationCampaignResponse"
-            },
-            "type": "array",
-            "title": "Campaigns"
-          },
-          "total": {
-            "type": "integer",
-            "title": "Total"
-          }
-        },
-        "type": "object",
-        "required": [
-          "campaigns",
-          "total"
-        ],
-        "title": "EvaluationCampaignListResponse"
-      },
-      "EvaluationCampaignResponse": {
-        "properties": {
-          "schema_version": {
-            "type": "string",
-            "const": "1",
-            "title": "Schema Version",
-            "default": "1"
-          },
-          "campaign_id": {
-            "type": "string",
-            "title": "Campaign Id"
-          },
-          "run_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Run Id"
-          },
-          "task_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Task Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "team_id": {
-            "type": "string",
-            "title": "Team Id"
-          },
-          "created_by": {
-            "type": "string",
-            "title": "Created By"
-          },
-          "target": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ManagedInstanceTarget"
-              },
-              {
-                "$ref": "#/components/schemas/RuntimeAgentTarget"
-              }
-            ],
-            "title": "Target"
-          },
-          "dataset": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DatasetSummaryResponse"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "profile": {
-            "type": "string",
-            "title": "Profile"
-          },
-          "judge_profile_id": {
-            "type": "string",
-            "title": "Judge Profile Id"
-          },
-          "operational_state": {
-            "type": "string",
-            "title": "Operational State"
-          },
-          "verdict": {
-            "type": "string",
-            "title": "Verdict"
-          },
-          "total_cases": {
-            "type": "integer",
-            "title": "Total Cases"
-          },
-          "completed_cases": {
-            "type": "integer",
-            "title": "Completed Cases"
-          },
-          "passed_cases": {
-            "type": "integer",
-            "title": "Passed Cases"
-          },
-          "failed_cases": {
-            "type": "integer",
-            "title": "Failed Cases"
-          },
-          "execution_error_cases": {
-            "type": "integer",
-            "title": "Execution Error Cases"
-          },
-          "scoring_error_cases": {
-            "type": "integer",
-            "title": "Scoring Error Cases"
-          },
-          "metric_averages": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "type": "number"
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Metric Averages"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "started_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Started At"
-          },
-          "completed_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Completed At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "campaign_id",
-          "run_id",
-          "task_id",
-          "name",
-          "team_id",
-          "created_by",
-          "target",
-          "dataset",
-          "profile",
-          "judge_profile_id",
-          "operational_state",
-          "verdict",
-          "total_cases",
-          "completed_cases",
-          "passed_cases",
-          "failed_cases",
-          "execution_error_cases",
-          "scoring_error_cases",
-          "metric_averages",
-          "created_at",
-          "started_at",
-          "completed_at"
-        ],
-        "title": "EvaluationCampaignResponse"
       },
       "EvaluationCaseListResponse": {
         "properties": {
@@ -1617,7 +1363,14 @@
             "title": "Case Id"
           },
           "campaign_id": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Campaign Id"
           },
           "run_id": {
@@ -1769,7 +1522,6 @@
         "type": "object",
         "required": [
           "case_id",
-          "campaign_id",
           "run_id",
           "external_id",
           "status",
@@ -1910,6 +1662,146 @@
           "error"
         ],
         "title": "EvaluationMetricResultResponse"
+      },
+      "EvaluationRun": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1",
+            "title": "Schema Version",
+            "default": "1"
+          },
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "evaluation_id": {
+            "type": "string",
+            "title": "Evaluation Id"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ManagedInstanceTarget"
+              },
+              {
+                "$ref": "#/components/schemas/RuntimeAgentTarget"
+              }
+            ],
+            "title": "Target"
+          },
+          "profile": {
+            "type": "string",
+            "title": "Profile"
+          },
+          "judge_profile_id": {
+            "type": "string",
+            "title": "Judge Profile Id"
+          },
+          "operational_state": {
+            "type": "string",
+            "title": "Operational State"
+          },
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "passed",
+              "failed",
+              "inconclusive"
+            ],
+            "title": "Verdict"
+          },
+          "total_cases": {
+            "type": "integer",
+            "title": "Total Cases"
+          },
+          "completed_cases": {
+            "type": "integer",
+            "title": "Completed Cases"
+          },
+          "passed_cases": {
+            "type": "integer",
+            "title": "Passed Cases"
+          },
+          "failed_cases": {
+            "type": "integer",
+            "title": "Failed Cases"
+          },
+          "execution_error_cases": {
+            "type": "integer",
+            "title": "Execution Error Cases"
+          },
+          "scoring_error_cases": {
+            "type": "integer",
+            "title": "Scoring Error Cases"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/RunSnapshot"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "evaluation_id",
+          "task_id",
+          "target",
+          "profile",
+          "judge_profile_id",
+          "operational_state",
+          "verdict",
+          "total_cases",
+          "completed_cases",
+          "passed_cases",
+          "failed_cases",
+          "execution_error_cases",
+          "scoring_error_cases",
+          "snapshot",
+          "created_at",
+          "started_at",
+          "completed_at"
+        ],
+        "title": "EvaluationRun"
       },
       "EvaluationTaskEvent": {
         "properties": {
@@ -2121,6 +2013,179 @@
         "type": "object",
         "title": "ReadyResponse"
       },
+      "RunAnalysisResponse": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "analysis": {
+            "$ref": "#/components/schemas/RunAnalysisResult"
+          },
+          "cached": {
+            "type": "boolean",
+            "title": "Cached"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "analysis",
+          "cached"
+        ],
+        "title": "RunAnalysisResponse"
+      },
+      "RunAnalysisResult": {
+        "properties": {
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "strengths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Strengths"
+          },
+          "weaknesses": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Weaknesses"
+          },
+          "recommendations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Recommendations"
+          },
+          "risk_level": {
+            "type": "string",
+            "title": "Risk Level"
+          }
+        },
+        "type": "object",
+        "required": [
+          "summary",
+          "strengths",
+          "weaknesses",
+          "recommendations",
+          "risk_level"
+        ],
+        "title": "RunAnalysisResult"
+      },
+      "RunCreatedResponse": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "evaluation_id": {
+            "type": "string",
+            "title": "Evaluation Id"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "evaluation_id",
+          "task_id",
+          "state"
+        ],
+        "title": "RunCreatedResponse"
+      },
+      "RunSnapshot": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1",
+            "title": "Schema Version",
+            "default": "1"
+          },
+          "evaluation_name": {
+            "type": "string",
+            "title": "Evaluation Name"
+          },
+          "evaluation_version": {
+            "type": "string",
+            "title": "Evaluation Version"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ManagedInstanceTarget"
+              },
+              {
+                "$ref": "#/components/schemas/RuntimeAgentTarget"
+              }
+            ],
+            "title": "Target"
+          },
+          "resolved_target_config": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved Target Config"
+          },
+          "profile": {
+            "type": "string",
+            "title": "Profile"
+          },
+          "judge_profile_id": {
+            "type": "string",
+            "title": "Judge Profile Id"
+          },
+          "execution": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution"
+          }
+        },
+        "type": "object",
+        "required": [
+          "evaluation_name",
+          "evaluation_version",
+          "target",
+          "profile",
+          "judge_profile_id"
+        ],
+        "title": "RunSnapshot"
+      },
       "RuntimeAgentTarget": {
         "properties": {
           "kind": {
@@ -2145,6 +2210,23 @@
         ],
         "title": "RuntimeAgentTarget",
         "description": "Historical target kind \u2014 no longer accepted on creation (EVAL-04).\n\nKept only so `EvaluationCampaignResponse.target` can still render campaigns\ncreated before EVAL-04 removed this path. Never used by\n`CreateEvaluationCampaignRequest`, which is `ManagedInstanceTarget`-only."
+      },
+      "StartRunRequest": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "target": {
+            "$ref": "#/components/schemas/ManagedInstanceTarget"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "target"
+        ],
+        "title": "StartRunRequest"
       },
       "StructuralCheckResponse": {
         "properties": {

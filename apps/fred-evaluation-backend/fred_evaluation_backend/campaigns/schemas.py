@@ -190,7 +190,7 @@ class EvaluationCaseListResponse(BaseModel):
     total: int
 
 
-class CampaignAnalysisResult(BaseModel):
+class RunAnalysisResult(BaseModel):
     summary: str
     strengths: list[str]
     weaknesses: list[str]
@@ -200,5 +200,14 @@ class CampaignAnalysisResult(BaseModel):
 
 class CampaignAnalysisResponse(BaseModel):
     campaign_id: str
-    analysis: CampaignAnalysisResult
+    analysis: RunAnalysisResult
     cached: bool
+
+
+class RunAnalysisResponse(BaseModel):
+    run_id: str
+    analysis: RunAnalysisResult
+    cached: bool
+
+
+CampaignAnalysisResult = RunAnalysisResult

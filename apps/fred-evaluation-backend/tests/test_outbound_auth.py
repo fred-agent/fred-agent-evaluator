@@ -30,7 +30,7 @@ def _request(headers: dict[str, str]) -> Request:
         "type": "http",
         "headers": raw_headers,
         "method": "POST",
-        "path": "/campaigns",
+        "path": "/evaluations/eval-1/runs",
     }
     return Request(scope)
 

@@ -137,6 +137,10 @@ class EvaluationRunRow(Base):
         Integer, nullable=False, default=0
     )
     scoring_error_cases: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Filled by finalize_run; read by the /runs/{id}/analyze surface (parity with
+    # the campaign's own metric_averages_json/analysis_json).
+    metric_averages_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    analysis_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utcnow
     )

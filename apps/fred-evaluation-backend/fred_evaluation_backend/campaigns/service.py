@@ -2,16 +2,12 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
 from typing import Literal, cast
 from uuid import uuid4
 
 from fastapi import HTTPException
 
 from fred_evaluation_backend.campaigns.schemas import (
-    CampaignCreatedResponse,
-    CreateEvaluationCampaignRequest,
-    EvaluationCampaignResponse,
     EvaluationCaseListResponse,
     EvaluationCaseResponse,
     EvaluationMetricResultResponse,
@@ -22,8 +18,8 @@ from fred_evaluation_backend.campaigns.schemas import (
     RuntimeAgentTarget,
     StructuralCheckResponse,
 )
-from fred_evaluation_backend.campaigns.store import EvaluationStore
-from fred_evaluation_backend.datasets.schemas import DatasetCase, DatasetSummaryResponse
+from fred_evaluation_backend.campaigns.store import RunStore
+from fred_evaluation_backend.datasets.schemas import DatasetCase
 from fred_evaluation_backend.datasets.store import DatasetStore
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
 from fred_evaluation_backend.execution.evaluator_errors import dataset_not_found_error
@@ -51,89 +47,13 @@ def default_judge_profile_id(configured_profiles: dict[str, object]) -> str:
     return next(iter(configured_profiles.keys()), _FALLBACK_JUDGE_PROFILE_ID)
 
 
-async def create_campaign(
-    request: CreateEvaluationCampaignRequest,
-    *,
-    created_by: str,
-    store: EvaluationStore,
-    dataset_store: DatasetStore,
-    control_plane_client: ControlPlaneClient,
-    auth: OutboundAuth,
-    judge_profile_id: str,
-) -> CampaignCreatedResponse:
-    dataset_row = await dataset_store.get_dataset(request.dataset_id)
-    if dataset_row is None or dataset_row.team_id != request.team_id:
-        # Same error for "doesn't exist" and "belongs to another team" —
-        # avoids a cross-team existence leak.
-        raise dataset_not_found_error()
-    dataset_cases = [
-        DatasetCase.model_validate(c)
-        for c in json.loads(dataset_row.cases_json or "[]")
-    ]
-
-    await resolve_managed_instance(
-        team_id=request.team_id,
-        agent_instance_id=request.target.agent_instance_id,
-        control_plane_client=control_plane_client,
-        auth=auth,
-    )
-
-    campaign_id = f"eval-cmp-{uuid4().hex[:8]}"
-    run_id = f"eval-run-{uuid4().hex[:8]}"
-    # The task id is the campaign run's identity in the canonical task-event API.
-    # It is intentionally distinct from campaign_id (a campaign may later have many
-    # runs / tasks), so the frontend tracks the run via /tasks/{task_id}.
-    task_id = f"eval-task-{uuid4().hex[:8]}"
-    created_at = datetime.now(timezone.utc).replace(microsecond=0)
-    # Server-generated name (EVAL-04: no campaign-name input) — the dataset it
-    # runs against plus a timestamp is enough to disambiguate in the list view.
-    name = f"{dataset_row.name} — {created_at:%Y-%m-%d %H:%M}"
-
-    await store.create_campaign(
-        campaign_id=campaign_id,
-        run_id=run_id,
-        task_id=task_id,
-        name=name,
-        team_id=request.team_id,
-        created_by=created_by,
-        target_kind="managed_instance",
-        target_runtime_id=None,
-        target_agent_id=None,
-        target_instance_id=request.target.agent_instance_id,
-        dataset_id=dataset_row.dataset_id,
-        dataset_name=None,
-        dataset_version=None,
-        profile=_DEFAULT_PROFILE,
-        judge_profile_id=judge_profile_id,
-        total_cases=len(dataset_cases),
-        custom_metrics_json=None,
-    )
-
-    for case in dataset_cases:
-        await store.create_case(
-            case_id=f"case-{uuid4().hex[:8]}",
-            campaign_id=campaign_id,
-            run_id=run_id,
-            external_id=case.external_id,
-            input=case.input,
-            expected_output=case.expected_output,
-        )
-
-    return CampaignCreatedResponse(
-        campaign_id=campaign_id,
-        run_id=run_id,
-        task_id=task_id,
-        state="pending",
-    )
-
-
 async def start_run(
     *,
     evaluation_id: str,
     team_id: str,
     target: ManagedInstanceTarget,
     created_by: str,
-    store: EvaluationStore,
+    store: RunStore,
     dataset_store: DatasetStore,
     control_plane_client: ControlPlaneClient,
     auth: OutboundAuth,
@@ -206,116 +126,6 @@ async def start_run(
         state="pending",
     )
 
-
-def _dataset_summary(row) -> DatasetSummaryResponse | None:
-    if row is None:
-        return None
-    cases = json.loads(row.cases_json) if row.cases_json else []
-    return DatasetSummaryResponse(
-        dataset_id=row.dataset_id,
-        name=row.name,
-        version=row.version,
-        team_id=row.team_id,
-        origin=row.origin,
-        completeness=row.completeness,
-        case_count=len(cases),
-        created_at=row.created_at,
-    )
-
-
-def _campaign_row_to_response(row, dataset_row) -> EvaluationCampaignResponse:
-    if row.target_kind == "runtime_agent":
-        target = RuntimeAgentTarget(
-            kind="runtime_agent",
-            runtime_id=row.target_runtime_id or "",
-            agent_id=row.target_agent_id or "",
-        )
-    else:
-        target = ManagedInstanceTarget(
-            kind="managed_instance",
-            agent_instance_id=row.target_instance_id or "",
-        )
-
-    return EvaluationCampaignResponse(
-        campaign_id=row.campaign_id,
-        run_id=row.run_id,
-        task_id=row.task_id,
-        name=row.name,
-        team_id=row.team_id,
-        created_by=row.created_by,
-        target=target,
-        dataset=_dataset_summary(dataset_row),
-        profile=row.profile,
-        judge_profile_id=row.judge_profile_id,
-        operational_state=row.operational_state,
-        verdict=row.verdict,
-        total_cases=row.total_cases,
-        completed_cases=row.completed_cases,
-        passed_cases=row.passed_cases,
-        failed_cases=row.failed_cases,
-        execution_error_cases=row.execution_error_cases,
-        scoring_error_cases=row.scoring_error_cases,
-        metric_averages=json.loads(row.metric_averages_json)
-        if row.metric_averages_json
-        else None,
-        created_at=row.created_at,
-        started_at=row.started_at,
-        completed_at=row.completed_at,
-    )
-
-
-async def get_campaign(
-    campaign_id: str,
-    *,
-    store: EvaluationStore,
-    dataset_store: DatasetStore,
-) -> EvaluationCampaignResponse:
-    row = await store.get_campaign(campaign_id)
-    if row is None:
-        raise HTTPException(
-            status_code=404, detail=f"Campaign '{campaign_id}' not found."
-        )
-    dataset_row = (
-        await dataset_store.get_dataset(row.dataset_id) if row.dataset_id else None
-    )
-    return _campaign_row_to_response(row, dataset_row)
-
-
-async def list_campaigns(
-    team_id: str,
-    *,
-    store: EvaluationStore,
-    dataset_store: DatasetStore,
-) -> list[EvaluationCampaignResponse]:
-    rows = await store.list_campaigns_by_team(team_id)
-    dataset_ids = [row.dataset_id for row in rows if row.dataset_id]
-    datasets_by_id = await dataset_store.get_datasets_by_ids(dataset_ids)
-    return [
-        _campaign_row_to_response(
-            row, datasets_by_id.get(row.dataset_id) if row.dataset_id else None
-        )
-        for row in rows
-    ]
-
-
-async def cancel_campaign(
-    campaign_id: str,
-    *,
-    store: EvaluationStore,
-) -> None:
-    row = await store.get_campaign(campaign_id)
-    if row is None:
-        raise HTTPException(
-            status_code=404, detail=f"Campaign '{campaign_id}' not found."
-        )
-    if row.operational_state in ("succeeded", "failed", "cancelled"):
-        raise HTTPException(
-            status_code=409,
-            detail=f"Campaign '{campaign_id}' is already in terminal state '{row.operational_state}'.",
-        )
-    await store.update_campaign_state(campaign_id, "cancelled")
-
-
 def _run_to_response(row) -> EvaluationRun:
     return EvaluationRun(
         run_id=row.run_id,
@@ -341,7 +151,7 @@ def _run_to_response(row) -> EvaluationRun:
     )
 
 
-async def get_run(run_id: str, *, store: EvaluationStore) -> EvaluationRun:
+async def get_run(run_id: str, *, store: RunStore) -> EvaluationRun:
     row = await store.get_run(run_id)
     if row is None:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found.")
@@ -349,9 +159,16 @@ async def get_run(run_id: str, *, store: EvaluationStore) -> EvaluationRun:
 
 
 async def list_runs(
-    evaluation_id: str, *, store: EvaluationStore
+    evaluation_id: str, *, store: RunStore
 ) -> list[EvaluationRun]:
     rows = await store.list_runs_by_evaluation(evaluation_id)
+    return [_run_to_response(row) for row in rows]
+
+
+async def list_team_runs(
+    team_id: str, *, store: RunStore
+) -> list[EvaluationRun]:
+    rows = await store.list_runs_by_team(team_id)
     return [_run_to_response(row) for row in rows]
 
 
@@ -399,28 +216,12 @@ def _case_to_response(row, metrics) -> EvaluationCaseResponse:
         completed_at=row.completed_at,
     )
 
-
-async def list_cases(
-    campaign_id: str,
-    *,
-    offset: int = 0,
-    limit: int = 50,
-    store: EvaluationStore,
-) -> EvaluationCaseListResponse:
-    rows = await store.list_cases_by_campaign(campaign_id, offset=offset, limit=limit)
-    cases = [
-        _case_to_response(row, await store.list_metrics_by_case(row.case_id))
-        for row in rows
-    ]
-    return EvaluationCaseListResponse(cases=cases, total=len(cases))
-
-
 async def list_run_cases(
     run_id: str,
     *,
     offset: int = 0,
     limit: int = 50,
-    store: EvaluationStore,
+    store: RunStore,
 ) -> EvaluationCaseListResponse:
     rows = await store.list_cases_by_run(run_id, offset=offset, limit=limit)
     cases = [
@@ -430,19 +231,46 @@ async def list_run_cases(
     return EvaluationCaseListResponse(cases=cases, total=len(cases))
 
 
-async def delete_campaign(
-    campaign_id: str,
+async def get_run_case(
+    run_id: str,
+    case_id: str,
     *,
-    store: EvaluationStore,
-) -> None:
-    row = await store.get_campaign(campaign_id)
+    store: RunStore,
+) -> EvaluationCaseResponse:
+    rows = await store.list_cases_by_run(run_id, limit=10000)
+    row = next((c for c in rows if c.case_id == case_id), None)
     if row is None:
+        raise HTTPException(status_code=404, detail=f"Case '{case_id}' not found.")
+    return _case_to_response(row, await store.list_metrics_by_case(case_id))
+
+
+async def cancel_run(
+    run_id: str,
+    *,
+    store: RunStore,
+) -> None:
+    row = await store.get_run(run_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found.")
+    if row.operational_state in ("succeeded", "failed", "cancelled"):
         raise HTTPException(
-            status_code=404, detail=f"Campaign '{campaign_id}' not found."
+            status_code=409,
+            detail=f"Run '{run_id}' is already in terminal state '{row.operational_state}'.",
         )
+    await store.update_run_state(run_id, "cancelled")
+
+
+async def delete_run(
+    run_id: str,
+    *,
+    store: RunStore,
+) -> None:
+    row = await store.get_run(run_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found.")
     if row.operational_state == "running":
         raise HTTPException(
             status_code=409,
-            detail=f"Campaign '{campaign_id}' is currently running and cannot be deleted.",
+            detail=f"Run '{run_id}' is currently running and cannot be deleted.",
         )
-    await store.delete_campaign(campaign_id)
+    await store.delete_run(run_id)

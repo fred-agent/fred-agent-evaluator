@@ -8,13 +8,13 @@ from fred_core.logs.null_log_store import NullLogStore
 from fred_core.scheduler import SchedulerBackend
 from fred_core.sql import create_async_engine_from_config
 
-from fred_evaluation_backend.campaigns.store import EvaluationStore
+from fred_evaluation_backend.campaigns.store import RunStore
 from fred_evaluation_backend.config.loader import load_configuration
 from fred_evaluation_backend.execution.agent_client import AgentClient
 from fred_evaluation_backend.execution.auth import build_m2m_token_provider
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
 from fred_evaluation_backend.telemetry.otel import setup_otel
-from fred_evaluation_backend.workers.runner import CampaignRunner
+from fred_evaluation_backend.workers.runner import RunRunner
 
 logger = logging.getLogger(__name__)
 
@@ -31,17 +31,13 @@ async def _run_temporal_worker(configuration, engine, cp_client) -> None:
 
     from fred_evaluation_backend.workers import _activity_context
     from fred_evaluation_backend.workers.workflow import (
-        CampaignWorkflow,
         RunWorkflow,
-        fetch_campaign_cases,
         fetch_run_cases,
-        finalize_campaign,
         finalize_run,
-        run_case,
         run_case_for_run,
     )
 
-    store = EvaluationStore(engine)
+    store = RunStore(engine)
     agent_client = AgentClient()
 
     _activity_context.init(
@@ -68,11 +64,8 @@ async def _run_temporal_worker(configuration, engine, cp_client) -> None:
     worker = Worker(
         client=client,
         task_queue=temporal_cfg.task_queue,
-        workflows=[CampaignWorkflow, RunWorkflow],
+        workflows=[RunWorkflow],
         activities=[
-            fetch_campaign_cases,
-            run_case,
-            finalize_campaign,
             fetch_run_cases,
             run_case_for_run,
             finalize_run,
@@ -115,9 +108,7 @@ async def main() -> None:
         await _run_temporal_worker(configuration, engine, cp_client)
     else:
         logger.info("Scheduler backend: MEMORY (asyncio polling)")
-        runner = CampaignRunner(
-            config=configuration, engine=engine, cp_client=cp_client
-        )
+        runner = RunRunner(config=configuration, engine=engine, cp_client=cp_client)
         await runner.run_forever()
 
 
