@@ -104,6 +104,26 @@ class EvaluationRunRow(Base):
         nullable=False,
         index=True,
     )
+    # EVAL-05 phase 2: the Run now carries what used to live on the campaign — the
+    # evaluation it runs, the target/policy chosen at Start time, and a frozen
+    # RunSnapshot. Nullable for now (additive: existing campaign-era runs have none);
+    # the campaign keeps its own columns until it retires in phase 5.
+    evaluation_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("evaluation_dataset.dataset_id"), nullable=True, index=True
+    )
+    task_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    target_kind: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    target_runtime_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    target_agent_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    target_instance_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    profile: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    judge_profile_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Scoring policy is per-run (RFC §9.5). Revisit if Dimitri moves criteria to
+    # the Evaluation level for run-to-run comparability.
+    custom_metrics_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Frozen at Start: evaluation name/version, resolved target config, profile, judge,
+    # execution options — what a later "why did this run differ" question reads.
+    snapshot_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     operational_state: Mapped[str] = mapped_column(
         String(32), nullable=False, default="pending"
     )

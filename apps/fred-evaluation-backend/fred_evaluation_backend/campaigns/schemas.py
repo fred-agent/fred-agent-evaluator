@@ -33,6 +33,50 @@ class RuntimeAgentTarget(BaseModel):
 EvaluationTarget = ManagedInstanceTarget | RuntimeAgentTarget
 
 
+# ── EVAL-05 — Run and its frozen snapshot (RFC §9.5) ─────────────────────────
+#
+# A Run is one execution of an Evaluation against a chosen target/policy. Multiple
+# Runs of the same Evaluation are compared, so each Run freezes a RunSnapshot at Start
+# time: the immutability of the Evaluation pins the case content, but says nothing about
+# which target/prompt/config was used or which server-side execution defaults applied.
+
+
+class RunSnapshot(BaseModel):
+    schema_version: Literal["1"] = "1"
+    evaluation_name: str
+    evaluation_version: str
+    target: EvaluationTarget
+    # prompt/config id, corpus tag set — whatever prepare-execution resolves at Start.
+    resolved_target_config: dict[str, str] | None = None
+    profile: str
+    judge_profile_id: str
+    # Concurrency/timeout actually used, kept as a plain dict until execution options
+    # are re-introduced as a typed model (they are server-owned defaults this release).
+    execution: dict[str, int] | None = None
+
+
+class EvaluationRun(BaseModel):
+    schema_version: Literal["1"] = "1"
+    run_id: str
+    evaluation_id: str
+    task_id: str | None
+    target: EvaluationTarget
+    profile: str
+    judge_profile_id: str
+    operational_state: str
+    verdict: Literal["pending", "passed", "failed", "inconclusive"]
+    total_cases: int
+    completed_cases: int
+    passed_cases: int
+    failed_cases: int
+    execution_error_cases: int
+    scoring_error_cases: int
+    snapshot: RunSnapshot
+    created_at: datetime
+    started_at: datetime | None
+    completed_at: datetime | None
+
+
 # ── Création de campagne (EVAL-04: dataset_id only, no inline cases) ─────────
 #
 # The old inline dataset/cases/profile/judge/custom_metrics/execution-options
