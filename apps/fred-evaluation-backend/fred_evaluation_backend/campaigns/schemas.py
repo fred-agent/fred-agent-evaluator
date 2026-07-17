@@ -55,6 +55,18 @@ class RunSnapshot(BaseModel):
     execution: dict[str, int] | None = None
 
 
+class StartRunRequest(BaseModel):
+    team_id: str
+    target: ManagedInstanceTarget
+
+
+class RunCreatedResponse(BaseModel):
+    run_id: str
+    evaluation_id: str
+    task_id: str | None
+    state: str
+
+
 class EvaluationRun(BaseModel):
     schema_version: Literal["1"] = "1"
     run_id: str

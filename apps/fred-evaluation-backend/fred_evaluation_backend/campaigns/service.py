@@ -16,6 +16,8 @@ from fred_evaluation_backend.campaigns.schemas import (
     EvaluationCaseResponse,
     EvaluationMetricResultResponse,
     ManagedInstanceTarget,
+    RunCreatedResponse,
+    RunSnapshot,
     RuntimeAgentTarget,
     StructuralCheckResponse,
 )
@@ -119,6 +121,85 @@ async def create_campaign(
     return CampaignCreatedResponse(
         campaign_id=campaign_id,
         run_id=run_id,
+        task_id=task_id,
+        state="pending",
+    )
+
+
+async def start_run(
+    *,
+    evaluation_id: str,
+    team_id: str,
+    target: ManagedInstanceTarget,
+    created_by: str,
+    store: EvaluationStore,
+    dataset_store: DatasetStore,
+    control_plane_client: ControlPlaneClient,
+    auth: OutboundAuth,
+    profile: str,
+    judge_profile_id: str,
+) -> RunCreatedResponse:
+    """EVAL-05: start one Run of an existing Evaluation against a chosen target.
+
+    Unlike `create_campaign`, this does not create an Evaluation — it references one that
+    already exists, and is repeatable (each call is an independent Run). The Run freezes a
+    RunSnapshot at Start: the Evaluation's immutability pins the cases, the snapshot pins
+    the target/policy actually used (RFC §9.5).
+    """
+    evaluation = await dataset_store.get_dataset(evaluation_id)
+    if evaluation is None or evaluation.team_id != team_id:
+        # Same error for "doesn't exist" and "belongs to another team" — no cross-team leak.
+        raise dataset_not_found_error()
+    cases = [
+        DatasetCase.model_validate(c)
+        for c in json.loads(evaluation.cases_json or "[]")
+    ]
+
+    await resolve_managed_instance(
+        team_id=team_id,
+        agent_instance_id=target.agent_instance_id,
+        control_plane_client=control_plane_client,
+        auth=auth,
+    )
+
+    run_id = f"eval-run-{uuid4().hex[:8]}"
+    task_id = f"eval-task-{uuid4().hex[:8]}"
+
+    snapshot = RunSnapshot(
+        evaluation_name=evaluation.name,
+        evaluation_version=evaluation.version,
+        target=target,
+        profile=profile,
+        judge_profile_id=judge_profile_id,
+    )
+
+    await store.create_run(
+        run_id=run_id,
+        evaluation_id=evaluation_id,
+        task_id=task_id,
+        target_kind="managed_instance",
+        target_runtime_id=None,
+        target_agent_id=None,
+        target_instance_id=target.agent_instance_id,
+        profile=profile,
+        judge_profile_id=judge_profile_id,
+        total_cases=len(cases),
+        custom_metrics_json=None,
+        snapshot_json=snapshot.model_dump_json(),
+    )
+
+    for case in cases:
+        await store.create_case(
+            case_id=f"case-{uuid4().hex[:8]}",
+            run_id=run_id,
+            external_id=case.external_id,
+            input=case.input,
+            expected_output=case.expected_output,
+        )
+
+    return RunCreatedResponse(
+        run_id=run_id,
+        evaluation_id=evaluation_id,
         task_id=task_id,
         state="pending",
     )
