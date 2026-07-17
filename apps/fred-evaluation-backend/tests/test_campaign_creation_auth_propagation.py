@@ -17,7 +17,7 @@ import pytest
 from fastapi import FastAPI, HTTPException
 from fred_core import KeycloakUser, get_config, get_current_user
 
-from fred_evaluation_backend.campaigns.api import (
+from fred_evaluation_backend.runs.api import (
     _get_control_plane_client,
     _get_evaluation_catalog_store,
     _get_run_store,

@@ -23,8 +23,8 @@ import pytest
 from fred_core import M2MAuthConfig, M2MTokenProvider
 from pytest import MonkeyPatch
 
-from fred_evaluation_backend.campaigns.models import EvaluationRunRow
-from fred_evaluation_backend.campaigns.store import RunStore
+from fred_evaluation_backend.runs.models import EvaluationRunRow
+from fred_evaluation_backend.runs.store import RunStore
 from fred_evaluation_backend.config.models import EvaluationConfig
 from fred_evaluation_backend.execution.agent_client import AgentClient
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient

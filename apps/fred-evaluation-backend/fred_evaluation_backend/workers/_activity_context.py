@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from fred_evaluation_backend.campaigns.store import RunStore
+    from fred_evaluation_backend.runs.store import RunStore
     from fred_evaluation_backend.config.models import EvaluationConfig
     from fred_evaluation_backend.execution.agent_client import AgentClient
     from fred_evaluation_backend.execution.control_plane_client import (

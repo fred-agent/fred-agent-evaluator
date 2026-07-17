@@ -11,8 +11,8 @@ from fred_core.tasks import (
     TaskTarget,
 )
 
-from fred_evaluation_backend.campaigns.models import EvaluationRunRow
-from fred_evaluation_backend.campaigns.schemas import RunSnapshot
+from fred_evaluation_backend.runs.models import EvaluationRunRow
+from fred_evaluation_backend.runs.schemas import RunSnapshot
 
 # ── Mapping: evaluation run row → canonical task shape ────────────────────────
 

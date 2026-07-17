@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fred_evaluation_backend.datasets.schemas import (
+from fred_evaluation_backend.evaluations.schemas import (
     Evaluation,
     EvaluationCase,
     EvaluationCompleteness,

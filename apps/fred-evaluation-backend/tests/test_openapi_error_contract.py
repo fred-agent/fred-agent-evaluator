@@ -14,7 +14,7 @@ from typing import Any
 
 from fastapi import FastAPI
 
-from fred_evaluation_backend.campaigns.api import build_evaluations_router
+from fred_evaluation_backend.runs.api import build_evaluations_router
 
 
 def _openapi() -> dict[str, Any]:

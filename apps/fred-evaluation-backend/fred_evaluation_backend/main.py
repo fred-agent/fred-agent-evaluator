@@ -14,8 +14,8 @@ from fred_core.scheduler import SchedulerBackend, TemporalClientProvider
 from pydantic import BaseModel
 from fred_core.sql import create_async_engine_from_config
 
-from fred_evaluation_backend.campaigns.api import build_evaluations_router
-from fred_evaluation_backend.datasets.api import build_evaluation_catalog_router
+from fred_evaluation_backend.runs.api import build_evaluations_router
+from fred_evaluation_backend.evaluations.api import build_evaluation_catalog_router
 from fred_evaluation_backend.tasks.api import build_tasks_router
 from fred_evaluation_backend.config.loader import load_configuration
 from fred_evaluation_backend.execution.analysis_client import AnalysisClient

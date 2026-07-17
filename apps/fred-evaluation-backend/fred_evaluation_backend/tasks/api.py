@@ -8,8 +8,8 @@ from fastapi.responses import StreamingResponse
 from fred_core import KeycloakUser, get_current_user
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from fred_evaluation_backend.campaigns import service
-from fred_evaluation_backend.campaigns.store import RunStore
+from fred_evaluation_backend.runs import service
+from fred_evaluation_backend.runs.store import RunStore
 from fred_evaluation_backend.tasks.models import (
     EvaluationTaskEvent,
     TaskListResponse,
