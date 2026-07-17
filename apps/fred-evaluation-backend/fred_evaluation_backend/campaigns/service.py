@@ -15,7 +15,6 @@ from fred_evaluation_backend.campaigns.schemas import (
     ManagedInstanceTarget,
     RunCreatedResponse,
     RunSnapshot,
-    RuntimeAgentTarget,
     StructuralCheckResponse,
 )
 from fred_evaluation_backend.campaigns.store import RunStore
@@ -62,10 +61,10 @@ async def start_run(
 ) -> RunCreatedResponse:
     """EVAL-05: start one Run of an existing Evaluation against a chosen target.
 
-    Unlike `create_campaign`, this does not create an Evaluation — it references one that
-    already exists, and is repeatable (each call is an independent Run). The Run freezes a
-    RunSnapshot at Start: the Evaluation's immutability pins the cases, the snapshot pins
-    the target/policy actually used (RFC §9.5).
+    This references an existing Evaluation and is repeatable: each call is an
+    independent Run. The Run freezes a RunSnapshot at Start, so the
+    Evaluation's immutability pins the cases while the snapshot pins the
+    target/policy actually used (RFC §9.5).
     """
     evaluation = await evaluation_store.get_evaluation(evaluation_id)
     if evaluation is None or evaluation.team_id != team_id:

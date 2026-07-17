@@ -46,6 +46,7 @@ EvaluatorErrorCode = Literal[
     "control_plane_unavailable",
     "control_plane_invalid_response",
     "dataset_not_found",
+    "evaluation_not_found",
 ]
 
 # Known external-boundary failures the resolver is allowed to reclassify. Anything
@@ -191,6 +192,7 @@ def dataset_not_found_error() -> HTTPException:
 
 
 def evaluation_not_found_error() -> HTTPException:
+    """The selected evaluation does not exist for the caller's team."""
     return HTTPException(
         status_code=404,
         detail=EvaluatorErrorDetail(
