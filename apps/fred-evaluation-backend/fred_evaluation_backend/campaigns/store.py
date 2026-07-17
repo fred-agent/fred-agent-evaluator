@@ -13,6 +13,7 @@ from fred_evaluation_backend.campaigns.models import (
     EvaluationEventRow,
     EvaluationExportDeliveryRow,
     EvaluationMetricResultRow,
+    EvaluationRunRow,
 )
 
 logger = logging.getLogger(__name__)
@@ -169,11 +170,11 @@ class EvaluationStore:
         self,
         *,
         case_id: str,
-        campaign_id: str,
         run_id: str,
         external_id: str | None,
         input: str,
         expected_output: str | None,
+        campaign_id: str | None = None,
         session: AsyncSession | None = None,
     ) -> EvaluationCaseRow:
         row = EvaluationCaseRow(
@@ -189,6 +190,28 @@ class EvaluationStore:
         async with use_session(self._sessions, session) as s:
             s.add(row)
         return row
+
+    async def list_cases_by_run(
+        self,
+        run_id: str,
+        offset: int = 0,
+        limit: int = 50,
+        session: AsyncSession | None = None,
+    ) -> list[EvaluationCaseRow]:
+        async with use_session(self._sessions, session) as s:
+            rows = (
+                (
+                    await s.execute(
+                        select(EvaluationCaseRow)
+                        .where(EvaluationCaseRow.run_id == run_id)
+                        .offset(offset)
+                        .limit(limit)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        return list(rows)
 
     async def list_cases_by_campaign(
         self,
@@ -226,7 +249,6 @@ class EvaluationStore:
         self,
         *,
         case_id: str,
-        campaign_id: str,
         name: str,
         provider: str,
         score: float | None,
@@ -234,11 +256,14 @@ class EvaluationStore:
         verdict: str,
         explanation: str | None,
         error: str | None,
+        run_id: str | None = None,
+        campaign_id: str | None = None,
         session: AsyncSession | None = None,
     ) -> EvaluationMetricResultRow:
         row = EvaluationMetricResultRow(
             case_id=case_id,
             campaign_id=campaign_id,
+            run_id=run_id,
             name=name,
             provider=provider,
             score=str(score) if score is not None else None,
@@ -434,3 +459,114 @@ class EvaluationStore:
                 .all()
             )
         return list(rows)
+
+    # ── Runs (EVAL-05) ─────────────────────────────────────────────────────────
+
+    async def create_run(
+        self,
+        *,
+        run_id: str,
+        evaluation_id: str,
+        task_id: str,
+        target_kind: str,
+        target_runtime_id: str | None,
+        target_agent_id: str | None,
+        target_instance_id: str | None,
+        profile: str,
+        judge_profile_id: str,
+        total_cases: int,
+        custom_metrics_json: str | None,
+        snapshot_json: str,
+        session: AsyncSession | None = None,
+    ) -> EvaluationRunRow:
+        row = EvaluationRunRow(
+            run_id=run_id,
+            campaign_id=None,
+            evaluation_id=evaluation_id,
+            task_id=task_id,
+            target_kind=target_kind,
+            target_runtime_id=target_runtime_id,
+            target_agent_id=target_agent_id,
+            target_instance_id=target_instance_id,
+            profile=profile,
+            judge_profile_id=judge_profile_id,
+            custom_metrics_json=custom_metrics_json,
+            snapshot_json=snapshot_json,
+            operational_state="pending",
+            verdict="pending",
+            total_cases=total_cases,
+            created_at=_utcnow(),
+        )
+        async with use_session(self._sessions, session) as s:
+            s.add(row)
+        return row
+
+    async def get_run(
+        self,
+        run_id: str,
+        session: AsyncSession | None = None,
+    ) -> EvaluationRunRow | None:
+        async with use_session(self._sessions, session) as s:
+            return await s.get(EvaluationRunRow, run_id)
+
+    async def list_runs_by_evaluation(
+        self,
+        evaluation_id: str,
+        session: AsyncSession | None = None,
+    ) -> list[EvaluationRunRow]:
+        async with use_session(self._sessions, session) as s:
+            rows = (
+                (
+                    await s.execute(
+                        select(EvaluationRunRow)
+                        .where(EvaluationRunRow.evaluation_id == evaluation_id)
+                        .order_by(EvaluationRunRow.created_at.desc())
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        return list(rows)
+
+    async def list_metrics_by_run(
+        self,
+        run_id: str,
+        session: AsyncSession | None = None,
+    ) -> list[EvaluationMetricResultRow]:
+        async with use_session(self._sessions, session) as s:
+            rows = (
+                (
+                    await s.execute(
+                        select(EvaluationMetricResultRow).where(
+                            EvaluationMetricResultRow.run_id == run_id
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        return list(rows)
+
+    async def update_run_aggregates(
+        self,
+        run_id: str,
+        *,
+        completed_cases: int,
+        passed_cases: int,
+        failed_cases: int,
+        execution_error_cases: int,
+        scoring_error_cases: int,
+        verdict: str,
+        operational_state: str,
+        session: AsyncSession | None = None,
+    ) -> None:
+        async with use_session(self._sessions, session) as s:
+            row = await s.get(EvaluationRunRow, run_id)
+            if row:
+                row.completed_cases = completed_cases
+                row.passed_cases = passed_cases
+                row.failed_cases = failed_cases
+                row.execution_error_cases = execution_error_cases
+                row.scoring_error_cases = scoring_error_cases
+                row.verdict = verdict
+                row.operational_state = operational_state

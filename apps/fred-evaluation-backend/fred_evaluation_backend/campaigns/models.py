@@ -64,12 +64,9 @@ class EvaluationCaseRow(Base):
     __tablename__ = "evaluation_case"
 
     case_id: Mapped[str] = mapped_column(String, primary_key=True)
-    campaign_id: Mapped[str] = mapped_column(
-        String,
-        ForeignKey("evaluation_campaign.campaign_id"),
-        nullable=False,
-        index=True,
-    )
+    # EVAL-05: the Run is the execution unit; cases key on run_id. campaign_id is
+    # kept nullable during the transition and removed with the campaign in phase 5.
+    campaign_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     run_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     external_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
@@ -98,10 +95,12 @@ class EvaluationRunRow(Base):
     __tablename__ = "evaluation_run"
 
     run_id: Mapped[str] = mapped_column(String, primary_key=True)
-    campaign_id: Mapped[str] = mapped_column(
+    # Nullable: EVAL-05 runs are created directly from an Evaluation, with no
+    # campaign. Legacy campaign-era runs may still reference one until phase 5.
+    campaign_id: Mapped[str | None] = mapped_column(
         String,
         ForeignKey("evaluation_campaign.campaign_id"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
     # EVAL-05 phase 2: the Run now carries what used to live on the campaign — the
@@ -151,10 +150,10 @@ class EvaluationExportDeliveryRow(Base):
     __tablename__ = "evaluation_export_delivery"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    campaign_id: Mapped[str] = mapped_column(
+    campaign_id: Mapped[str | None] = mapped_column(
         String,
         ForeignKey("evaluation_campaign.campaign_id"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
     run_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
@@ -173,10 +172,10 @@ class EvaluationEventRow(Base):
     __tablename__ = "evaluation_event"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    campaign_id: Mapped[str] = mapped_column(
+    campaign_id: Mapped[str | None] = mapped_column(
         String,
         ForeignKey("evaluation_campaign.campaign_id"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
     run_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
@@ -195,7 +194,10 @@ class EvaluationMetricResultRow(Base):
     case_id: Mapped[str] = mapped_column(
         String, ForeignKey("evaluation_case.case_id"), nullable=False, index=True
     )
-    campaign_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    # EVAL-05: results key on the Run now. campaign_id kept nullable during the
+    # transition (removed with the campaign in phase 5).
+    campaign_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    run_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     provider: Mapped[str] = mapped_column(String(64), nullable=False)
     score: Mapped[str | None] = mapped_column(String(32), nullable=True)
