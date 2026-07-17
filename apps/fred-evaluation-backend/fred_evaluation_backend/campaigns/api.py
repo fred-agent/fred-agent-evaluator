@@ -24,6 +24,9 @@ from fred_evaluation_backend.campaigns.schemas import (
     EvaluationCampaignResponse,
     EvaluationCaseListResponse,
     EvaluationCaseResponse,
+    EvaluationRun,
+    RunCreatedResponse,
+    StartRunRequest,
 )
 from fred_evaluation_backend.execution.analysis_client import (
     CaseDetail,
@@ -174,6 +177,101 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
             )
 
         return result
+
+    # ── EVAL-05 — Evaluations run/read surface ───────────────────────────────
+
+    @router.post(
+        "/evaluations/{evaluation_id}/runs",
+        status_code=202,
+        response_model=RunCreatedResponse,
+        responses={
+            401: {"model": EvaluatorErrorResponse},
+            403: {"model": EvaluatorErrorResponse},
+            404: {"model": EvaluatorErrorResponse},
+            422: {"model": EvaluatorErrorResponse},
+            502: {"model": EvaluatorErrorResponse},
+            503: {"model": EvaluatorErrorResponse},
+        },
+    )
+    async def start_run(
+        evaluation_id: str,
+        body: StartRunRequest,
+        request: Request,
+        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        store: Annotated[EvaluationStore, Depends(_get_evaluation_store)],
+        dataset_store: Annotated[DatasetStore, Depends(_get_dataset_store)],
+        cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
+    ) -> RunCreatedResponse:
+        configuration = request.app.dependency_overrides.get(get_config, get_config)()
+        auth = resolve_interactive_auth(
+            request, user_security_enabled=configuration.security.user.enabled
+        )
+        result = await service.start_run(
+            evaluation_id=evaluation_id,
+            team_id=body.team_id,
+            target=body.target,
+            created_by=user.uid,
+            store=store,
+            dataset_store=dataset_store,
+            control_plane_client=cp_client,
+            auth=auth,
+            profile=service._DEFAULT_PROFILE,
+            judge_profile_id=service.default_judge_profile_id(
+                configuration.worker.judge_profiles
+            ),
+        )
+
+        temporal_provider = _get_temporal_client_provider(request)
+        if temporal_provider is not None:
+            from fred_evaluation_backend.workers.workflow import RunInput, RunWorkflow
+
+            task_queue = (
+                getattr(request.app.state, "temporal_task_queue", "evaluation")
+                or "evaluation"
+            )
+            client = await temporal_provider.get_client()
+            await client.start_workflow(
+                RunWorkflow.run,
+                RunInput(run_id=result.run_id),
+                id=f"run-eval-{result.run_id}",
+                task_queue=task_queue,
+            )
+
+        return result
+
+    @router.get(
+        "/evaluations/{evaluation_id}/runs",
+        response_model=list[EvaluationRun],
+    )
+    async def list_runs(
+        evaluation_id: str,
+        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        store: Annotated[EvaluationStore, Depends(_get_evaluation_store)],
+    ) -> list[EvaluationRun]:
+        return await service.list_runs(evaluation_id, store=store)
+
+    @router.get("/runs/{run_id}", response_model=EvaluationRun)
+    async def get_run(
+        run_id: str,
+        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        store: Annotated[EvaluationStore, Depends(_get_evaluation_store)],
+    ) -> EvaluationRun:
+        return await service.get_run(run_id, store=store)
+
+    @router.get(
+        "/runs/{run_id}/cases",
+        response_model=EvaluationCaseListResponse,
+    )
+    async def list_run_cases(
+        run_id: str,
+        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        store: Annotated[EvaluationStore, Depends(_get_evaluation_store)],
+        offset: int = Query(default=0, ge=0),
+        limit: int = Query(default=50, ge=1, le=200),
+    ) -> EvaluationCaseListResponse:
+        return await service.list_run_cases(
+            run_id, offset=offset, limit=limit, store=store
+        )
 
     @router.get(
         "/campaigns",

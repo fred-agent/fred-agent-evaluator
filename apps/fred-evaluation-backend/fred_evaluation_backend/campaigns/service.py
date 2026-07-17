@@ -15,6 +15,7 @@ from fred_evaluation_backend.campaigns.schemas import (
     EvaluationCaseListResponse,
     EvaluationCaseResponse,
     EvaluationMetricResultResponse,
+    EvaluationRun,
     ManagedInstanceTarget,
     RunCreatedResponse,
     RunSnapshot,
@@ -315,6 +316,90 @@ async def cancel_campaign(
     await store.update_campaign_state(campaign_id, "cancelled")
 
 
+def _run_to_response(row) -> EvaluationRun:
+    return EvaluationRun(
+        run_id=row.run_id,
+        evaluation_id=row.evaluation_id,
+        task_id=row.task_id,
+        target=ManagedInstanceTarget(
+            kind="managed_instance", agent_instance_id=row.target_instance_id
+        ),
+        profile=row.profile,
+        judge_profile_id=row.judge_profile_id,
+        operational_state=row.operational_state,
+        verdict=row.verdict,
+        total_cases=row.total_cases,
+        completed_cases=row.completed_cases,
+        passed_cases=row.passed_cases,
+        failed_cases=row.failed_cases,
+        execution_error_cases=row.execution_error_cases,
+        scoring_error_cases=row.scoring_error_cases,
+        snapshot=RunSnapshot.model_validate_json(row.snapshot_json),
+        created_at=row.created_at,
+        started_at=row.started_at,
+        completed_at=row.completed_at,
+    )
+
+
+async def get_run(run_id: str, *, store: EvaluationStore) -> EvaluationRun:
+    row = await store.get_run(run_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found.")
+    return _run_to_response(row)
+
+
+async def list_runs(
+    evaluation_id: str, *, store: EvaluationStore
+) -> list[EvaluationRun]:
+    rows = await store.list_runs_by_evaluation(evaluation_id)
+    return [_run_to_response(row) for row in rows]
+
+
+def _case_to_response(row, metrics) -> EvaluationCaseResponse:
+    return EvaluationCaseResponse(
+        case_id=row.case_id,
+        campaign_id=row.campaign_id,
+        run_id=row.run_id,
+        external_id=row.external_id,
+        status=row.status,
+        outcome=row.outcome,
+        verdict=row.verdict,
+        input=row.input,
+        expected_output=row.expected_output,
+        actual_output=row.actual_output,
+        profile=row.profile,
+        latency_ms=row.latency_ms,
+        execution_error=row.execution_error,
+        scoring_errors=[]
+        if not row.scoring_errors_json
+        else json.loads(row.scoring_errors_json),
+        metrics=[
+            EvaluationMetricResultResponse(
+                name=m.name,
+                provider=m.provider,
+                score=float(m.score) if m.score is not None else None,
+                threshold=float(m.threshold) if m.threshold is not None else None,
+                verdict=cast(
+                    Literal["passed", "failed", "skipped", "error"], m.verdict
+                ),
+                explanation=m.explanation,
+                error=m.error,
+            )
+            for m in metrics
+        ],
+        structural_checks=[
+            StructuralCheckResponse(**c)
+            for c in (
+                json.loads(row.structural_checks_json)
+                if row.structural_checks_json
+                else []
+            )
+        ],
+        started_at=row.started_at,
+        completed_at=row.completed_at,
+    )
+
+
 async def list_cases(
     campaign_id: str,
     *,
@@ -323,55 +408,25 @@ async def list_cases(
     store: EvaluationStore,
 ) -> EvaluationCaseListResponse:
     rows = await store.list_cases_by_campaign(campaign_id, offset=offset, limit=limit)
-    cases = []
-    for row in rows:
-        metrics = await store.list_metrics_by_case(row.case_id)
-        cases.append(
-            EvaluationCaseResponse(
-                case_id=row.case_id,
-                campaign_id=row.campaign_id,
-                run_id=row.run_id,
-                external_id=row.external_id,
-                status=row.status,
-                outcome=row.outcome,
-                verdict=row.verdict,
-                input=row.input,
-                expected_output=row.expected_output,
-                actual_output=row.actual_output,
-                profile=row.profile,
-                latency_ms=row.latency_ms,
-                execution_error=row.execution_error,
-                scoring_errors=[]
-                if not row.scoring_errors_json
-                else __import__("json").loads(row.scoring_errors_json),
-                metrics=[
-                    EvaluationMetricResultResponse(
-                        name=m.name,
-                        provider=m.provider,
-                        score=float(m.score) if m.score is not None else None,
-                        threshold=float(m.threshold)
-                        if m.threshold is not None
-                        else None,
-                        verdict=cast(
-                            Literal["passed", "failed", "skipped", "error"], m.verdict
-                        ),
-                        explanation=m.explanation,
-                        error=m.error,
-                    )
-                    for m in metrics
-                ],
-                structural_checks=[
-                    StructuralCheckResponse(**c)
-                    for c in (
-                        __import__("json").loads(row.structural_checks_json)
-                        if row.structural_checks_json
-                        else []
-                    )
-                ],
-                started_at=row.started_at,
-                completed_at=row.completed_at,
-            )
-        )
+    cases = [
+        _case_to_response(row, await store.list_metrics_by_case(row.case_id))
+        for row in rows
+    ]
+    return EvaluationCaseListResponse(cases=cases, total=len(cases))
+
+
+async def list_run_cases(
+    run_id: str,
+    *,
+    offset: int = 0,
+    limit: int = 50,
+    store: EvaluationStore,
+) -> EvaluationCaseListResponse:
+    rows = await store.list_cases_by_run(run_id, offset=offset, limit=limit)
+    cases = [
+        _case_to_response(row, await store.list_metrics_by_case(row.case_id))
+        for row in rows
+    ]
     return EvaluationCaseListResponse(cases=cases, total=len(cases))
 
 
