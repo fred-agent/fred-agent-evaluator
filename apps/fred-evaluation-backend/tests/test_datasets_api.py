@@ -141,6 +141,8 @@ async def test_name_is_user_supplied_and_first_import_is_v1() -> None:
     body = resp.json()
     assert body["name"] == "golden-set"
     assert body["version"] == "v1"
+    # EVAL-05: the evaluation format is self-contained — it carries its author.
+    assert body["author"] == "alice"
     # Every case has an expected_output -> complete.
     assert body["completeness"] == "complete"
     assert body["case_count"] == 2

@@ -146,6 +146,10 @@ class DatasetSummaryResponse(BaseModel):
     dataset_id: str
     name: str
     version: str
+    # EVAL-05: a self-contained evaluation carries its own identity — id, version, and
+    # author (a minima, per Dimitri). `author` is the creator's uid (`row.created_by`),
+    # surfaced under a format-facing name so the evaluation is self-describing on export.
+    author: str
     team_id: str
     origin: DatasetOrigin
     completeness: DatasetCompleteness
