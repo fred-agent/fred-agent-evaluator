@@ -8,7 +8,6 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from fred_evaluation_backend.campaigns.models import (
-    EvaluationCampaignRow,
     EvaluationCaseRow,
     EvaluationEventRow,
     EvaluationExportDeliveryRow,
@@ -26,143 +25,6 @@ def _utcnow() -> datetime:
 class RunStore:
     def __init__(self, engine: AsyncEngine) -> None:
         self._sessions = make_session_factory(engine)
-
-    # ── Campagnes ─────────────────────────────────────────────────────────────
-
-    async def create_campaign(
-        self,
-        *,
-        campaign_id: str,
-        run_id: str,
-        task_id: str,
-        name: str,
-        team_id: str,
-        created_by: str,
-        target_kind: str,
-        target_runtime_id: str | None,
-        target_agent_id: str | None,
-        target_instance_id: str | None,
-        dataset_id: str | None = None,
-        dataset_name: str | None = None,
-        dataset_version: str | None = None,
-        profile: str = "auto",
-        judge_profile_id: str = "",
-        total_cases: int = 0,
-        custom_metrics_json: str | None = None,
-        session: AsyncSession | None = None,
-    ) -> EvaluationCampaignRow:
-        row = EvaluationCampaignRow(
-            campaign_id=campaign_id,
-            run_id=run_id,
-            task_id=task_id,
-            name=name,
-            team_id=team_id,
-            created_by=created_by,
-            target_kind=target_kind,
-            target_runtime_id=target_runtime_id,
-            target_agent_id=target_agent_id,
-            target_instance_id=target_instance_id,
-            dataset_id=dataset_id,
-            dataset_name=dataset_name,
-            dataset_version=dataset_version,
-            profile=profile,
-            judge_profile_id=judge_profile_id,
-            custom_metrics_json=custom_metrics_json,
-            operational_state="pending",
-            verdict="pending",
-            total_cases=total_cases,
-            created_at=_utcnow(),
-        )
-        async with use_session(self._sessions, session) as s:
-            s.add(row)
-        return row
-
-    async def get_campaign(
-        self,
-        campaign_id: str,
-        session: AsyncSession | None = None,
-    ) -> EvaluationCampaignRow | None:
-        async with use_session(self._sessions, session) as s:
-            return await s.get(EvaluationCampaignRow, campaign_id)
-
-    async def list_campaigns_by_state(
-        self,
-        operational_state: str,
-        limit: int = 10,
-        session: AsyncSession | None = None,
-    ) -> list[EvaluationCampaignRow]:
-        async with use_session(self._sessions, session) as s:
-            rows = (
-                (
-                    await s.execute(
-                        select(EvaluationCampaignRow)
-                        .where(
-                            EvaluationCampaignRow.operational_state == operational_state
-                        )
-                        .limit(limit)
-                    )
-                )
-                .scalars()
-                .all()
-            )
-        return list(rows)
-
-    async def list_campaigns_by_team(
-        self,
-        team_id: str,
-        session: AsyncSession | None = None,
-    ) -> list[EvaluationCampaignRow]:
-        async with use_session(self._sessions, session) as s:
-            rows = (
-                (
-                    await s.execute(
-                        select(EvaluationCampaignRow)
-                        .where(EvaluationCampaignRow.team_id == team_id)
-                        .order_by(EvaluationCampaignRow.created_at.desc())
-                    )
-                )
-                .scalars()
-                .all()
-            )
-        return list(rows)
-
-    async def get_campaign_by_task_id(
-        self,
-        task_id: str,
-        session: AsyncSession | None = None,
-    ) -> EvaluationCampaignRow | None:
-        async with use_session(self._sessions, session) as s:
-            rows = (
-                (
-                    await s.execute(
-                        select(EvaluationCampaignRow)
-                        .where(EvaluationCampaignRow.task_id == task_id)
-                        .limit(1)
-                    )
-                )
-                .scalars()
-                .all()
-            )
-        return rows[0] if rows else None
-
-    async def list_campaigns_by_creator(
-        self,
-        created_by: str,
-        session: AsyncSession | None = None,
-    ) -> list[EvaluationCampaignRow]:
-        async with use_session(self._sessions, session) as s:
-            rows = (
-                (
-                    await s.execute(
-                        select(EvaluationCampaignRow)
-                        .where(EvaluationCampaignRow.created_by == created_by)
-                        .order_by(EvaluationCampaignRow.created_at.desc())
-                    )
-                )
-                .scalars()
-                .all()
-            )
-        return list(rows)
 
     # ── Cas ───────────────────────────────────────────────────────────────────
 
@@ -213,28 +75,6 @@ class RunStore:
             )
         return list(rows)
 
-    async def list_cases_by_campaign(
-        self,
-        campaign_id: str,
-        offset: int = 0,
-        limit: int = 50,
-        session: AsyncSession | None = None,
-    ) -> list[EvaluationCaseRow]:
-        async with use_session(self._sessions, session) as s:
-            rows = (
-                (
-                    await s.execute(
-                        select(EvaluationCaseRow)
-                        .where(EvaluationCaseRow.campaign_id == campaign_id)
-                        .offset(offset)
-                        .limit(limit)
-                    )
-                )
-                .scalars()
-                .all()
-            )
-        return list(rows)
-
     async def get_case(
         self,
         case_id: str,
@@ -276,40 +116,6 @@ class RunStore:
             s.add(row)
         return row
 
-    # ── Événements ───────────────────────────────────────────────────────────────
-
-    async def list_events(
-        self,
-        campaign_id: str,
-        after_seq: int = -1,
-        session: AsyncSession | None = None,
-    ) -> list[EvaluationEventRow]:
-        async with use_session(self._sessions, session) as s:
-            rows = (
-                (
-                    await s.execute(
-                        select(EvaluationEventRow)
-                        .where(EvaluationEventRow.campaign_id == campaign_id)
-                        .where(EvaluationEventRow.seq > after_seq)
-                        .order_by(EvaluationEventRow.seq)
-                    )
-                )
-                .scalars()
-                .all()
-            )
-        return list(rows)
-
-    async def update_campaign_state(
-        self,
-        campaign_id: str,
-        operational_state: str,
-        session: AsyncSession | None = None,
-    ) -> None:
-        async with use_session(self._sessions, session) as s:
-            row = await s.get(EvaluationCampaignRow, campaign_id)
-            if row:
-                row.operational_state = operational_state
-
     async def update_case_result(
         self,
         case_id: str,
@@ -335,60 +141,6 @@ class RunStore:
                 row.execution_error = execution_error
                 row.scoring_errors_json = scoring_errors_json
                 row.structural_checks_json = structural_checks_json
-
-    async def update_campaign_aggregates(
-        self,
-        campaign_id: str,
-        *,
-        completed_cases: int,
-        passed_cases: int,
-        failed_cases: int,
-        execution_error_cases: int,
-        scoring_error_cases: int,
-        verdict: str,
-        operational_state: str,
-        metric_averages_json: str | None = None,
-        session: AsyncSession | None = None,
-    ) -> None:
-        async with use_session(self._sessions, session) as s:
-            row = await s.get(EvaluationCampaignRow, campaign_id)
-            if row:
-                row.completed_cases = completed_cases
-                row.passed_cases = passed_cases
-                row.failed_cases = failed_cases
-                row.execution_error_cases = execution_error_cases
-                row.scoring_error_cases = scoring_error_cases
-                row.verdict = verdict
-                row.operational_state = operational_state
-                row.metric_averages_json = metric_averages_json
-
-    async def create_event(
-        self,
-        campaign_id: str,
-        *,
-        kind: str,
-        payload_json: str | None = None,
-        session: AsyncSession | None = None,
-    ) -> None:
-        from sqlalchemy import func
-
-        async with use_session(self._sessions, session) as s:
-            campaign = await s.get(EvaluationCampaignRow, campaign_id)
-            run_id = campaign.run_id if campaign else "unknown"
-            next_seq_result = await s.execute(
-                select(func.coalesce(func.max(EvaluationEventRow.seq), -1) + 1).where(
-                    EvaluationEventRow.campaign_id == campaign_id
-                )
-            )
-            next_seq = next_seq_result.scalar() or 0
-            event = EvaluationEventRow(
-                campaign_id=campaign_id,
-                run_id=run_id,
-                seq=next_seq,
-                kind=kind,
-                payload_json=payload_json,
-            )
-            s.add(event)
 
     async def create_run_event(
         self,
@@ -429,57 +181,6 @@ class RunStore:
                     await s.execute(
                         select(EvaluationMetricResultRow).where(
                             EvaluationMetricResultRow.case_id == case_id
-                        )
-                    )
-                )
-                .scalars()
-                .all()
-            )
-        return list(rows)
-
-    async def delete_campaign(
-        self,
-        campaign_id: str,
-        session: AsyncSession | None = None,
-    ) -> bool:
-        async with use_session(self._sessions, session) as s:
-            row = await s.get(EvaluationCampaignRow, campaign_id)
-            if row is None:
-                return False
-            for table in (
-                EvaluationMetricResultRow,
-                EvaluationEventRow,
-                EvaluationExportDeliveryRow,
-                EvaluationCaseRow,
-            ):
-                await s.execute(delete(table).where(table.campaign_id == campaign_id))
-            await s.delete(row)
-            return True
-
-    async def update_campaign_analysis(
-        self,
-        campaign_id: str,
-        analysis_json: str,
-        session: AsyncSession | None = None,
-    ) -> None:
-        async with use_session(self._sessions, session) as s:
-            row = await s.get(EvaluationCampaignRow, campaign_id)
-            if row is None:
-                raise ValueError(f"Campaign {campaign_id} not found")
-            row.analysis_json = analysis_json
-            await s.flush()
-
-    async def list_metrics_by_campaign(
-        self,
-        campaign_id: str,
-        session: AsyncSession | None = None,
-    ) -> list[EvaluationMetricResultRow]:
-        async with use_session(self._sessions, session) as s:
-            rows = (
-                (
-                    await s.execute(
-                        select(EvaluationMetricResultRow).where(
-                            EvaluationMetricResultRow.campaign_id == campaign_id
                         )
                     )
                 )

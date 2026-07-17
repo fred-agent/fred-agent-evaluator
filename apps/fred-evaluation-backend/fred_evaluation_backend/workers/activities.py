@@ -30,25 +30,20 @@ async def execute_and_score_case(
     custom_metrics: list | None = None,
     store: RunStore,
     agent_client: AgentClient,
-    campaign_id: str | None = None,
-    run_id: str | None = None,
+    run_id: str,
 ) -> None:
-    # EVAL-05: results key on the Run (run_id). campaign_id is the legacy path, kept
-    # until the campaign retires in phase 5. Exactly one is set by the caller.
-    group_id = run_id or campaign_id
     tracer = get_tracer()
     with tracer.start_as_current_span("eval.case") as span:
-        span.set_attribute("eval.campaign_id", group_id or "")
+        span.set_attribute("eval.run_id", run_id)
         span.set_attribute("eval.case_id", case_id)
         span.set_attribute("eval.profile", profile)
         span.set_attribute("gen_ai.prompt", input[:500])
         # Langfuse v3 OTLP semantic attributes for session grouping
-        span.set_attribute("session.id", group_id or "")
+        span.set_attribute("session.id", run_id)
         span.set_attribute("user.id", created_by)
         await _execute_and_score_case_inner(
             span=span,
             case_id=case_id,
-            campaign_id=campaign_id,
             run_id=run_id,
             created_by=created_by,
             input=input,
@@ -72,8 +67,7 @@ async def _execute_and_score_case_inner(
     span,
     case_id: str,
     created_by: str,
-    campaign_id: str | None = None,
-    run_id: str | None = None,
+    run_id: str,
     input: str,
     expected_output: str | None,
     agent_id: str | None,
@@ -132,7 +126,7 @@ async def _execute_and_score_case_inner(
             scoring_errors_json=None,
             structural_checks_json=None,
         )
-        await _emit_event(campaign_id, run_id, case_id, "case_error", store)
+        await _emit_event(run_id, case_id, "case_error", store)
         return
 
     trace_dict = eval_trace.model_dump()
@@ -180,7 +174,7 @@ async def _execute_and_score_case_inner(
             scoring_errors_json=None,
             structural_checks_json=None,
         )
-        await _emit_event(campaign_id, run_id, case_id, "case_error", store)
+        await _emit_event(run_id, case_id, "case_error", store)
         return
 
     structural_ok = all(c.passed is not False for c in structural_checks)
@@ -243,7 +237,6 @@ async def _execute_and_score_case_inner(
     for metric in metrics:
         await store.create_metric_result(
             case_id=case_id,
-            campaign_id=campaign_id,
             run_id=run_id,
             name=metric.name,
             provider=metric.provider,
@@ -254,18 +247,14 @@ async def _execute_and_score_case_inner(
             error=metric.error,
         )
 
-    await _emit_event(campaign_id, run_id, case_id, "case_completed", store)
+    await _emit_event(run_id, case_id, "case_completed", store)
 
 
 async def _emit_event(
-    campaign_id: str | None,
-    run_id: str | None,
+    run_id: str,
     case_id: str,
     kind: str,
     store: RunStore,
 ) -> None:
     payload = json.dumps({"case_id": case_id})
-    if run_id is not None:
-        await store.create_run_event(run_id, kind=kind, payload_json=payload)
-    else:
-        await store.create_event(campaign_id, kind=kind, payload_json=payload)
+    await store.create_run_event(run_id, kind=kind, payload_json=payload)
