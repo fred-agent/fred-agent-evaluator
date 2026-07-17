@@ -131,7 +131,8 @@ class StructuralCheckResponse(BaseModel):
 
 class EvaluationCaseResponse(BaseModel):
     case_id: str
-    campaign_id: str
+    # EVAL-05: run-created cases have no campaign. run_id is the identity now.
+    campaign_id: str | None = None
     run_id: str | None
     external_id: str | None
     status: str
