@@ -153,7 +153,6 @@ async def list_team_runs(team_id: str, *, store: RunStore) -> list[EvaluationRun
 def _case_to_response(row, metrics) -> EvaluationCaseResponse:
     return EvaluationCaseResponse(
         case_id=row.case_id,
-        campaign_id=row.campaign_id,
         run_id=row.run_id,
         external_id=row.external_id,
         status=row.status,

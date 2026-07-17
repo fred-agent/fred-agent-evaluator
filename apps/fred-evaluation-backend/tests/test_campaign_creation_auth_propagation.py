@@ -42,7 +42,7 @@ RUN_BODY = {
 
 def _evaluation_row(*, evaluation_id: str = EVALUATION_ID, team_id: str = "team-1"):
     return SimpleNamespace(
-        dataset_id=evaluation_id,
+        evaluation_id=evaluation_id,
         name="ds1",
         version="v1",
         team_id=team_id,
@@ -328,7 +328,7 @@ async def test_run_copies_cases_from_the_referenced_evaluation() -> None:
     evaluation_store = _FakeEvaluationStore(
         rows={
             EVALUATION_ID: SimpleNamespace(
-                dataset_id=EVALUATION_ID,
+                evaluation_id=EVALUATION_ID,
                 name="ds1",
                 version="v1",
                 team_id="team-1",

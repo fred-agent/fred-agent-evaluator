@@ -97,15 +97,13 @@ async def test_start_run_persists_config_snapshot_and_cases_on_run_id():
     assert run_row.evaluation_id == evaluation_id
     assert run_row.target_instance_id == "inst-9"
     assert run_row.judge_profile_id == "mistral-small"
-    assert run_row.campaign_id is None  # transitional field stays empty for Runs
-
     snapshot = json.loads(run_row.snapshot_json)
     assert snapshot["evaluation_name"] == "usage-arxivai"
     assert snapshot["evaluation_version"] == "v1"
 
     cases = await run_store.list_cases_by_run(result.run_id, limit=100)
     assert len(cases) == 2
-    assert all(c.campaign_id is None and c.run_id == result.run_id for c in cases)
+    assert all(c.run_id == result.run_id for c in cases)
 
     # read side
     run_resp = await service.get_run(result.run_id, store=run_store)

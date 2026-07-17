@@ -89,7 +89,3 @@ def build_evaluation_catalog_router(prefix: str = "") -> APIRouter:
         )
 
     return router
-
-
-build_datasets_router = build_evaluation_catalog_router
-_get_dataset_store = _get_evaluation_catalog_store

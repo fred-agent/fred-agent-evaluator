@@ -53,7 +53,7 @@ class _FakeStore:
 class _FakeEvaluationStore:
     async def get_evaluation(self, evaluation_id: str) -> object:
         return SimpleNamespace(
-            dataset_id=evaluation_id,
+            evaluation_id=evaluation_id,
             team_id="team-1",
             name="ds1",
             version="v1",

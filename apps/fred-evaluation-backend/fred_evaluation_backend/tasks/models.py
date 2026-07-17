@@ -44,8 +44,7 @@ def _target(row: EvaluationRunRow) -> TaskTarget:
             label = RunSnapshot.model_validate_json(row.snapshot_json).evaluation_name
         except Exception:
             label = row.run_id
-    # Keep the legacy target envelope until the frontend contract is updated.
-    return TaskTarget(type="evaluation_campaign", id=row.campaign_id or row.run_id, label=label)
+    return TaskTarget(type="evaluation_run", id=row.run_id, label=label)
 
 
 def run_to_summary(row: EvaluationRunRow) -> TaskSummary:
@@ -78,7 +77,7 @@ def run_to_event(row: EvaluationRunRow, seq: int) -> EvaluationTaskEvent:
         target=_target(row),
         owner=row.created_by,
         detail=EvaluationDetail(
-            campaign_id=row.campaign_id or row.run_id,
+            campaign_id=row.run_id,
             completed=row.completed_cases,
             total=row.total_cases,
             passed=row.passed_cases,

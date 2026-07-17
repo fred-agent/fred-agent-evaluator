@@ -8,58 +8,13 @@ from sqlalchemy.orm import Mapped, mapped_column
 from fred_evaluation_backend.runs.base import Base, utcnow
 
 
-class EvaluationCampaignRow(Base):
-    __tablename__ = "evaluation_campaign"
-
-    campaign_id: Mapped[str] = mapped_column(String, primary_key=True)
-    run_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
-    task_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-    team_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
-    created_by: Mapped[str] = mapped_column(String, nullable=False)
-    target_kind: Mapped[str] = mapped_column(String(32), nullable=False)
-    target_runtime_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    target_agent_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    target_instance_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    dataset_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("evaluation_dataset.dataset_id"), nullable=True, index=True
-    )
-    dataset_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    dataset_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    profile: Mapped[str] = mapped_column(String(64), nullable=False)
-    judge_profile_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    custom_metrics_json: Mapped[str | None] = mapped_column(Text, nullable=True)
-    operational_state: Mapped[str] = mapped_column(
-        String(32), nullable=False, default="pending"
-    )
-    verdict: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
-    total_cases: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    completed_cases: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    passed_cases: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    failed_cases: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    execution_error_cases: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0
-    )
-    scoring_error_cases: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    metric_averages_json: Mapped[str | None] = mapped_column(Text, nullable=True)
-    analysis_json: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=utcnow
-    )
-    started_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-
-
 class EvaluationCaseRow(Base):
     __tablename__ = "evaluation_case"
 
     case_id: Mapped[str] = mapped_column(String, primary_key=True)
-    campaign_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
-    run_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    run_id: Mapped[str] = mapped_column(
+        String, ForeignKey("evaluation_run.run_id"), nullable=False, index=True
+    )
     external_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
     outcome: Mapped[str | None] = mapped_column(String(32), nullable=True)
@@ -87,26 +42,20 @@ class EvaluationRunRow(Base):
     __tablename__ = "evaluation_run"
 
     run_id: Mapped[str] = mapped_column(String, primary_key=True)
-    campaign_id: Mapped[str | None] = mapped_column(
-        String,
-        ForeignKey("evaluation_campaign.campaign_id"),
-        nullable=True,
-        index=True,
+    evaluation_id: Mapped[str] = mapped_column(
+        String, ForeignKey("evaluation.evaluation_id"), nullable=False, index=True
     )
-    evaluation_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("evaluation_dataset.dataset_id"), nullable=True, index=True
-    )
-    team_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
-    created_by: Mapped[str | None] = mapped_column(String, nullable=True)
+    team_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    created_by: Mapped[str] = mapped_column(String, nullable=False)
     task_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
-    target_kind: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    target_kind: Mapped[str] = mapped_column(String(32), nullable=False)
     target_runtime_id: Mapped[str | None] = mapped_column(String, nullable=True)
     target_agent_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    target_instance_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    profile: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    judge_profile_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    target_instance_id: Mapped[str] = mapped_column(String, nullable=False)
+    profile: Mapped[str] = mapped_column(String(64), nullable=False)
+    judge_profile_id: Mapped[str] = mapped_column(String(255), nullable=False)
     custom_metrics_json: Mapped[str | None] = mapped_column(Text, nullable=True)
-    snapshot_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    snapshot_json: Mapped[str] = mapped_column(Text, nullable=False)
     operational_state: Mapped[str] = mapped_column(
         String(32), nullable=False, default="pending"
     )
@@ -136,13 +85,9 @@ class EvaluationExportDeliveryRow(Base):
     __tablename__ = "evaluation_export_delivery"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    campaign_id: Mapped[str | None] = mapped_column(
-        String,
-        ForeignKey("evaluation_campaign.campaign_id"),
-        nullable=True,
-        index=True,
+    run_id: Mapped[str] = mapped_column(
+        String, ForeignKey("evaluation_run.run_id"), nullable=False, index=True
     )
-    run_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     exporter: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -158,13 +103,9 @@ class EvaluationEventRow(Base):
     __tablename__ = "evaluation_event"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    campaign_id: Mapped[str | None] = mapped_column(
-        String,
-        ForeignKey("evaluation_campaign.campaign_id"),
-        nullable=True,
-        index=True,
+    run_id: Mapped[str] = mapped_column(
+        String, ForeignKey("evaluation_run.run_id"), nullable=False, index=True
     )
-    run_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     seq: Mapped[int] = mapped_column(Integer, nullable=False)
     kind: Mapped[str] = mapped_column(String(32), nullable=False)
     payload_json: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -180,8 +121,9 @@ class EvaluationMetricResultRow(Base):
     case_id: Mapped[str] = mapped_column(
         String, ForeignKey("evaluation_case.case_id"), nullable=False, index=True
     )
-    campaign_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
-    run_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    run_id: Mapped[str] = mapped_column(
+        String, ForeignKey("evaluation_run.run_id"), nullable=False, index=True
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     provider: Mapped[str] = mapped_column(String(64), nullable=False)
     score: Mapped[str | None] = mapped_column(String(32), nullable=True)

@@ -36,9 +36,9 @@ class QuestionSetRow(Base):
 
 
 class EvaluationRow(Base):
-    __tablename__ = "evaluation_dataset"
+    __tablename__ = "evaluation"
 
-    dataset_id: Mapped[str] = mapped_column(String, primary_key=True)
+    evaluation_id: Mapped[str] = mapped_column(String, primary_key=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     version: Mapped[str] = mapped_column(String(100), nullable=False)
     team_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
@@ -50,6 +50,3 @@ class EvaluationRow(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utcnow
     )
-
-
-EvaluationDatasetRow = EvaluationRow

@@ -38,7 +38,6 @@ class RunStore:
     ) -> EvaluationCaseRow:
         row = EvaluationCaseRow(
             case_id=case_id,
-            campaign_id=None,
             run_id=run_id,
             external_id=external_id,
             input=input,
@@ -96,7 +95,6 @@ class RunStore:
     ) -> EvaluationMetricResultRow:
         row = EvaluationMetricResultRow(
             case_id=case_id,
-            campaign_id=None,
             run_id=run_id,
             name=name,
             provider=provider,
@@ -155,7 +153,6 @@ class RunStore:
             next_seq = next_seq_result.scalar() or 0
             s.add(
                 EvaluationEventRow(
-                    campaign_id=None,
                     run_id=run_id,
                     seq=next_seq,
                     kind=kind,
@@ -203,7 +200,6 @@ class RunStore:
     ) -> EvaluationRunRow:
         row = EvaluationRunRow(
             run_id=run_id,
-            campaign_id=None,
             evaluation_id=evaluation_id,
             team_id=team_id,
             created_by=created_by,

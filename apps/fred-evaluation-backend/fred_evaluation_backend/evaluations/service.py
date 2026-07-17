@@ -99,9 +99,8 @@ async def list_evaluations(
 
 def _row_to_summary(row) -> EvaluationSummaryResponse:
     cases = json.loads(row.cases_json) if row.cases_json else []
-    evaluation_id = getattr(row, "evaluation_id", None) or row.dataset_id
     return EvaluationSummaryResponse(
-        evaluation_id=evaluation_id,
+        evaluation_id=row.evaluation_id,
         name=row.name,
         version=row.version,
         author=row.created_by,
@@ -115,7 +114,3 @@ def _row_to_summary(row) -> EvaluationSummaryResponse:
 
 def _cases_to_json(domain_evaluation: Evaluation) -> str:
     return json.dumps([c.model_dump() for c in domain_evaluation.cases])
-
-
-create_dataset = create_evaluation
-list_datasets = list_evaluations

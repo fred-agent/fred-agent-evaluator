@@ -88,7 +88,6 @@ class StructuralCheckResponse(BaseModel):
 
 class EvaluationCaseResponse(BaseModel):
     case_id: str
-    campaign_id: str | None = None
     run_id: str | None
     external_id: str | None
     status: str

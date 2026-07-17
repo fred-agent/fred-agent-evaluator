@@ -119,13 +119,3 @@ class EvaluationDetailResponse(EvaluationSummaryResponse):
 class EvaluationListResponse(BaseModel):
     evaluations: list[EvaluationSummaryResponse]
     total: int
-
-
-DatasetCompleteness = EvaluationCompleteness
-DatasetOrigin = EvaluationOrigin
-DatasetCase = EvaluationCase
-EvaluationDataset = Evaluation
-CreateDatasetRequest = CreateEvaluationRequest
-DatasetSummaryResponse = EvaluationSummaryResponse
-DatasetDetailResponse = EvaluationDetailResponse
-DatasetListResponse = EvaluationListResponse

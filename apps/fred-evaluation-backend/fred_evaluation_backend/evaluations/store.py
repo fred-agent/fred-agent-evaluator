@@ -34,7 +34,7 @@ class EvaluationStore:
         session: AsyncSession | None = None,
     ) -> EvaluationRow:
         row = EvaluationRow(
-            dataset_id=evaluation_id,
+            evaluation_id=evaluation_id,
             name=name,
             version=version,
             team_id=team_id,
@@ -127,14 +127,11 @@ class EvaluationStore:
                 (
                     await s.execute(
                         select(EvaluationRow).where(
-                            EvaluationRow.dataset_id.in_(set(evaluation_ids))
+                            EvaluationRow.evaluation_id.in_(set(evaluation_ids))
                         )
                     )
                 )
                 .scalars()
                 .all()
             )
-        return {row.dataset_id: row for row in rows}
-
-
-DatasetStore = EvaluationStore
+        return {row.evaluation_id: row for row in rows}
