@@ -225,7 +225,3 @@ class RunRunner:
             passed,
             failed,
         )
-
-
-# Temporary alias while the surrounding module names still say "campaigns".
-CampaignRunner = RunRunner

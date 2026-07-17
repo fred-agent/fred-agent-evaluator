@@ -2,11 +2,11 @@
 
 Real schema (SQLite built from the ORM models) and real stores — no full stack,
 no Temporal, no agent. This is the integration test that caught the run-created
-case having a null campaign_id the fakes-based tests could not.
+case carrying no legacy parent id, which the fakes-based tests could not.
 
 It verifies:
 - start_run writes a Run row carrying target/profile/judge + a frozen snapshot,
-- cases are materialised on run_id with no campaign,
+- cases are materialised on run_id with no legacy parent,
 - get_run and list_run_cases read them back,
 - a second run of the same evaluation is independent.
 """
@@ -97,7 +97,7 @@ async def test_start_run_persists_config_snapshot_and_cases_on_run_id():
     assert run_row.evaluation_id == evaluation_id
     assert run_row.target_instance_id == "inst-9"
     assert run_row.judge_profile_id == "mistral-small"
-    assert run_row.campaign_id is None  # a Run has no campaign
+    assert run_row.campaign_id is None  # transitional field stays empty for Runs
 
     snapshot = json.loads(run_row.snapshot_json)
     assert snapshot["evaluation_name"] == "usage-arxivai"

@@ -36,12 +36,11 @@ class RunStore:
         external_id: str | None,
         input: str,
         expected_output: str | None,
-        campaign_id: str | None = None,
         session: AsyncSession | None = None,
     ) -> EvaluationCaseRow:
         row = EvaluationCaseRow(
             case_id=case_id,
-            campaign_id=campaign_id,
+            campaign_id=None,
             run_id=run_id,
             external_id=external_id,
             input=input,
@@ -96,13 +95,12 @@ class RunStore:
         verdict: str,
         explanation: str | None,
         error: str | None,
-        run_id: str | None = None,
-        campaign_id: str | None = None,
+        run_id: str,
         session: AsyncSession | None = None,
     ) -> EvaluationMetricResultRow:
         row = EvaluationMetricResultRow(
             case_id=case_id,
-            campaign_id=campaign_id,
+            campaign_id=None,
             run_id=run_id,
             name=name,
             provider=provider,
