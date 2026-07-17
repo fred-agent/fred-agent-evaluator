@@ -199,17 +199,3 @@ async def test_run_store_task_lookup_and_scopes():
         first.run_id,
         second.run_id,
     }
-
-
-@pytest.mark.asyncio
-async def test_list_team_runs_returns_all_runs_flat_for_one_team():
-    ds_store, run_store = await _make_stores()
-    evaluation_id = await _seed_evaluation(ds_store)
-
-    first = await _start(evaluation_id, ds_store, run_store, instance="inst-9")
-    second = await _start(
-        evaluation_id, ds_store, run_store, instance="inst-42", by="bob"
-    )
-
-    runs = await service.list_team_runs("team-1", store=run_store)
-    assert {run.run_id for run in runs} == {first.run_id, second.run_id}

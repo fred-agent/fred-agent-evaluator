@@ -10,7 +10,9 @@ from fastapi import HTTPException
 from fred_evaluation_backend.evaluations.schemas import EvaluationCase
 from fred_evaluation_backend.evaluations.store import EvaluationStore
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
-from fred_evaluation_backend.execution.evaluator_errors import evaluation_not_found_error
+from fred_evaluation_backend.execution.evaluator_errors import (
+    evaluation_not_found_error,
+)
 from fred_evaluation_backend.execution.outbound_auth import OutboundAuth
 from fred_evaluation_backend.execution.runtime_resolver import resolve_managed_instance
 from fred_evaluation_backend.runs.schemas import (
@@ -142,11 +144,6 @@ async def get_run(run_id: str, *, store: RunStore) -> EvaluationRun:
 
 async def list_runs(evaluation_id: str, *, store: RunStore) -> list[EvaluationRun]:
     rows = await store.list_runs_by_evaluation(evaluation_id)
-    return [_run_to_response(row) for row in rows]
-
-
-async def list_team_runs(team_id: str, *, store: RunStore) -> list[EvaluationRun]:
-    rows = await store.list_runs_by_team(team_id)
     return [_run_to_response(row) for row in rows]
 
 

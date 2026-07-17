@@ -15,7 +15,10 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from fred_evaluation_backend.evaluations.store import EvaluationStore
-from fred_evaluation_backend.execution.analysis_client import CaseDetail, CaseMetricDetail
+from fred_evaluation_backend.execution.analysis_client import (
+    CaseDetail,
+    CaseMetricDetail,
+)
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
 from fred_evaluation_backend.execution.evaluator_errors import EvaluatorErrorResponse
 from fred_evaluation_backend.execution.outbound_auth import resolve_interactive_auth
@@ -159,14 +162,6 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         store: Annotated[RunStore, Depends(_get_run_store)],
     ) -> list[EvaluationRun]:
         return await service.list_runs(evaluation_id, store=store)
-
-    @router.get("/runs", response_model=list[EvaluationRun])
-    async def list_team_runs(
-        user: Annotated[KeycloakUser, Depends(get_current_user)],
-        store: Annotated[RunStore, Depends(_get_run_store)],
-        team_id: str = Query(...),
-    ) -> list[EvaluationRun]:
-        return await service.list_team_runs(team_id, store=store)
 
     @router.get("/runs/{run_id}", response_model=EvaluationRun)
     async def get_run(

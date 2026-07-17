@@ -1,6 +1,7 @@
 """Canonical evaluation-catalog package.
 
-This is the active implementation package for the evaluation catalog.
-`datasets/` remains only as a compatibility import surface until the final
-from-scratch migration rewrites the physical schema names.
+The active implementation for the evaluation catalog: an Evaluation *is* the
+versioned case set (what EVAL-04 called a dataset), not a wrapper around one.
+`datasets/` is gone — this package replaced it outright, there is no compatibility
+surface.
 """

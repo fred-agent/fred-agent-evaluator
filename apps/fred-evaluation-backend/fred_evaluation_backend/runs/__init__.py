@@ -1,6 +1,6 @@
 """Canonical run-domain package.
 
-This package is the stable import surface for the EVAL-05 run model.
-`runs/` now contains the active implementation; `campaigns/` remains only as a
-compatibility import surface until the final schema reset.
+The stable import surface for the EVAL-05 run model: a Run is one execution of an
+`evaluations` case set against a target chosen at start time. `campaigns/` is gone —
+this package replaced it outright, there is no compatibility surface.
 """
