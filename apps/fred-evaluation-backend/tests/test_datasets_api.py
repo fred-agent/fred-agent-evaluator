@@ -44,6 +44,14 @@ class _InMemoryDatasetStore:
     async def list_datasets_by_team(self, team_id: str):
         return [row for row in self.rows.values() if row.team_id == team_id]
 
+    async def get_latest_version_number(self, team_id: str, name: str) -> int:
+        numbers = [
+            int(str(r.version).lstrip("v"))
+            for r in self.rows.values()
+            if r.team_id == team_id and r.name == name
+        ]
+        return max(numbers, default=0)
+
 
 class _MemberControlPlaneClient:
     async def get_team(self, *, team_id: str, auth):
@@ -87,6 +95,7 @@ async def test_dataset_created_via_post_persists_independently_of_any_campaign()
             "/datasets",
             json={
                 "team_id": "team-1",
+                "name": "usage-arxivai",
                 "origin": "manual",
                 "cases": [{"input": "q1", "expected_output": "a1"}],
             },
@@ -108,7 +117,9 @@ async def test_dataset_created_via_post_persists_independently_of_any_campaign()
 
 
 @pytest.mark.asyncio
-async def test_manual_origin_derives_name_and_manual_prefix() -> None:
+async def test_name_is_user_supplied_and_first_import_is_v1() -> None:
+    """EVAL-05: the name comes from the user (not derived), and a brand-new name
+    starts at v1. Completeness is still derived from the cases."""
     app = _build_app(cp_client=_MemberControlPlaneClient())
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -116,33 +127,8 @@ async def test_manual_origin_derives_name_and_manual_prefix() -> None:
             "/datasets",
             json={
                 "team_id": "team-1",
-                "origin": "manual",
-                "cases": [{"input": "q1"}],
-            },
-            headers={"Authorization": "Bearer alice-token"},
-        )
-
-    assert resp.status_code == 201
-    body = resp.json()
-    assert body["origin"] == "manual"
-    assert body["name"].startswith("Manual dataset — ")
-    # No expected_output anywhere -> minimal, not complete.
-    assert body["completeness"] == "minimal"
-
-
-@pytest.mark.asyncio
-async def test_upload_origin_derives_name_from_source_filename_and_is_complete() -> (
-    None
-):
-    app = _build_app(cp_client=_MemberControlPlaneClient())
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.post(
-            "/datasets",
-            json={
-                "team_id": "team-1",
+                "name": "golden-set",
                 "origin": "upload",
-                "source_filename": "golden_set.json",
                 "cases": [
                     {"input": "q1", "expected_output": "a1"},
                     {"input": "q2", "expected_output": "a2"},
@@ -153,11 +139,46 @@ async def test_upload_origin_derives_name_from_source_filename_and_is_complete()
 
     assert resp.status_code == 201
     body = resp.json()
-    assert body["origin"] == "upload"
-    assert body["name"] == "golden_set.json"
+    assert body["name"] == "golden-set"
+    assert body["version"] == "v1"
     # Every case has an expected_output -> complete.
     assert body["completeness"] == "complete"
     assert body["case_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_reimporting_same_name_creates_next_version_and_new_id() -> None:
+    """EVAL-05 (§8.5): re-importing the same name in the same team creates v2, a
+    distinct row with its own id. Different name stays at v1."""
+    store = _InMemoryDatasetStore()
+    app = _build_app(cp_client=_MemberControlPlaneClient(), store=store)
+    transport = httpx.ASGITransport(app=app)
+
+    async def _create(name: str) -> dict:
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test"
+        ) as client:
+            resp = await client.post(
+                "/datasets",
+                json={
+                    "team_id": "team-1",
+                    "name": name,
+                    "origin": "manual",
+                    "cases": [{"input": "q1"}],
+                },
+                headers={"Authorization": "Bearer alice-token"},
+            )
+        assert resp.status_code == 201
+        return resp.json()
+
+    first = await _create("usage-arxivai")
+    second = await _create("usage-arxivai")
+    other = await _create("usage-rag")
+
+    assert first["version"] == "v1"
+    assert second["version"] == "v2"  # same name -> next version
+    assert second["dataset_id"] != first["dataset_id"]  # its own row (lecture A)
+    assert other["version"] == "v1"  # a different name is independent
 
 
 @pytest.mark.asyncio
@@ -167,7 +188,12 @@ async def test_non_member_cannot_create_or_list_team_datasets() -> None:
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         create_resp = await client.post(
             "/datasets",
-            json={"team_id": "team-1", "origin": "manual", "cases": [{"input": "q1"}]},
+            json={
+                "team_id": "team-1",
+                "name": "x",
+                "origin": "manual",
+                "cases": [{"input": "q1"}],
+            },
             headers={"Authorization": "Bearer alice-token"},
         )
         list_resp = await client.get(

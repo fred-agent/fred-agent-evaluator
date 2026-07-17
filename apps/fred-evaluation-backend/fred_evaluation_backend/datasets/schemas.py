@@ -131,10 +131,13 @@ _MAX_DATASET_CASES = 200
 
 class CreateDatasetRequest(BaseModel):
     team_id: str
+    # EVAL-05: user-supplied name — the primary identity in the grouped list and the
+    # version key. Re-importing the same name in the same team creates a new version
+    # that becomes current (RFC §8.5/§9.5). Deliberate change from EVAL-04, which
+    # derived a throwaway name server-side from `source_filename`.
+    name: str = Field(min_length=1, max_length=255)
     origin: Literal["upload", "manual"]
-    # The literal filename from the caller's file picker (JSON import only) —
-    # used solely to derive a friendly name server-side. Never user-typed
-    # metadata; absent for manual-row datasets.
+    # Legacy: kept only so existing callers don't break. No longer used for naming.
     source_filename: str | None = None
     cases: list[DatasetCase] = Field(min_length=1, max_length=_MAX_DATASET_CASES)
 

@@ -57,6 +57,50 @@ class DatasetStore:
         async with use_session(self._sessions, session) as s:
             return await s.get(EvaluationDatasetRow, dataset_id)
 
+    async def get_latest_version_number(
+        self,
+        team_id: str,
+        name: str,
+        session: AsyncSession | None = None,
+    ) -> int:
+        """Highest version number for a `(team_id, name)`, or 0 if the name is new.
+
+        Versions are stored as ``"v1"``, ``"v2"``… ; re-importing the same name yields
+        the next number, and that new row becomes current (RFC §8.5).
+        """
+        async with use_session(self._sessions, session) as s:
+            versions = (
+                (
+                    await s.execute(
+                        select(EvaluationDatasetRow.version).where(
+                            EvaluationDatasetRow.team_id == team_id,
+                            EvaluationDatasetRow.name == name,
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        numbers = []
+        for v in versions:
+            try:
+                numbers.append(int(str(v).lstrip("v")))
+            except ValueError:
+                continue
+        return max(numbers, default=0)
+
+    async def delete_dataset(
+        self,
+        dataset_id: str,
+        session: AsyncSession | None = None,
+    ) -> bool:
+        async with use_session(self._sessions, session) as s:
+            row = await s.get(EvaluationDatasetRow, dataset_id)
+            if row is None:
+                return False
+            await s.delete(row)
+        return True
+
     async def list_datasets_by_team(
         self,
         team_id: str,

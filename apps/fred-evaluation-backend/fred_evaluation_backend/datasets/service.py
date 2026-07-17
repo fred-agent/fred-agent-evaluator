@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -20,19 +19,9 @@ from fred_evaluation_backend.execution.team_resolver import resolve_team_members
 
 logger = logging.getLogger(__name__)
 
-_DATASET_VERSION = "v1"  # first version; no versioning UI in this release
-
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(microsecond=0)
-
-
-def _derive_name(
-    *, origin: str, source_filename: str | None, created_at: datetime
-) -> str:
-    if origin == "upload" and source_filename:
-        return os.path.basename(source_filename)
-    return f"Manual dataset — {created_at:%Y-%m-%d %H:%M}"
 
 
 async def create_dataset(
@@ -51,11 +40,13 @@ async def create_dataset(
 
     created_at = _utcnow()
     dataset_id = f"eval-ds-{uuid4().hex[:8]}"
-    name = _derive_name(
-        origin=request.origin,
-        source_filename=request.source_filename,
-        created_at=created_at,
-    )
+    name = request.name
+
+    # EVAL-05: re-importing the same name in the same team creates the next version,
+    # which becomes current. Each version is its own row (its own dataset_id); the
+    # grouped list keys on `name`, and current = the highest version (RFC §8.5, lecture A).
+    next_number = await store.get_latest_version_number(request.team_id, name) + 1
+    version = f"v{next_number}"
 
     # Reuse the frozen domain model's own completeness derivation (single
     # source of truth — see EvaluationDataset._derive_completeness) rather
@@ -63,7 +54,7 @@ async def create_dataset(
     domain_dataset = EvaluationDataset(
         dataset_id=dataset_id,
         name=name,
-        version=_DATASET_VERSION,
+        version=version,
         team_id=request.team_id,
         created_by=created_by,
         origin=request.origin,
@@ -75,7 +66,7 @@ async def create_dataset(
     await store.create_dataset(
         dataset_id=dataset_id,
         name=name,
-        version=_DATASET_VERSION,
+        version=version,
         team_id=request.team_id,
         created_by=created_by,
         origin=request.origin,
@@ -86,7 +77,7 @@ async def create_dataset(
     return DatasetDetailResponse(
         dataset_id=dataset_id,
         name=name,
-        version=_DATASET_VERSION,
+        version=version,
         team_id=request.team_id,
         origin=request.origin,
         completeness=domain_dataset.completeness,
