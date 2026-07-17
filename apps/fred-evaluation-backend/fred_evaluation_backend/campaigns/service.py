@@ -19,10 +19,10 @@ from fred_evaluation_backend.campaigns.schemas import (
     StructuralCheckResponse,
 )
 from fred_evaluation_backend.campaigns.store import RunStore
-from fred_evaluation_backend.datasets.schemas import DatasetCase
-from fred_evaluation_backend.datasets.store import DatasetStore
+from fred_evaluation_backend.datasets.schemas import EvaluationCase
+from fred_evaluation_backend.datasets.store import EvaluationStore
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
-from fred_evaluation_backend.execution.evaluator_errors import dataset_not_found_error
+from fred_evaluation_backend.execution.evaluator_errors import evaluation_not_found_error
 from fred_evaluation_backend.execution.outbound_auth import OutboundAuth
 from fred_evaluation_backend.execution.runtime_resolver import resolve_managed_instance
 
@@ -54,7 +54,7 @@ async def start_run(
     target: ManagedInstanceTarget,
     created_by: str,
     store: RunStore,
-    dataset_store: DatasetStore,
+    evaluation_store: EvaluationStore,
     control_plane_client: ControlPlaneClient,
     auth: OutboundAuth,
     profile: str,
@@ -67,12 +67,13 @@ async def start_run(
     RunSnapshot at Start: the Evaluation's immutability pins the cases, the snapshot pins
     the target/policy actually used (RFC §9.5).
     """
-    evaluation = await dataset_store.get_dataset(evaluation_id)
+    evaluation = await evaluation_store.get_evaluation(evaluation_id)
     if evaluation is None or evaluation.team_id != team_id:
         # Same error for "doesn't exist" and "belongs to another team" — no cross-team leak.
-        raise dataset_not_found_error()
+        raise evaluation_not_found_error()
     cases = [
-        DatasetCase.model_validate(c) for c in json.loads(evaluation.cases_json or "[]")
+        EvaluationCase.model_validate(c)
+        for c in json.loads(evaluation.cases_json or "[]")
     ]
 
     await resolve_managed_instance(

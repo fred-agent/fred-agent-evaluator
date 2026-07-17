@@ -190,6 +190,16 @@ def dataset_not_found_error() -> HTTPException:
     )
 
 
+def evaluation_not_found_error() -> HTTPException:
+    return HTTPException(
+        status_code=404,
+        detail=EvaluatorErrorDetail(
+            code="evaluation_not_found",
+            message="The selected evaluation could not be found.",
+        ).model_dump(),
+    )
+
+
 def parse_error_detail(exc: HTTPException) -> EvaluatorErrorDetail:
     """Typed access to the structured `detail` body set by `map_control_plane_error`.
 

@@ -673,13 +673,13 @@
         }
       }
     },
-    "/evaluation/v1/datasets": {
+    "/evaluation/v1/evaluations": {
       "post": {
         "tags": [
-          "Datasets"
+          "Evaluations"
         ],
-        "summary": "Create Dataset",
-        "operationId": "create_dataset_evaluation_v1_datasets_post",
+        "summary": "Create Evaluation",
+        "operationId": "create_evaluation_evaluation_v1_evaluations_post",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -690,7 +690,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateDatasetRequest"
+                "$ref": "#/components/schemas/CreateEvaluationRequest"
               }
             }
           }
@@ -701,7 +701,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DatasetDetailResponse"
+                  "$ref": "#/components/schemas/EvaluationDetailResponse"
                 }
               }
             }
@@ -733,10 +733,10 @@
       },
       "get": {
         "tags": [
-          "Datasets"
+          "Evaluations"
         ],
-        "summary": "List Datasets",
-        "operationId": "list_datasets_evaluation_v1_datasets_get",
+        "summary": "List Evaluations",
+        "operationId": "list_evaluations_evaluation_v1_evaluations_get",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -759,7 +759,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DatasetListResponse"
+                  "$ref": "#/components/schemas/EvaluationListResponse"
                 }
               }
             }
@@ -1068,7 +1068,7 @@
   },
   "components": {
     "schemas": {
-      "CreateDatasetRequest": {
+      "CreateEvaluationRequest": {
         "properties": {
           "team_id": {
             "type": "string",
@@ -1101,7 +1101,7 @@
           },
           "cases": {
             "items": {
-              "$ref": "#/components/schemas/DatasetCase"
+              "$ref": "#/components/schemas/EvaluationCase"
             },
             "type": "array",
             "maxItems": 200,
@@ -1116,9 +1116,9 @@
           "origin",
           "cases"
         ],
-        "title": "CreateDatasetRequest"
+        "title": "CreateEvaluationRequest"
       },
-      "DatasetCase": {
+      "EvaluationCase": {
         "properties": {
           "external_id": {
             "anyOf": [
@@ -1180,160 +1180,7 @@
         "required": [
           "input"
         ],
-        "title": "DatasetCase"
-      },
-      "DatasetCompleteness": {
-        "type": "string",
-        "enum": [
-          "minimal",
-          "complete"
-        ],
-        "title": "DatasetCompleteness"
-      },
-      "DatasetDetailResponse": {
-        "properties": {
-          "dataset_id": {
-            "type": "string",
-            "title": "Dataset Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "version": {
-            "type": "string",
-            "title": "Version"
-          },
-          "author": {
-            "type": "string",
-            "title": "Author"
-          },
-          "team_id": {
-            "type": "string",
-            "title": "Team Id"
-          },
-          "origin": {
-            "type": "string",
-            "enum": [
-              "capture",
-              "upload",
-              "manual"
-            ],
-            "title": "Origin"
-          },
-          "completeness": {
-            "$ref": "#/components/schemas/DatasetCompleteness"
-          },
-          "case_count": {
-            "type": "integer",
-            "title": "Case Count"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "cases": {
-            "items": {
-              "$ref": "#/components/schemas/DatasetCase"
-            },
-            "type": "array",
-            "title": "Cases"
-          }
-        },
-        "type": "object",
-        "required": [
-          "dataset_id",
-          "name",
-          "version",
-          "author",
-          "team_id",
-          "origin",
-          "completeness",
-          "case_count",
-          "created_at",
-          "cases"
-        ],
-        "title": "DatasetDetailResponse"
-      },
-      "DatasetListResponse": {
-        "properties": {
-          "datasets": {
-            "items": {
-              "$ref": "#/components/schemas/DatasetSummaryResponse"
-            },
-            "type": "array",
-            "title": "Datasets"
-          },
-          "total": {
-            "type": "integer",
-            "title": "Total"
-          }
-        },
-        "type": "object",
-        "required": [
-          "datasets",
-          "total"
-        ],
-        "title": "DatasetListResponse"
-      },
-      "DatasetSummaryResponse": {
-        "properties": {
-          "dataset_id": {
-            "type": "string",
-            "title": "Dataset Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "version": {
-            "type": "string",
-            "title": "Version"
-          },
-          "author": {
-            "type": "string",
-            "title": "Author"
-          },
-          "team_id": {
-            "type": "string",
-            "title": "Team Id"
-          },
-          "origin": {
-            "type": "string",
-            "enum": [
-              "capture",
-              "upload",
-              "manual"
-            ],
-            "title": "Origin"
-          },
-          "completeness": {
-            "$ref": "#/components/schemas/DatasetCompleteness"
-          },
-          "case_count": {
-            "type": "integer",
-            "title": "Case Count"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "dataset_id",
-          "name",
-          "version",
-          "author",
-          "team_id",
-          "origin",
-          "completeness",
-          "case_count",
-          "created_at"
-        ],
-        "title": "DatasetSummaryResponse"
+        "title": "EvaluationCase"
       },
       "EvaluationCaseListResponse": {
         "properties": {
@@ -1541,6 +1388,14 @@
         ],
         "title": "EvaluationCaseResponse"
       },
+      "EvaluationCompleteness": {
+        "type": "string",
+        "enum": [
+          "minimal",
+          "complete"
+        ],
+        "title": "EvaluationCompleteness"
+      },
       "EvaluationDetail": {
         "properties": {
           "campaign_id": {
@@ -1584,6 +1439,93 @@
         ],
         "title": "EvaluationDetail",
         "description": "Compact campaign-level counters. Never carries inputs/outputs/explanations."
+      },
+      "EvaluationDetailResponse": {
+        "properties": {
+          "evaluation_id": {
+            "type": "string",
+            "title": "Evaluation Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "author": {
+            "type": "string",
+            "title": "Author"
+          },
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "capture",
+              "upload",
+              "manual"
+            ],
+            "title": "Origin"
+          },
+          "completeness": {
+            "$ref": "#/components/schemas/EvaluationCompleteness"
+          },
+          "case_count": {
+            "type": "integer",
+            "title": "Case Count"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "cases": {
+            "items": {
+              "$ref": "#/components/schemas/EvaluationCase"
+            },
+            "type": "array",
+            "title": "Cases"
+          }
+        },
+        "type": "object",
+        "required": [
+          "evaluation_id",
+          "name",
+          "version",
+          "author",
+          "team_id",
+          "origin",
+          "completeness",
+          "case_count",
+          "created_at",
+          "cases"
+        ],
+        "title": "EvaluationDetailResponse"
+      },
+      "EvaluationListResponse": {
+        "properties": {
+          "evaluations": {
+            "items": {
+              "$ref": "#/components/schemas/EvaluationSummaryResponse"
+            },
+            "type": "array",
+            "title": "Evaluations"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "evaluations",
+          "total"
+        ],
+        "title": "EvaluationListResponse"
       },
       "EvaluationMetricResultResponse": {
         "properties": {
@@ -1802,6 +1744,64 @@
           "completed_at"
         ],
         "title": "EvaluationRun"
+      },
+      "EvaluationSummaryResponse": {
+        "properties": {
+          "evaluation_id": {
+            "type": "string",
+            "title": "Evaluation Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "author": {
+            "type": "string",
+            "title": "Author"
+          },
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "capture",
+              "upload",
+              "manual"
+            ],
+            "title": "Origin"
+          },
+          "completeness": {
+            "$ref": "#/components/schemas/EvaluationCompleteness"
+          },
+          "case_count": {
+            "type": "integer",
+            "title": "Case Count"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "evaluation_id",
+          "name",
+          "version",
+          "author",
+          "team_id",
+          "origin",
+          "completeness",
+          "case_count",
+          "created_at"
+        ],
+        "title": "EvaluationSummaryResponse"
       },
       "EvaluationTaskEvent": {
         "properties": {

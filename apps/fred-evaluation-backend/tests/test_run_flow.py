@@ -28,7 +28,7 @@ from fred_evaluation_backend.campaigns.base import Base
 from fred_evaluation_backend.campaigns.schemas import ManagedInstanceTarget
 from fred_evaluation_backend.campaigns.store import RunStore
 from fred_evaluation_backend.datasets import models as _ds_models  # noqa: F401
-from fred_evaluation_backend.datasets.store import DatasetStore
+from fred_evaluation_backend.datasets.store import EvaluationStore
 from fred_evaluation_backend.execution.outbound_auth import NoAuthentication
 
 
@@ -47,12 +47,12 @@ async def _make_stores():
     engine = create_async_engine(f"sqlite+aiosqlite:///{db}")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    return DatasetStore(engine), RunStore(engine)
+    return EvaluationStore(engine), RunStore(engine)
 
 
-async def _seed_evaluation(ds_store: DatasetStore) -> str:
-    await ds_store.create_dataset(
-        dataset_id="eval-ds-1",
+async def _seed_evaluation(evaluation_store: EvaluationStore) -> str:
+    await evaluation_store.create_evaluation(
+        evaluation_id="eval-1",
         name="usage-arxivai",
         version="v1",
         team_id="team-1",
@@ -66,10 +66,10 @@ async def _seed_evaluation(ds_store: DatasetStore) -> str:
             ]
         ),
     )
-    return "eval-ds-1"
+    return "eval-1"
 
 
-async def _start(evaluation_id, ds_store, run_store, *, instance, by="alice"):
+async def _start(evaluation_id, evaluation_store, run_store, *, instance, by="alice"):
     return await service.start_run(
         evaluation_id=evaluation_id,
         team_id="team-1",
@@ -78,7 +78,7 @@ async def _start(evaluation_id, ds_store, run_store, *, instance, by="alice"):
         ),
         created_by=by,
         store=run_store,
-        dataset_store=ds_store,
+        evaluation_store=evaluation_store,
         control_plane_client=_FakeControlPlane(),
         auth=NoAuthentication(),
         profile="auto",

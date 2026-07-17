@@ -7,7 +7,7 @@ from fred_core.sql import make_session_factory, use_session
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
-from fred_evaluation_backend.datasets.models import EvaluationDatasetRow
+from fred_evaluation_backend.datasets.models import EvaluationRow
 
 logger = logging.getLogger(__name__)
 
@@ -16,14 +16,14 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(microsecond=0)
 
 
-class DatasetStore:
+class EvaluationStore:
     def __init__(self, engine: AsyncEngine) -> None:
         self._sessions = make_session_factory(engine)
 
-    async def create_dataset(
+    async def create_evaluation(
         self,
         *,
-        dataset_id: str,
+        evaluation_id: str,
         name: str,
         version: str,
         team_id: str,
@@ -32,9 +32,9 @@ class DatasetStore:
         completeness: str,
         cases_json: str,
         session: AsyncSession | None = None,
-    ) -> EvaluationDatasetRow:
-        row = EvaluationDatasetRow(
-            dataset_id=dataset_id,
+    ) -> EvaluationRow:
+        row = EvaluationRow(
+            dataset_id=evaluation_id,
             name=name,
             version=version,
             team_id=team_id,
@@ -49,13 +49,13 @@ class DatasetStore:
             s.add(row)
         return row
 
-    async def get_dataset(
+    async def get_evaluation(
         self,
-        dataset_id: str,
+        evaluation_id: str,
         session: AsyncSession | None = None,
-    ) -> EvaluationDatasetRow | None:
+    ) -> EvaluationRow | None:
         async with use_session(self._sessions, session) as s:
-            return await s.get(EvaluationDatasetRow, dataset_id)
+            return await s.get(EvaluationRow, evaluation_id)
 
     async def get_latest_version_number(
         self,
@@ -72,9 +72,9 @@ class DatasetStore:
             versions = (
                 (
                     await s.execute(
-                        select(EvaluationDatasetRow.version).where(
-                            EvaluationDatasetRow.team_id == team_id,
-                            EvaluationDatasetRow.name == name,
+                        select(EvaluationRow.version).where(
+                            EvaluationRow.team_id == team_id,
+                            EvaluationRow.name == name,
                         )
                     )
                 )
@@ -89,30 +89,30 @@ class DatasetStore:
                 continue
         return max(numbers, default=0)
 
-    async def delete_dataset(
+    async def delete_evaluation(
         self,
-        dataset_id: str,
+        evaluation_id: str,
         session: AsyncSession | None = None,
     ) -> bool:
         async with use_session(self._sessions, session) as s:
-            row = await s.get(EvaluationDatasetRow, dataset_id)
+            row = await s.get(EvaluationRow, evaluation_id)
             if row is None:
                 return False
             await s.delete(row)
         return True
 
-    async def list_datasets_by_team(
+    async def list_evaluations_by_team(
         self,
         team_id: str,
         session: AsyncSession | None = None,
-    ) -> list[EvaluationDatasetRow]:
+    ) -> list[EvaluationRow]:
         async with use_session(self._sessions, session) as s:
             rows = (
                 (
                     await s.execute(
-                        select(EvaluationDatasetRow)
-                        .where(EvaluationDatasetRow.team_id == team_id)
-                        .order_by(EvaluationDatasetRow.created_at.desc())
+                        select(EvaluationRow)
+                        .where(EvaluationRow.team_id == team_id)
+                        .order_by(EvaluationRow.created_at.desc())
                     )
                 )
                 .scalars()
@@ -120,20 +120,20 @@ class DatasetStore:
             )
         return list(rows)
 
-    async def get_datasets_by_ids(
+    async def get_evaluations_by_ids(
         self,
-        dataset_ids: list[str],
+        evaluation_ids: list[str],
         session: AsyncSession | None = None,
-    ) -> dict[str, EvaluationDatasetRow]:
+    ) -> dict[str, EvaluationRow]:
         """Batch lookup for campaign-list rendering — avoids one query per campaign."""
-        if not dataset_ids:
+        if not evaluation_ids:
             return {}
         async with use_session(self._sessions, session) as s:
             rows = (
                 (
                     await s.execute(
-                        select(EvaluationDatasetRow).where(
-                            EvaluationDatasetRow.dataset_id.in_(set(dataset_ids))
+                        select(EvaluationRow).where(
+                            EvaluationRow.dataset_id.in_(set(evaluation_ids))
                         )
                     )
                 )
@@ -141,3 +141,6 @@ class DatasetStore:
                 .all()
             )
         return {row.dataset_id: row for row in rows}
+
+
+DatasetStore = EvaluationStore

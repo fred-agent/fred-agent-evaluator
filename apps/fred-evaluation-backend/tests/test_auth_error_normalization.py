@@ -26,7 +26,7 @@ from pytest import MonkeyPatch
 
 from fred_evaluation_backend.campaigns.api import (
     _get_control_plane_client,
-    _get_dataset_store,
+    _get_evaluation_catalog_store,
     _get_evaluation_store,
     build_evaluations_router,
 )
@@ -50,10 +50,10 @@ class _FakeStore:
         return None
 
 
-class _FakeDatasetStore:
-    async def get_dataset(self, dataset_id: str) -> object:
+class _FakeEvaluationStore:
+    async def get_evaluation(self, evaluation_id: str) -> object:
         return SimpleNamespace(
-            dataset_id=dataset_id,
+            dataset_id=evaluation_id,
             team_id="team-1",
             name="ds1",
             version="v1",
@@ -85,7 +85,9 @@ def _build_app(
     # get_current_user's own sub-dependency — unrelated to what's under test here.
     app.dependency_overrides[get_user_store] = lambda: None
     app.dependency_overrides[_get_evaluation_store] = lambda: _FakeStore()
-    app.dependency_overrides[_get_dataset_store] = lambda: _FakeDatasetStore()
+    app.dependency_overrides[_get_evaluation_catalog_store] = (
+        lambda: _FakeEvaluationStore()
+    )
     app.dependency_overrides[_get_control_plane_client] = lambda: (
         _UnreachedControlPlaneClient()
     )

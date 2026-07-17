@@ -1,9 +1,9 @@
-"""SQLAlchemy tables for the dataset domain.
+"""SQLAlchemy tables for the evaluation catalog domain.
 
 Two tables, mirroring the RFC's two persisted models:
 
 - ``question_set``       — capture + curation (mutable)
-- ``evaluation_dataset`` — frozen, versioned dataset consumed by campaigns
+- ``evaluation_dataset`` — frozen, versioned evaluation consumed by runs
 
 Persistence rule (RFC §8): typed columns for everything we filter/sort/index;
 a single Text column (JSON-serialized) for the nested/variable lists, whose shape
@@ -48,7 +48,7 @@ class QuestionSetRow(Base):
     )
 
 
-class EvaluationDatasetRow(Base):
+class EvaluationRow(Base):
     __tablename__ = "evaluation_dataset"
 
     dataset_id: Mapped[str] = mapped_column(String, primary_key=True)
@@ -64,3 +64,6 @@ class EvaluationDatasetRow(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=utcnow
     )
+
+
+EvaluationDatasetRow = EvaluationRow

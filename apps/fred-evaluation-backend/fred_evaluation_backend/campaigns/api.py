@@ -29,7 +29,7 @@ from fred_evaluation_backend.execution.analysis_client import (
     CaseMetricDetail,
 )
 from fred_evaluation_backend.campaigns.store import RunStore
-from fred_evaluation_backend.datasets.store import DatasetStore
+from fred_evaluation_backend.datasets.store import EvaluationStore
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
 from fred_evaluation_backend.execution.evaluator_errors import (
     EvaluatorErrorResponse,
@@ -54,9 +54,9 @@ def _get_evaluation_store(request: Request) -> RunStore:
     return RunStore(engine)
 
 
-def _get_dataset_store(request: Request) -> DatasetStore:
+def _get_evaluation_catalog_store(request: Request) -> EvaluationStore:
     engine: AsyncEngine = request.app.state.db_engine
-    return DatasetStore(engine)
+    return EvaluationStore(engine)
 
 
 def _get_control_plane_client(request: Request) -> ControlPlaneClient:
@@ -118,7 +118,9 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         request: Request,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[RunStore, Depends(_get_evaluation_store)],
-        dataset_store: Annotated[DatasetStore, Depends(_get_dataset_store)],
+        evaluation_store: Annotated[
+            EvaluationStore, Depends(_get_evaluation_catalog_store)
+        ],
         cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> RunCreatedResponse:
         configuration = request.app.dependency_overrides.get(get_config, get_config)()
@@ -131,7 +133,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
             target=body.target,
             created_by=user.uid,
             store=store,
-            dataset_store=dataset_store,
+            evaluation_store=evaluation_store,
             control_plane_client=cp_client,
             auth=auth,
             profile=service._DEFAULT_PROFILE,

@@ -1,9 +1,9 @@
-"""Pydantic domain models for the dataset domain.
+"""Pydantic domain models for the evaluation catalog domain.
 
 Three concepts, two persisted models (see docs/rfc/EVAL-DATASET-RFC.md §6 P1):
 
 - ``QuestionSet`` — capture + curation, mutable (``captured → scoring → curated``).
-- ``EvaluationDataset`` — frozen, versioned; the input contract to campaigns.
+- ``Evaluation`` — frozen, versioned; the input contract to runs.
 
 ``LLMTestCase`` is owned by DeepEval and never persisted — it is an ephemeral
 projection built at scoring time, so it does not live here.
@@ -30,12 +30,12 @@ class QuestionSetStatus(str, Enum):
     curated = "curated"  # triage done, ready to promote
 
 
-class DatasetCompleteness(str, Enum):
+class EvaluationCompleteness(str, Enum):
     minimal = "minimal"  # input only → reference-free metrics
     complete = "complete"  # input + expected_output → all metrics
 
 
-DatasetOrigin = Literal["capture", "upload", "manual"]
+EvaluationOrigin = Literal["capture", "upload", "manual"]
 
 
 # ── Model A — QuestionSet (capture + curation) ────────────────────────────────
@@ -81,7 +81,7 @@ class QuestionSet(BaseModel):
 # ── Model B — EvaluationDataset (frozen, versioned) ───────────────────────────
 
 
-class DatasetCase(BaseModel):
+class EvaluationCase(BaseModel):
     external_id: str | None = None
     input: str
     expected_output: str | None = None
@@ -91,45 +91,45 @@ class DatasetCase(BaseModel):
     source_session_id: str | None = None
 
 
-class EvaluationDataset(BaseModel):
+class Evaluation(BaseModel):
     schema_version: Literal["2"] = "2"
-    dataset_id: str
+    evaluation_id: str
     name: str
     version: str  # immutable; a new curation produces a new version
     team_id: str
     created_by: str
-    origin: DatasetOrigin
+    origin: EvaluationOrigin
     source_question_set_id: str | None = None  # link to the originating QuestionSet
     # derived: minimal as soon as one case lacks expected_output (see validator)
-    completeness: DatasetCompleteness = DatasetCompleteness.minimal
-    cases: list[DatasetCase] = Field(default_factory=list)
+    completeness: EvaluationCompleteness = EvaluationCompleteness.minimal
+    cases: list[EvaluationCase] = Field(default_factory=list)
     created_at: datetime
 
     @model_validator(mode="after")
-    def _derive_completeness(self) -> EvaluationDataset:
+    def _derive_completeness(self) -> Evaluation:
         """`completeness` is always derived from the cases, never trusted as input.
 
         complete only if every case has an expected_output; minimal otherwise
         (including the empty case list).
         """
         self.completeness = (
-            DatasetCompleteness.complete
+            EvaluationCompleteness.complete
             if self.cases and all(c.expected_output for c in self.cases)
-            else DatasetCompleteness.minimal
+            else EvaluationCompleteness.minimal
         )
         return self
 
 
 # ── EVAL-04 API surface — direct creation (no capture/curation pipeline) ──────
 #
-# A second, minimal path to `EvaluationDataset`, alongside the still-unbuilt
+# A second, minimal path to `Evaluation`, alongside the still-unbuilt
 # QuestionSet capture -> curate -> :promote pipeline (RFC §7-10). See
 # docs/rfc/EVAL-DATASET-RFC.md §12 amendment (2026-07-16).
 
 _MAX_DATASET_CASES = 200
 
 
-class CreateDatasetRequest(BaseModel):
+class CreateEvaluationRequest(BaseModel):
     team_id: str
     # EVAL-05: user-supplied name — the primary identity in the grouped list and the
     # version key. Re-importing the same name in the same team creates a new version
@@ -139,11 +139,11 @@ class CreateDatasetRequest(BaseModel):
     origin: Literal["upload", "manual"]
     # Legacy: kept only so existing callers don't break. No longer used for naming.
     source_filename: str | None = None
-    cases: list[DatasetCase] = Field(min_length=1, max_length=_MAX_DATASET_CASES)
+    cases: list[EvaluationCase] = Field(min_length=1, max_length=_MAX_DATASET_CASES)
 
 
-class DatasetSummaryResponse(BaseModel):
-    dataset_id: str
+class EvaluationSummaryResponse(BaseModel):
+    evaluation_id: str
     name: str
     version: str
     # EVAL-05: a self-contained evaluation carries its own identity — id, version, and
@@ -151,16 +151,26 @@ class DatasetSummaryResponse(BaseModel):
     # surfaced under a format-facing name so the evaluation is self-describing on export.
     author: str
     team_id: str
-    origin: DatasetOrigin
-    completeness: DatasetCompleteness
+    origin: EvaluationOrigin
+    completeness: EvaluationCompleteness
     case_count: int
     created_at: datetime
 
 
-class DatasetDetailResponse(DatasetSummaryResponse):
-    cases: list[DatasetCase]
+class EvaluationDetailResponse(EvaluationSummaryResponse):
+    cases: list[EvaluationCase]
 
 
-class DatasetListResponse(BaseModel):
-    datasets: list[DatasetSummaryResponse]
+class EvaluationListResponse(BaseModel):
+    evaluations: list[EvaluationSummaryResponse]
     total: int
+
+
+DatasetCompleteness = EvaluationCompleteness
+DatasetOrigin = EvaluationOrigin
+DatasetCase = EvaluationCase
+EvaluationDataset = Evaluation
+CreateDatasetRequest = CreateEvaluationRequest
+DatasetSummaryResponse = EvaluationSummaryResponse
+DatasetDetailResponse = EvaluationDetailResponse
+DatasetListResponse = EvaluationListResponse

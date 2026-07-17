@@ -1,8 +1,8 @@
-"""POST/GET /evaluation/v1/datasets — EVAL-04 first release.
+"""POST/GET /evaluation/v1/evaluations — evaluation catalog surface.
 
 Drives the real FastAPI route (`datasets/api.py` -> `datasets/service.py`) over
 an in-process ASGI transport (no sockets, no real DB, no Temporal). The
-`DatasetStore` is faked with a plain in-memory dict so persistence assertions
+`EvaluationStore` is faked with a plain in-memory dict so persistence assertions
 don't depend on a live Postgres; the Control Plane client is faked so
 team-membership checks are deterministic.
 """
@@ -19,29 +19,29 @@ from fred_core import KeycloakUser, get_config, get_current_user
 
 from fred_evaluation_backend.datasets.api import (
     _get_control_plane_client,
-    _get_dataset_store,
-    build_datasets_router,
+    _get_evaluation_catalog_store,
+    build_evaluation_catalog_router,
 )
 from fred_evaluation_backend.execution.evaluator_errors import (
     normalize_unstructured_auth_error,
 )
 
 
-class _InMemoryDatasetStore:
+class _InMemoryEvaluationStore:
     """Real create/list/get semantics, backed by a dict instead of Postgres."""
 
     def __init__(self) -> None:
         self.rows: dict[str, SimpleNamespace] = {}
 
-    async def create_dataset(self, **kwargs):
+    async def create_evaluation(self, **kwargs):
         row = SimpleNamespace(created_at=datetime.now(timezone.utc), **kwargs)
-        self.rows[kwargs["dataset_id"]] = row
+        self.rows[kwargs["evaluation_id"]] = row
         return row
 
-    async def get_dataset(self, dataset_id: str):
-        return self.rows.get(dataset_id)
+    async def get_evaluation(self, evaluation_id: str):
+        return self.rows.get(evaluation_id)
 
-    async def list_datasets_by_team(self, team_id: str):
+    async def list_evaluations_by_team(self, team_id: str):
         return [row for row in self.rows.values() if row.team_id == team_id]
 
     async def get_latest_version_number(self, team_id: str, name: str) -> int:
@@ -63,9 +63,9 @@ class _NonMemberControlPlaneClient:
         return SimpleNamespace(team_id=team_id, is_member=False)
 
 
-def _build_app(*, cp_client, store: _InMemoryDatasetStore | None = None) -> FastAPI:
+def _build_app(*, cp_client, store: _InMemoryEvaluationStore | None = None) -> FastAPI:
     app = FastAPI()
-    app.include_router(build_datasets_router())
+    app.include_router(build_evaluation_catalog_router())
     app.add_exception_handler(HTTPException, normalize_unstructured_auth_error)
     app.dependency_overrides[get_current_user] = lambda: KeycloakUser(
         uid="alice", username="alice", roles=[], email="alice@test.example"
@@ -73,26 +73,24 @@ def _build_app(*, cp_client, store: _InMemoryDatasetStore | None = None) -> Fast
     app.dependency_overrides[get_config] = lambda: SimpleNamespace(
         security=SimpleNamespace(user=SimpleNamespace(enabled=True))
     )
-    app.dependency_overrides[_get_dataset_store] = lambda: (
-        store or _InMemoryDatasetStore()
+    app.dependency_overrides[_get_evaluation_catalog_store] = lambda: (
+        store or _InMemoryEvaluationStore()
     )
     app.dependency_overrides[_get_control_plane_client] = lambda: cp_client
     return app
 
 
 @pytest.mark.asyncio
-async def test_dataset_created_via_post_persists_independently_of_any_campaign() -> (
+async def test_evaluation_created_via_post_persists_independently_of_any_run() -> (
     None
 ):
-    """Requirement (1): a dataset created through POST /datasets is a
-    standalone resource — nothing about its persistence depends on a campaign
-    ever being created against it."""
-    store = _InMemoryDatasetStore()
+    """A created evaluation is standalone; it does not depend on a run to exist."""
+    store = _InMemoryEvaluationStore()
     app = _build_app(cp_client=_MemberControlPlaneClient(), store=store)
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         create_resp = await client.post(
-            "/datasets",
+            "/evaluations",
             json={
                 "team_id": "team-1",
                 "name": "usage-arxivai",
@@ -102,18 +100,18 @@ async def test_dataset_created_via_post_persists_independently_of_any_campaign()
             headers={"Authorization": "Bearer alice-token"},
         )
         assert create_resp.status_code == 201
-        dataset_id = create_resp.json()["dataset_id"]
+        evaluation_id = create_resp.json()["evaluation_id"]
 
         list_resp = await client.get(
-            "/datasets",
+            "/evaluations",
             params={"team_id": "team-1"},
             headers={"Authorization": "Bearer alice-token"},
         )
 
     assert list_resp.status_code == 200
-    ids = [d["dataset_id"] for d in list_resp.json()["datasets"]]
-    assert dataset_id in ids
-    assert dataset_id in store.rows  # persisted, not just echoed back
+    ids = [d["evaluation_id"] for d in list_resp.json()["evaluations"]]
+    assert evaluation_id in ids
+    assert evaluation_id in store.rows  # persisted, not just echoed back
 
 
 @pytest.mark.asyncio
@@ -124,7 +122,7 @@ async def test_name_is_user_supplied_and_first_import_is_v1() -> None:
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
-            "/datasets",
+            "/evaluations",
             json={
                 "team_id": "team-1",
                 "name": "golden-set",
@@ -152,7 +150,7 @@ async def test_name_is_user_supplied_and_first_import_is_v1() -> None:
 async def test_reimporting_same_name_creates_next_version_and_new_id() -> None:
     """EVAL-05 (§8.5): re-importing the same name in the same team creates v2, a
     distinct row with its own id. Different name stays at v1."""
-    store = _InMemoryDatasetStore()
+    store = _InMemoryEvaluationStore()
     app = _build_app(cp_client=_MemberControlPlaneClient(), store=store)
     transport = httpx.ASGITransport(app=app)
 
@@ -161,7 +159,7 @@ async def test_reimporting_same_name_creates_next_version_and_new_id() -> None:
             transport=transport, base_url="http://test"
         ) as client:
             resp = await client.post(
-                "/datasets",
+                "/evaluations",
                 json={
                     "team_id": "team-1",
                     "name": name,
@@ -179,7 +177,7 @@ async def test_reimporting_same_name_creates_next_version_and_new_id() -> None:
 
     assert first["version"] == "v1"
     assert second["version"] == "v2"  # same name -> next version
-    assert second["dataset_id"] != first["dataset_id"]  # its own row (lecture A)
+    assert second["evaluation_id"] != first["evaluation_id"]  # its own row
     assert other["version"] == "v1"  # a different name is independent
 
 
@@ -189,7 +187,7 @@ async def test_non_member_cannot_create_or_list_team_datasets() -> None:
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         create_resp = await client.post(
-            "/datasets",
+            "/evaluations",
             json={
                 "team_id": "team-1",
                 "name": "x",
@@ -199,7 +197,7 @@ async def test_non_member_cannot_create_or_list_team_datasets() -> None:
             headers={"Authorization": "Bearer alice-token"},
         )
         list_resp = await client.get(
-            "/datasets",
+            "/evaluations",
             params={"team_id": "team-1"},
             headers={"Authorization": "Bearer alice-token"},
         )
