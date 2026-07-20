@@ -22,14 +22,14 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from fred_evaluation_backend.evaluations import models as _ds_models  # noqa: F401
+from fred_evaluation_backend.evaluations.store import EvaluationStore
+from fred_evaluation_backend.execution.outbound_auth import NoAuthentication
 from fred_evaluation_backend.runs import models as _run_models  # noqa: F401
 from fred_evaluation_backend.runs import service
 from fred_evaluation_backend.runs.base import Base
 from fred_evaluation_backend.runs.schemas import ManagedInstanceTarget
 from fred_evaluation_backend.runs.store import RunStore
-from fred_evaluation_backend.evaluations import models as _ds_models  # noqa: F401
-from fred_evaluation_backend.evaluations.store import EvaluationStore
-from fred_evaluation_backend.execution.outbound_auth import NoAuthentication
 
 
 class _FakeControlPlane:

@@ -7,12 +7,12 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from fred_evaluation_backend.runs.store import RunStore
 from fred_evaluation_backend.config.models import EvaluationConfig
 from fred_evaluation_backend.execution.agent_client import AgentClient
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
 from fred_evaluation_backend.execution.outbound_auth import ServiceAuthentication
 from fred_evaluation_backend.model.factory import build_judge_model
+from fred_evaluation_backend.runs.store import RunStore
 from fred_evaluation_backend.workers.activities import execute_and_score_case
 
 logger = logging.getLogger(__name__)

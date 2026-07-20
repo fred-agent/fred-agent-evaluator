@@ -6,8 +6,8 @@ import logging
 from fred_core import M2MTokenProvider
 from opentelemetry.trace import Status, StatusCode
 
-from fred_evaluation_backend.runs.store import RunStore
 from fred_evaluation_backend.execution.agent_client import AgentClient
+from fred_evaluation_backend.runs.store import RunStore
 from fred_evaluation_backend.telemetry.otel import get_tracer
 
 logger = logging.getLogger(__name__)

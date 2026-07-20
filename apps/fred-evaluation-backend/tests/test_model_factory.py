@@ -13,8 +13,8 @@ import types
 from unittest.mock import MagicMock
 
 import pytest
-
 from fred_core.common import ModelConfiguration
+
 from fred_evaluation_backend.model.factory import build_judge_model
 
 
@@ -51,7 +51,9 @@ def test_vertex_ai_is_keyless_and_prefixes_model(monkeypatch):
 
 def test_vertex_alias_preserves_existing_prefix(monkeypatch):
     litellm_model = _stub_deepeval(monkeypatch)
-    build_judge_model(ModelConfiguration(provider="vertex", name="vertex_ai/gemini-2.5-pro"))
+    build_judge_model(
+        ModelConfiguration(provider="vertex", name="vertex_ai/gemini-2.5-pro")
+    )
     assert litellm_model.call_args.kwargs["model"] == "vertex_ai/gemini-2.5-pro"
 
 

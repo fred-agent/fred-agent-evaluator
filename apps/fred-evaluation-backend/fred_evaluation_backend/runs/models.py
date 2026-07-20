@@ -5,8 +5,6 @@ from datetime import datetime
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from fred_evaluation_backend.runs.base import Base, utcnow
-
 # EvaluationRunRow.evaluation_id below is a string-based ForeignKey("evaluation.evaluation_id")
 # — SQLAlchemy resolves that lazily by looking up the "evaluation" table name on
 # Base.metadata, which only exists once evaluations.models (declaring EvaluationRow)
@@ -17,7 +15,10 @@ from fred_evaluation_backend.runs.base import Base, utcnow
 # here — where the FK is declared — guarantees the referenced table is always
 # registered before any FK resolution can be needed, regardless of which activity
 # happens to run first.
-from fred_evaluation_backend.evaluations import models as _evaluations_models  # noqa: F401
+from fred_evaluation_backend.evaluations import (
+    models as _evaluations_models,  # noqa: F401
+)
+from fred_evaluation_backend.runs.base import Base, utcnow
 
 
 class EvaluationCaseRow(Base):

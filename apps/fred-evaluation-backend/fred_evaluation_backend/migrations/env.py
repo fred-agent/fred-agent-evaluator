@@ -5,11 +5,10 @@ from logging.config import fileConfig
 from alembic import context
 from fred_core.sql import make_alembic_env
 
-from fred_evaluation_backend.runs.base import Base
-import fred_evaluation_backend.runs.models  # noqa: F401
 import fred_evaluation_backend.evaluations.models  # noqa: F401
-
+import fred_evaluation_backend.runs.models  # noqa: F401
 from fred_evaluation_backend.config.loader import load_configuration
+from fred_evaluation_backend.runs.base import Base
 
 config = context.config
 

@@ -4,11 +4,12 @@ import argparse
 import json
 import os
 
-from fred_deepeval_cli.core.models import EvaluationCaseRequest
+from dotenv import load_dotenv
+
+from fred_deepeval_cli.cli.display import render_score
 from fred_deepeval_cli.core.evaluator import evaluate_case_sync
 from fred_deepeval_cli.core.judge_factory import build_judge
-from fred_deepeval_cli.cli.display import render_score
-from dotenv import load_dotenv
+from fred_deepeval_cli.core.models import EvaluationCaseRequest
 
 dotenv_path = os.getenv("ENV_FILE", "./config/.env")
 load_dotenv(dotenv_path)

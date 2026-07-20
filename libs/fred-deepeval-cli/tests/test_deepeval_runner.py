@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from fred_deepeval_cli.core.scorer import score_trace
 from fred_deepeval_cli.test_helpers import make_trace

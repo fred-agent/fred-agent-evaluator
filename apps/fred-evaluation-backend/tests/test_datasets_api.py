@@ -81,9 +81,7 @@ def _build_app(*, cp_client, store: _InMemoryEvaluationStore | None = None) -> F
 
 
 @pytest.mark.asyncio
-async def test_evaluation_created_via_post_persists_independently_of_any_run() -> (
-    None
-):
+async def test_evaluation_created_via_post_persists_independently_of_any_run() -> None:
     """A created evaluation is standalone; it does not depend on a run to exist."""
     store = _InMemoryEvaluationStore()
     app = _build_app(cp_client=_MemberControlPlaneClient(), store=store)

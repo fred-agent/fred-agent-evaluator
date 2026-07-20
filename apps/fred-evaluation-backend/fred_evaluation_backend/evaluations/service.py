@@ -40,7 +40,9 @@ async def create_evaluation(
 
     created_at = _utcnow()
     evaluation_id = f"eval-{uuid4().hex[:8]}"
-    next_number = await store.get_latest_version_number(request.team_id, request.name) + 1
+    next_number = (
+        await store.get_latest_version_number(request.team_id, request.name) + 1
+    )
     version = f"v{next_number}"
 
     domain_evaluation = Evaluation(

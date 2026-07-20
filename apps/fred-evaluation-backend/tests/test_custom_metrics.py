@@ -16,9 +16,8 @@ from __future__ import annotations
 import json
 
 import pytest
-from pydantic import ValidationError
-
 from fred_deepeval_cli.core.models import CustomMetricSpec
+from pydantic import ValidationError
 
 
 def _spec() -> CustomMetricSpec:

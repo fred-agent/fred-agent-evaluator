@@ -7,9 +7,8 @@ Create Date: 2026-07-17 12:30:00.000000
 
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 revision: str = "20260717_01"
 down_revision: Union[str, Sequence[str], None] = None
@@ -87,7 +86,9 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("run_id"),
     )
     op.create_index("ix_evaluation_run_created_by", "evaluation_run", ["created_by"])
-    op.create_index("ix_evaluation_run_evaluation_id", "evaluation_run", ["evaluation_id"])
+    op.create_index(
+        "ix_evaluation_run_evaluation_id", "evaluation_run", ["evaluation_id"]
+    )
     op.create_index("ix_evaluation_run_task_id", "evaluation_run", ["task_id"])
     op.create_index("ix_evaluation_run_team_id", "evaluation_run", ["team_id"])
 
@@ -133,8 +134,12 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["run_id"], ["evaluation_run.run_id"]),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_evaluation_metric_result_case_id", "evaluation_metric_result", ["case_id"])
-    op.create_index("ix_evaluation_metric_result_run_id", "evaluation_metric_result", ["run_id"])
+    op.create_index(
+        "ix_evaluation_metric_result_case_id", "evaluation_metric_result", ["case_id"]
+    )
+    op.create_index(
+        "ix_evaluation_metric_result_run_id", "evaluation_metric_result", ["run_id"]
+    )
 
     op.create_table(
         "evaluation_event",
@@ -169,12 +174,18 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_evaluation_export_delivery_run_id", table_name="evaluation_export_delivery")
+    op.drop_index(
+        "ix_evaluation_export_delivery_run_id", table_name="evaluation_export_delivery"
+    )
     op.drop_table("evaluation_export_delivery")
     op.drop_index("ix_evaluation_event_run_id", table_name="evaluation_event")
     op.drop_table("evaluation_event")
-    op.drop_index("ix_evaluation_metric_result_run_id", table_name="evaluation_metric_result")
-    op.drop_index("ix_evaluation_metric_result_case_id", table_name="evaluation_metric_result")
+    op.drop_index(
+        "ix_evaluation_metric_result_run_id", table_name="evaluation_metric_result"
+    )
+    op.drop_index(
+        "ix_evaluation_metric_result_case_id", table_name="evaluation_metric_result"
+    )
     op.drop_table("evaluation_metric_result")
     op.drop_index("ix_evaluation_case_run_id", table_name="evaluation_case")
     op.drop_table("evaluation_case")

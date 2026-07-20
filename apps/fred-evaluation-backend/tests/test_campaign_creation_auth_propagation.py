@@ -17,12 +17,6 @@ import pytest
 from fastapi import FastAPI, HTTPException
 from fred_core import KeycloakUser, get_config, get_current_user
 
-from fred_evaluation_backend.runs.api import (
-    _get_control_plane_client,
-    _get_evaluation_catalog_store,
-    _get_run_store,
-    build_evaluations_router,
-)
 from fred_evaluation_backend.execution.evaluator_errors import (
     normalize_unstructured_auth_error,
 )
@@ -30,6 +24,12 @@ from fred_evaluation_backend.execution.outbound_auth import (
     NoAuthentication,
     ServiceAuthentication,
     UserAuthentication,
+)
+from fred_evaluation_backend.runs.api import (
+    _get_control_plane_client,
+    _get_evaluation_catalog_store,
+    _get_run_store,
+    build_evaluations_router,
 )
 
 EVALUATION_ID = "eval-1"
@@ -307,7 +307,9 @@ async def test_unknown_evaluation_id_is_rejected_the_same_way_as_cross_team() ->
     cp_client = _RecordingControlPlaneClient()
     empty_evaluation_store = _FakeEvaluationStore(rows={})
     app = _build_app(
-        security_enabled=True, cp_client=cp_client, evaluation_store=empty_evaluation_store
+        security_enabled=True,
+        cp_client=cp_client,
+        evaluation_store=empty_evaluation_store,
     )
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:

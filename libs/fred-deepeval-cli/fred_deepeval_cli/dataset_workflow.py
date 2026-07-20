@@ -4,12 +4,12 @@ from datetime import timedelta
 
 from temporalio import activity, workflow
 from temporalio.client import Client
-from temporalio.worker import Worker, UnsandboxedWorkflowRunner
 from temporalio.testing import WorkflowEnvironment
+from temporalio.worker import UnsandboxedWorkflowRunner, Worker
 
-from fred_deepeval_cli.core.models import EvaluationCaseRequest
 from fred_deepeval_cli.core.evaluator import evaluate_case_sync
 from fred_deepeval_cli.core.judge_factory import build_judge
+from fred_deepeval_cli.core.models import EvaluationCaseRequest
 
 
 @activity.defn

@@ -5,7 +5,6 @@ from pathlib import Path
 
 from fred_deepeval_cli.core.evaluator import classify_outcome
 
-
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 

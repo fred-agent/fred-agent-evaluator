@@ -172,6 +172,8 @@ def map_control_plane_error(
             code=mapping.code, message=mapping.message
         ).model_dump(),
     )
+
+
 def evaluation_not_found_error() -> HTTPException:
     """The selected evaluation does not exist for the caller's team."""
     return HTTPException(

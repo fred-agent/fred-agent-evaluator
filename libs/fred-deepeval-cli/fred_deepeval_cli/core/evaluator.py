@@ -7,8 +7,8 @@ from fred_deepeval_cli.core.models import (
     EvaluationCaseResult,
 )
 from fred_deepeval_cli.core.profiles import resolve_profile
-from fred_deepeval_cli.core.structural_checks import build_structural_checks
 from fred_deepeval_cli.core.scorer import score_trace
+from fred_deepeval_cli.core.structural_checks import build_structural_checks
 
 
 def classify_outcome(trace: dict) -> str:

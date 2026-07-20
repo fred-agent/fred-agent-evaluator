@@ -39,7 +39,9 @@ def test_evaluator_error_response_schema_wraps_detail():
 
 def test_documented_error_statuses_reference_the_envelope_not_the_bare_detail():
     schema = _openapi()
-    responses = schema["paths"]["/evaluations/{evaluation_id}/runs"]["post"]["responses"]
+    responses = schema["paths"]["/evaluations/{evaluation_id}/runs"]["post"][
+        "responses"
+    ]
 
     for status in ("401", "403", "404", "502", "503"):
         content_schema = responses[status]["content"]["application/json"]["schema"]
@@ -48,6 +50,8 @@ def test_documented_error_statuses_reference_the_envelope_not_the_bare_detail():
 
 def test_422_documents_both_possible_bodies_via_one_of():
     schema = _openapi()
-    responses = schema["paths"]["/evaluations/{evaluation_id}/runs"]["post"]["responses"]
+    responses = schema["paths"]["/evaluations/{evaluation_id}/runs"]["post"][
+        "responses"
+    ]
     content_schema = responses["422"]["content"]["application/json"]["schema"]
     assert content_schema["$ref"] == "#/components/schemas/EvaluatorErrorResponse"

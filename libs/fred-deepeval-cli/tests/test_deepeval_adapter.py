@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from fred_deepeval_cli.test_helpers import make_trace
 from fred_deepeval_cli.core.scorer import _trace_to_test_case
+from fred_deepeval_cli.test_helpers import make_trace
 
 
 def test_trace_to_test_case_maps_input_output_and_retrieval_context() -> None:

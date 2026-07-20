@@ -14,8 +14,8 @@ from pathlib import Path
 
 import yaml
 
-from fred_evaluation_backend.config.models import EvaluationConfig
 from fred_evaluation_backend.config.loader import load_configuration
+from fred_evaluation_backend.config.models import EvaluationConfig
 from fred_evaluation_backend.execution.auth import build_m2m_token_provider
 
 _CONFIG_DIR = Path(__file__).resolve().parents[1] / "config"

@@ -8,11 +8,11 @@ from fred_core.logs.null_log_store import NullLogStore
 from fred_core.scheduler import SchedulerBackend
 from fred_core.sql import create_async_engine_from_config
 
-from fred_evaluation_backend.runs.store import RunStore
 from fred_evaluation_backend.config.loader import load_configuration
 from fred_evaluation_backend.execution.agent_client import AgentClient
 from fred_evaluation_backend.execution.auth import build_m2m_token_provider
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
+from fred_evaluation_backend.runs.store import RunStore
 from fred_evaluation_backend.telemetry.otel import setup_otel
 from fred_evaluation_backend.workers.runner import RunRunner
 

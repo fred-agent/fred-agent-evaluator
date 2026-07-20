@@ -3,15 +3,16 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import uuid
 import os
+import uuid
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from fred_deepeval_cli.cli.display import console, render_campaign
-from fred_deepeval_cli.core.models import EvaluationCaseRequest
 from fred_deepeval_cli.core.evaluator import evaluate_case_sync
 from fred_deepeval_cli.core.judge_factory import build_judge
-from dotenv import load_dotenv
+from fred_deepeval_cli.core.models import EvaluationCaseRequest
 
 dotenv_path = os.getenv("ENV_FILE", "./config/.env")
 load_dotenv(dotenv_path)
