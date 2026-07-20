@@ -140,40 +140,42 @@ sans encore rédiger les réponses de référence.
 
 ---
 
-## Et ensuite ? — de votre fichier à l'évaluation
+## Et ensuite ? — de votre fichier aux résultats
 
-Deux étapes. D'abord **enregistrer** votre fichier comme dataset : il devient un objet de
-première classe, immuable, réutilisable pour de futures évaluations.
+Deux étapes, deux objets. D'abord **enregistrer** vos cas comme une **evaluation** : la
+définition immuable et versionnée. Vous la nommez ; le serveur attribue la version.
 
 ```jsonc
-POST /evaluation/v1/datasets         // → 201, renvoie dataset_id (+ name/version attribués par le serveur)
+POST /evaluation/v1/evaluations      // → 201, renvoie evaluation_id (+ version, completeness)
 {
   "team_id": "<votre équipe>",
+  "name": "ArxivAi — jeu analyste",
   "origin": "upload",
   "source_filename": "arxiv-ai-eval.json",
   "cases": [ /* … le contenu de votre fichier … */ ]
 }
 ```
 
-Puis le **référencer par son id** à la création de l'évaluation. Le serveur possède le
-nom, le profil de scoring, le juge et les valeurs par défaut de concurrence/timeout :
-vous ne choisissez que l'agent cible et le dataset.
+Puis démarrer un **run** : une exécution de cette evaluation contre un agent cible. Le
+serveur possède le profil de scoring, le juge et les valeurs par défaut de concurrence —
+vous ne choisissez que l'agent.
 
 ```jsonc
-POST /evaluation/v1/campaigns        // → 202, renvoie campaign_id + run_id
+POST /evaluation/v1/evaluations/{evaluation_id}/runs   // → 202, renvoie run_id
 {
   "team_id": "<votre équipe>",
-  "target": { "kind": "managed_instance", "agent_instance_id": "<instance>" },
-  "dataset_id": "<dataset_id renvoyé ci-dessus>"
+  "target": { "kind": "managed_instance", "agent_instance_id": "<instance>" }
 }
 ```
 
-- Depuis **EVAL-04**, la cible est uniquement une **instance d'agent managée** ; un
-  couple `runtime_id`/`agent_id` nu n'est plus accepté à la création.
+- **Evaluation vs run :** l'evaluation s'écrit une fois ; chaque exécution est un
+  nouveau run. Ré-exécuter n'écrase jamais les résultats précédents — c'est ainsi que
+  l'on compare deux versions d'un agent sur les mêmes questions.
+- La cible est uniquement une **instance d'agent managée** (EVAL-04) ; un couple
+  `runtime_id`/`agent_id` nu n'est plus accepté à la création.
 - Le mode RAG est détecté automatiquement dès que l'agent renvoie un contexte récupéré :
   vous n'avez rien à configurer côté métriques.
-- La suite (suivi temps réel, verdict, scores par cas) est décrite dans
-  [`evaluate-an-agent.md`](evaluate-an-agent.md).
+- Suivi et lecture des scores : [`evaluate-an-agent.md`](evaluate-an-agent.md).
 - Le contrat d'API complet (routes, statuts) est dans
   [`../DEVELOPER_CONTRACT.md`](../DEVELOPER_CONTRACT.md).
 

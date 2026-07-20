@@ -17,13 +17,13 @@ silently pick the wrong identity:
 
 | Component | Identity used | `OutboundAuth` variant |
 |---|---|---|
-| API (`main.py`, interactive `POST /campaigns`) | the caller's own bearer token, propagated verbatim | `UserAuthentication` (security enabled) / `NoAuthentication` (local dev, security disabled) |
+| API (`main.py`, interactive `POST /evaluations`, `POST /evaluations/{id}/runs`) | the caller's own bearer token, propagated verbatim | `UserAuthentication` (security enabled) / `NoAuthentication` (local dev, security disabled) |
 | Worker (`main_worker.py`, Temporal activities and the in-memory `CampaignRunner`) | the worker's own M2M service identity (`fred-evaluation-worker` Keycloak client) | `ServiceAuthentication` |
 
 Rules this enforces:
 
 - `main.py` never builds an M2M token provider — the API's `ControlPlaneClient` has none, so a call that (by mistake) requested `ServiceAuthentication` fails fast with `RuntimeError` instead of silently sending an unauthenticated or wrong-identity request.
-- The user's bearer token is **request-scoped only**. It lives in the `UserAuthentication` value passed to a single call — never on `ControlPlaneClient` (which only holds connection config + the worker's M2M provider), never in Temporal (`CampaignInput` carries only `campaign_id`), never in the `evaluation_campaign` table (which stores `created_by` + `team_id`, not a credential).
+- The user's bearer token is **request-scoped only**. It lives in the `UserAuthentication` value passed to a single call — never on `ControlPlaneClient` (which only holds connection config + the worker's M2M provider), never in Temporal (`RunInput` carries only `run_id`), never in the `evaluation_run` table (which stores `created_by` + `team_id`, not a credential).
 - A missing/malformed `Authorization` header fails closed with 401. That check is fred-core's own `get_current_user` dependency (resolved before any route body runs) — the evaluator normalizes its unstructured error into its own envelope (see below). With security disabled (local dev), the API explicitly uses `NoAuthentication` rather than falling back to the worker's M2M identity.
 
 ## Stable error codes and the one public envelope
@@ -66,7 +66,7 @@ and `managed_instance`, so codes describe the failure, not the target kind:
 | Control Plane 5xx / timeout / connection failure | 503 | `control_plane_unavailable` |
 | Malformed/unexpected 2xx upstream response | 502 | `control_plane_invalid_response` |
 
-Note: `POST /campaigns` itself can also return 422 for FastAPI's own request-body
+Note: the creation routes themselves can also return 422 for FastAPI's own request-body
 validation (malformed JSON payload) — a different body (`HTTPValidationError`).
 Both are documented on the same status via an OpenAPI `oneOf`.
 
@@ -78,36 +78,42 @@ never a bearer token or full `Authorization` header.
 
 Base URL : `/evaluation/v1`
 
-**Datasets are first-class, immutable resources** (`EVAL-04`, 2026-07-16). A
-dataset is created once (JSON upload or manual rows), never edited in place,
-and referenced by campaigns via `dataset_id`. Campaigns no longer accept an
-inline `dataset`/`cases` payload — that path was removed, not deprecated.
+**Deux ressources, deux rôles** — `evaluation` (la définition) et `run` (une
+exécution). Une **evaluation** est immuable : elle porte le nom, la version et
+les cas, créée une fois (upload JSON ou saisie manuelle), jamais éditée en
+place. Un **run** l'exécute contre une cible ; ré-exécuter crée un nouveau run
+sans écraser les résultats précédents. Il n'existe pas de payload `cases` en
+ligne à la création d'un run — les cas viennent toujours de l'evaluation.
 
 | Méthode | Route | Status | Description |
 |---|---|---|---|
-| POST | `/datasets` | 201 | Créer un dataset immuable (`origin: upload \| manual`); nom et version assignés par le serveur |
-| GET | `/datasets` | 200 | Lister (param: `team_id`) — id, nom, version, origin, complétude, nombre de cas, `created_at` |
-| POST | `/campaigns` | 202 | Créer une campagne — `{team_id, target, dataset_id}` uniquement. Cible **managed_instance uniquement** ce cycle (`runtime_agent` retiré de la création, conservé en lecture pour l'historique). Nom, profil, judge, métriques et concurrence sont fixés côté serveur. |
-| GET | `/campaigns` | 200 | Lister (param: `team_id`) |
-| GET | `/campaigns/{id}` | 200 | Détail + agrégats + résumé du dataset référencé |
-| GET | `/campaigns/{id}/cases` | 200 | Cas paginés (max 200) |
-| GET | `/campaigns/{id}/cases/{case_id}` | 200 | Détail d'un cas |
-| GET | `/campaigns/{id}/events` | 200 | SSE temps réel |
-| POST | `/campaigns/{id}/cancel` | 202 | Annuler |
-| DELETE | `/campaigns/{id}` | 204 | Supprimer (refusé si `operational_state == running`) |
-| POST | `/campaigns/{id}/analyze` | 200 | Analyse LLM du résultat, mise en cache |
+| POST | `/evaluations` | 201 | Créer une evaluation immuable — `{team_id, name, origin, cases}` (`origin: upload \| manual`, 1 à 200 cas). La version est assignée par le serveur ; le nom est fourni par l'appelant. |
+| GET | `/evaluations` | 200 | Lister (param: `team_id`) — id, nom, version, auteur, origin, complétude, nombre de cas, `created_at` |
+| POST | `/evaluations/{id}/runs` | 202 | Démarrer un run — `{team_id, target}` uniquement (`extra: forbid`). Cible **`managed_instance` uniquement** (`runtime_agent` retiré de la création, conservé en lecture pour l'historique). Profil, judge et concurrence sont fixés côté serveur et figés dans un `RunSnapshot`. |
+| GET | `/evaluations/{id}/runs` | 200 | Lister les runs d'une evaluation |
+| GET | `/runs/{run_id}` | 200 | Détail d'un run + agrégats |
+| GET | `/runs/{run_id}/cases` | 200 | Cas paginés |
+| GET | `/runs/{run_id}/cases/{case_id}` | 200 | Détail d'un cas |
+| GET | `/runs/{run_id}/events` | 200 | SSE temps réel |
+| POST | `/runs/{run_id}/cancel` | 202 | Annuler |
+| DELETE | `/runs/{run_id}` | 204 | Supprimer (refusé si `operational_state == running`) |
+| POST | `/runs/{run_id}/analyze` | 200 | Analyse LLM du résultat, mise en cache |
 | GET | `/telemetry` | 200 | Config Langfuse (activé/désactivé) |
-| GET | `/telemetry/session/{campaign_id}` | 200 | Lien de session Langfuse si disponible |
+| GET | `/telemetry/session/{run_id}` | 200 | Lien de session Langfuse si disponible |
 
-Il n'existe pas de `GET /datasets/{id}` ce cycle — la liste transporte déjà
-tout ce dont l'écran de sélection a besoin, et la création de campagne charge
-les cas du dataset côté serveur (pas via l'API publique).
+Le suivi de tâche asynchrone est exposé séparément : `GET /tasks`,
+`GET /tasks/{id}`, `GET /tasks/{id}/latest`, `GET /tasks/{id}/events` (SSE) et
+`POST /tasks/{id}/cancel`.
 
-Ce cycle **(EVAL-04, première version)** ne couvre que les campagnes sur agent
-managé (`managed_instance`). Sont volontairement différés : cible
-`runtime_agent` à la création, métriques personnalisées, sélection du profil
-judge, réglages de concurrence/timeout, CSV, et un écran de gestion des
-datasets indépendant de la création de campagne.
+Il n'existe pas de `GET /evaluations/{id}` ce cycle — la liste transporte déjà
+tout ce dont l'écran de sélection a besoin, et le démarrage d'un run charge les
+cas de l'evaluation côté serveur (pas via l'API publique).
+
+Ce cycle **(EVAL-04, première version)** ne couvre que les runs sur agent managé
+(`managed_instance`). Sont volontairement différés : cible `runtime_agent` à la
+création, métriques personnalisées, sélection du profil judge, réglages de
+concurrence/timeout, CSV, et un écran de gestion des evaluations indépendant du
+démarrage d'un run.
 
 ## Scoring profiles
 
@@ -117,7 +123,8 @@ datasets indépendant de la création de campagne.
 
 ## Format dataset JSON
 
-Format strict, unique, utilisé par `POST /datasets` (`origin: "upload"`) :
+Format strict, unique — la liste `cases` de `POST /evaluations`
+(`origin: "upload"`), 1 à 200 cas :
 
 ```json
 [
@@ -128,9 +135,13 @@ Format strict, unique, utilisé par `POST /datasets` (`origin: "upload"`) :
 ]
 ```
 
-`external_id` et `tags` restent acceptés (voir `DatasetCase`) mais ne sont pas
-requis. Pas de CSV. Un dataset créé manuellement (`origin: "manual"`) suit la
-même forme `DatasetCase`, saisie ligne par ligne côté UI.
+`external_id` et `tags` restent acceptés (voir `EvaluationCase`) mais ne sont
+pas requis. Pas de CSV. Une evaluation créée manuellement (`origin: "manual"`)
+suit la même forme `EvaluationCase`, saisie ligne par ligne côté UI.
+
+`completeness` est **dérivée** des cas, jamais acceptée en entrée : `complete`
+seulement si tous les cas ont un `expected_output`, `minimal` sinon. Guide
+analyste : [`guide/write-a-dataset.md`](guide/write-a-dataset.md).
 
 ## Commandes développeur
 

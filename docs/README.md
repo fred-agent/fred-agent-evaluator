@@ -31,7 +31,7 @@ agent knows how to search it. You want to measure its quality. Five steps:
 | 1 | Ingest the corpus into the team                        | Fred (Knowledge Flow)         | *Fred doc — outside this repo*                  |
 | 2 | Have a ReAct agent equipped with the search tool       | Fred (Agent Studio)           | *Fred doc — outside this repo*                  |
 | 3 | **Write the JSON dataset** (questions ± expected answers) | **here**                    | **[`guide/write-a-dataset.md`](guide/write-a-dataset.md)** ← *focus* |
-| 4 | Create a campaign targeting the agent                  | here (API `POST /campaigns`)  | [`guide/evaluate-an-agent.md`](guide/evaluate-an-agent.md) |
+| 4 | Start a run targeting the agent                        | here (API `POST /evaluations/{id}/runs`) | [`guide/evaluate-an-agent.md`](guide/evaluate-an-agent.md) |
 | 5 | Read the verdict and per-case scores                   | here (API + Fred frontend)    | [`guide/evaluate-an-agent.md`](guide/evaluate-an-agent.md) |
 
 > Steps 1 and 2 belong to Fred itself (`~/Fred/fred`), not to this repo. This repo starts

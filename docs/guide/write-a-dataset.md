@@ -135,40 +135,42 @@ before writing the reference answers.
 
 ---
 
-## What's next — from your file to the evaluation
+## What's next — from your file to the results
 
-Two steps. First **save** your file as a dataset: it becomes a first-class, immutable
-object, reusable across future evaluations.
+Two steps, two objects. First **save** your cases as an **evaluation**: the immutable,
+versioned definition. You name it; the server assigns the version.
 
 ```jsonc
-POST /evaluation/v1/datasets         // → 201, returns dataset_id (+ server-assigned name/version)
+POST /evaluation/v1/evaluations      // → 201, returns evaluation_id (+ version, completeness)
 {
   "team_id": "<your team>",
+  "name": "ArxivAi — analyst set",
   "origin": "upload",
   "source_filename": "arxiv-ai-eval.json",
   "cases": [ /* … the contents of your file … */ ]
 }
 ```
 
-Then **reference it by id** when creating the evaluation. The server owns the name, the
-scoring profile, the judge, and the concurrency/timeout defaults — you only choose the
-target agent and the dataset:
+Then start a **run**: one execution of that evaluation against a target agent. The
+server owns the scoring profile, the judge and the concurrency defaults — you only
+choose the agent.
 
 ```jsonc
-POST /evaluation/v1/campaigns        // → 202, returns campaign_id + run_id
+POST /evaluation/v1/evaluations/{evaluation_id}/runs   // → 202, returns run_id
 {
   "team_id": "<your team>",
-  "target": { "kind": "managed_instance", "agent_instance_id": "<instance>" },
-  "dataset_id": "<dataset_id from the call above>"
+  "target": { "kind": "managed_instance", "agent_instance_id": "<instance>" }
 }
 ```
 
-- Since **EVAL-04** the target is a **managed agent instance** only; a bare
+- **Evaluation vs run:** the evaluation is written once; each execution is a new run.
+  Re-running never overwrites previous results — that's how you compare agent versions
+  on the same questions.
+- The target is a **managed agent instance** only (EVAL-04); a bare
   `runtime_id`/`agent_id` pair is no longer accepted at creation.
 - RAG mode is detected automatically as soon as the agent returns a retrieval context:
   nothing to configure on the metrics side.
-- The rest (real-time progress, verdict, per-case scores) is described in
-  [`evaluate-an-agent.md`](evaluate-an-agent.md).
+- Following progress and reading scores: [`evaluate-an-agent.md`](evaluate-an-agent.md).
 - The full API contract (routes, statuses) is in
   [`../DEVELOPER_CONTRACT.md`](../DEVELOPER_CONTRACT.md).
 

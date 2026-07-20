@@ -34,7 +34,7 @@ Deux processus distincts dans le même package Python :
 
 **API** (`main.py`) — FastAPI sur le port 8333
 - Reçoit les requêtes du frontend
-- Valide et persiste les campagnes
+- Valide et persiste les evaluations et leurs runs
 - Expose les résultats via REST et SSE
 - Ne connaît pas DeepEval
 
@@ -65,28 +65,32 @@ Librairie Python publiée sur PyPI.
 
 ## Flux bout en bout
 
-0. Frontend `POST /evaluation/v1/datasets` (une fois, réutilisable) → API persiste un
-   `EvaluationDataset` immuable et versionné, retourne 201 + `dataset_id`
-1. Frontend `POST /evaluation/v1/campaigns` `{team_id, target, dataset_id}` → API charge
-   le dataset référencé, copie ses cas dans `EvaluationCaseRow`, persiste la campagne
-   (`created_by` + `team_id`), retourne 202
-2. Worker détecte campagne `pending` (poll mémoire) ou reçoit le workflow Temporal
+0. Frontend `POST /evaluation/v1/evaluations` (une fois, réutilisable) → API persiste une
+   `Evaluation` immuable et versionnée (nom + cas), retourne 201 + `evaluation_id`
+1. Frontend `POST /evaluation/v1/evaluations/{id}/runs` `{team_id, target}` → API charge
+   les cas de l'evaluation, les copie dans `EvaluationCaseRow`, persiste le run
+   (`created_by` + `team_id`) avec son `RunSnapshot`, retourne 202
+2. Worker détecte le run `pending` (poll mémoire) ou reçoit le workflow Temporal
 3. Worker appelle Control Plane → obtient `evaluate_url` (pas de `execution_grant` signé : RUNTIME-07 rev.2 — l'autorisation se fait au niveau du pod runtime via le JWT de l'appelant + OpenFGA)
 4. Worker `POST /agents/evaluate` → fred-runtime exécute l'agent → retourne `EvalTrace`
 5. Worker passe `EvalTrace` à `fred-deepeval-cli` → scores calculés
 6. Worker persiste résultats en DB, émet events SSE
-7. Frontend reçoit updates via `GET /campaigns/{id}/events`
+7. Frontend reçoit updates via `GET /runs/{run_id}/events`
 
-### Domaine dataset (EVAL-04, 2026-07-16)
+### Découpage evaluation / run
 
-`datasets/{schemas,models}.py` existait déjà (Phase 1 de `EVAL-DATASET-BACKLOG.md`,
-modèles + table uniquement, pas d'API). `EVAL-04` ajoute la première surface API :
-`datasets/{store,service,api}.py`, sur le même patron que `campaigns/`. Un dataset est
-créé directement (`origin: upload | manual`), sans passer par le pipeline
-capture → triage → `:promote` (`QuestionSet`), qui reste à construire. Une campagne
-référence un dataset par `dataset_id` — c'est la seule voie de création de campagne
-désormais ; l'ancien payload `dataset`/`cases` en ligne a été retiré, pas conservé en
-parallèle.
+Deux domaines, deux responsabilités :
+
+- `evaluations/` — la **définition** immuable et versionnée : nom, origine
+  (`upload | manual`), cas. Créée directement, sans passer par le pipeline
+  capture → triage → `:promote` (`QuestionSet`), qui reste à construire.
+- `runs/` — une **exécution** de cette définition : cible, `RunSnapshot`
+  (profil, judge, concurrence figés au démarrage), cas exécutés, résultats,
+  events SSE.
+
+C'est ce découpage qui permet de ré-exécuter une même evaluation sans écraser
+les résultats précédents : chaque exécution est un run distinct. Un run ne
+reçoit jamais de cas en ligne — ils viennent toujours de l'evaluation référencée.
 
 ## Identité sortante — API vs worker (RFC `EVAL-AUTH`)
 
@@ -102,7 +106,7 @@ implicite (`execution/outbound_auth.py`) :
   utilisateur.
 
 Le token utilisateur ne franchit **jamais** la frontière worker : le payload
-Temporal (`CampaignInput`) ne porte que `campaign_id` ; la ligne de campagne
+Temporal (`RunInput`) ne porte que `run_id` ; la ligne de run
 persiste `created_by` + `team_id` (ancrage de légitimité), pas de credential ;
 l'autorisation d'exécution est ré-évaluée à l'instant T via l'identité propre
 du worker (jamais un instantané figé de l'utilisateur créateur).
