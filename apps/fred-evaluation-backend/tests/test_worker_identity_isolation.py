@@ -30,7 +30,11 @@ from fred_evaluation_backend.execution.agent_client import AgentClient
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
 from fred_evaluation_backend.execution.outbound_auth import UserAuthentication
 from fred_evaluation_backend.workers import _activity_context
-from fred_evaluation_backend.workers.workflow import RunCaseInput, RunInput, run_case_for_run
+from fred_evaluation_backend.workers.workflow import (
+    RunCaseInput,
+    RunInput,
+    run_case_for_run,
+)
 
 Handler = (
     Callable[[httpx.Request], httpx.Response]
@@ -91,7 +95,12 @@ def test_run_row_has_the_legitimacy_anchor_but_no_credential_column():
 
 
 class _FakeStore:
-    """Duck-typed RunStore stand-in — only the two methods run_case_for_run calls."""
+    """Duck-typed RunStore stand-in — only the methods run_case_for_run calls."""
+
+    def __init__(self) -> None:
+        # Recorded so tests can assert the incremental-progress refresh
+        # (added alongside the worker-identity fix) actually ran.
+        self.aggregate_updates: list[dict[str, object]] = []
 
     async def get_run(self, run_id: str) -> object:
         return SimpleNamespace(
@@ -108,6 +117,15 @@ class _FakeStore:
 
     async def get_case(self, case_id: str) -> object:
         return SimpleNamespace(case_id=case_id, input="q1", expected_output=None)
+
+    async def list_cases_by_run(self, run_id: str, limit: int = 10000) -> list[object]:
+        # execute_and_score_case is faked out in these tests, so no real case
+        # rows exist to read back — an empty list is enough for
+        # run_case_for_run's post-case aggregate refresh to run harmlessly.
+        return []
+
+    async def update_run_aggregates(self, run_id: str, **kwargs: object) -> None:
+        self.aggregate_updates.append({"run_id": run_id, **kwargs})
 
 
 @pytest.mark.asyncio

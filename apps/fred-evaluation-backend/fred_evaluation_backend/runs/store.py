@@ -369,6 +369,14 @@ class RunStore:
                 row.verdict = verdict
                 row.operational_state = operational_state
                 row.metric_averages_json = metric_averages_json
+                # Only a genuine terminal write closes completed_at — this same
+                # method is also called after every case with operational_state
+                # "running" to refresh live progress, which must never stamp it.
+                if (
+                    operational_state in ("completed", "failed")
+                    and row.completed_at is None
+                ):
+                    row.completed_at = _utcnow()
 
     async def update_run_analysis(
         self,
@@ -414,6 +422,8 @@ class RunStore:
             row = await s.get(EvaluationRunRow, run_id)
             if row:
                 row.operational_state = operational_state
+                if operational_state == "running" and row.started_at is None:
+                    row.started_at = _utcnow()
 
     async def delete_run(
         self,

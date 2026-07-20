@@ -7,6 +7,18 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from fred_evaluation_backend.runs.base import Base, utcnow
 
+# EvaluationRunRow.evaluation_id below is a string-based ForeignKey("evaluation.evaluation_id")
+# — SQLAlchemy resolves that lazily by looking up the "evaluation" table name on
+# Base.metadata, which only exists once evaluations.models (declaring EvaluationRow)
+# has actually been imported somewhere in the process. The worker process's own
+# import graph (main_worker -> runner/workflow/activities -> runs.store -> here)
+# never otherwise imports evaluations.models, so the first ORM operation to touch
+# this FK in a fresh worker process raised NoReferencedTableError. Importing it
+# here — where the FK is declared — guarantees the referenced table is always
+# registered before any FK resolution can be needed, regardless of which activity
+# happens to run first.
+from fred_evaluation_backend.evaluations import models as _evaluations_models  # noqa: F401
+
 
 class EvaluationCaseRow(Base):
     __tablename__ = "evaluation_case"

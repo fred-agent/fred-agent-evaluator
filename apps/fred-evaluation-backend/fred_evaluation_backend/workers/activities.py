@@ -126,7 +126,7 @@ async def _execute_and_score_case_inner(
             scoring_errors_json=None,
             structural_checks_json=None,
         )
-        await _emit_event(run_id, case_id, "case_error", store)
+        await emit_run_event(run_id, case_id, "case_error", store)
         return
 
     trace_dict = eval_trace.model_dump()
@@ -174,7 +174,7 @@ async def _execute_and_score_case_inner(
             scoring_errors_json=None,
             structural_checks_json=None,
         )
-        await _emit_event(run_id, case_id, "case_error", store)
+        await emit_run_event(run_id, case_id, "case_error", store)
         return
 
     structural_ok = all(c.passed is not False for c in structural_checks)
@@ -247,14 +247,23 @@ async def _execute_and_score_case_inner(
             error=metric.error,
         )
 
-    await _emit_event(run_id, case_id, "case_completed", store)
+    await emit_run_event(run_id, case_id, "case_completed", store)
 
 
-async def _emit_event(
+async def emit_run_event(
     run_id: str,
     case_id: str,
     kind: str,
     store: RunStore,
 ) -> None:
+    """Record a per-case run event (SSE / `evaluation_event` table).
+
+    Why this exists: it's the one place that knows the `{"case_id": ...}`
+    payload shape for case-scoped events, so every caller — success, agent
+    error, scoring error, or a per-case setup failure caught in the Temporal
+    activity wrapper (`workers/workflow.py::run_case_for_run`) — stays
+    consistent. Public (no leading underscore) because it's shared across
+    `workers/activities.py` and `workers/workflow.py`.
+    """
     payload = json.dumps({"case_id": case_id})
     await store.create_run_event(run_id, kind=kind, payload_json=payload)

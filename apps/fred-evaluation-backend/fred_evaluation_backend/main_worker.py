@@ -34,6 +34,8 @@ async def _run_temporal_worker(configuration, engine, cp_client) -> None:
         RunWorkflow,
         fetch_run_cases,
         finalize_run,
+        mark_run_failed,
+        mark_run_started,
         run_case_for_run,
     )
 
@@ -66,9 +68,11 @@ async def _run_temporal_worker(configuration, engine, cp_client) -> None:
         task_queue=temporal_cfg.task_queue,
         workflows=[RunWorkflow],
         activities=[
+            mark_run_started,
             fetch_run_cases,
             run_case_for_run,
             finalize_run,
+            mark_run_failed,
         ],
         activity_executor=executor,
         max_concurrent_activities=max_concurrent,
