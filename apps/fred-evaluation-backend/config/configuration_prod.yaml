@@ -5,20 +5,16 @@ app:
   port: 8336
   log_level: info
 
-# storage:
-#   postgres:
-#     # The evaluator is started on the host with `make run` while the shared
-#     # deployment-factory Compose stack exposes PostgreSQL on localhost:5432.
-#     # Container/Kubernetes deployments provide their own generated config.
-#     host: localhost
-#     port: 5432
-#     database: evaluation
-#     username: evaluation
-#     # password is read from the FRED_POSTGRES_PASSWORD environment variable
-
 storage:
   postgres:
-    sqlite_path: "~/.fred/evaluation/evaluation.sqlite3"
+    # The evaluator is started on the host with `make run` while the shared
+    # deployment-factory Compose stack exposes PostgreSQL on localhost:5432.
+    # Container/Kubernetes deployments provide their own generated config.
+    host: localhost
+    port: 5432
+    database: evaluation
+    username: evaluation
+    # password is read from the FRED_POSTGRES_PASSWORD environment variable
 
 security:
   # user: consumed by the API (interactive requests) — outbound Control Plane
