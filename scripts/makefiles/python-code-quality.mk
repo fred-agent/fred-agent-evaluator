@@ -46,9 +46,15 @@ sast: dev ## Run bandit
 		-s ${BANDIT_IGNORED_RULES} \
 		--baseline ${BANDIT_BASELINE_FILE}
 
+# The git-tracked file list, minus .baseline/ — those files store hashed findings from
+# these very tools, so scanning them makes the baseline flag its own contents. Run from
+# the parent dir so paths stay relative: detect-secrets silently scans nothing when
+# handed an absolute path, and the baseline must record the paths the hook looks up.
+DETECT_SECRET_FILES = git ls-files -z ${CURDIR} | grep -zv '/\.baseline/'
+
 .PHONY: detect-secret
 detect-secret: dev ## Run a secret detection tool
-	cd .. && git ls-files -z ${CURDIR} | xargs -0 ${VENV}/bin/detect-secrets-hook --baseline ${DETECT_SECRET_BASELINE_FILE}
+	cd .. && ${DETECT_SECRET_FILES} | xargs -0 ${VENV}/bin/detect-secrets-hook --baseline ${DETECT_SECRET_BASELINE_FILE}
 
 .PHONY: type-check
 type-check: dev ## Run type checker (basedpyright)
@@ -77,9 +83,11 @@ baseline-sast: ${BASELINE_DIR} ## Set bandit baseline
 		-f json \
 		-o ${BANDIT_BASELINE_FILE}
 
+# Mirrors the `detect-secret` check exactly (same cwd, same file list) so that what is
+# recorded here is what the hook later looks up. See DETECT_SECRET_FILES above.
 .PHONY: baseline-detect-secret
 baseline-detect-secret: ${BASELINE_DIR} ## Set detect-secrets baseline
-	cd .. && ${VENV}/bin/detect-secrets scan $(CURDIR) > ${DETECT_SECRET_BASELINE_FILE}
+	cd .. && ${DETECT_SECRET_FILES} | xargs -0 ${VENV}/bin/detect-secrets scan > ${DETECT_SECRET_BASELINE_FILE}
 
 .PHONY: baseline-type-check
 baseline-type-check: ${BASELINE_DIR} ## Set basedpyright baseline

@@ -34,6 +34,12 @@ test: dev-scoring
 .PHONY: type-check
 type-check: dev-scoring
 
+# Same prerequisite as `type-check` above: a baseline must be recorded against the same
+# resolved imports it will later be checked against, or the two disagree on a fresh
+# checkout where the scoring extras are not installed yet.
+.PHONY: baseline-type-check
+baseline-type-check: dev-scoring
+
 .PHONY: run-worker
 run-worker: dev-scoring ## Run the evaluation worker (installs scoring deps automatically)
 	ENV_FILE=$(ROOT_DIR)/config/.env $(UV) run python -m fred_evaluation_backend.main_worker
