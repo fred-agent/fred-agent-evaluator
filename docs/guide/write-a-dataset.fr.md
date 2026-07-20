@@ -140,28 +140,37 @@ sans encore rédiger les réponses de référence.
 
 ---
 
-## Et ensuite ? — de votre fichier à la campagne
+## Et ensuite ? — de votre fichier à l'évaluation
 
-Votre fichier est la liste `cases`. Pour lancer l'évaluation, il est enveloppé dans une
-requête de campagne qui désigne **l'agent cible** et le **juge** :
+Deux étapes. D'abord **enregistrer** votre fichier comme dataset : il devient un objet de
+première classe, immuable, réutilisable pour de futures évaluations.
 
 ```jsonc
-POST /evaluation/v1/campaigns
+POST /evaluation/v1/datasets         // → 201, renvoie dataset_id (+ name/version attribués par le serveur)
 {
-  "name": "ArxivAi — agent ReAct v1",
   "team_id": "<votre équipe>",
-  "target": { "kind": "runtime_agent", "runtime_id": "<runtime>", "agent_id": "<agent ReAct>" },
-  "profile": "auto",                     // détecte automatiquement le mode RAG
-  "judge_profile_id": "<juge LLM>",
-  "dataset": {
-    "name": "arxiv-ai-eval",
-    "version": "v1",
-    "cases": [ /* … le contenu de votre fichier … */ ]
-  }
+  "origin": "upload",
+  "source_filename": "arxiv-ai-eval.json",
+  "cases": [ /* … le contenu de votre fichier … */ ]
 }
 ```
 
-- `profile: "auto"` détecte le mode RAG dès que l'agent renvoie un contexte récupéré :
+Puis le **référencer par son id** à la création de l'évaluation. Le serveur possède le
+nom, le profil de scoring, le juge et les valeurs par défaut de concurrence/timeout :
+vous ne choisissez que l'agent cible et le dataset.
+
+```jsonc
+POST /evaluation/v1/campaigns        // → 202, renvoie campaign_id + run_id
+{
+  "team_id": "<votre équipe>",
+  "target": { "kind": "managed_instance", "agent_instance_id": "<instance>" },
+  "dataset_id": "<dataset_id renvoyé ci-dessus>"
+}
+```
+
+- Depuis **EVAL-04**, la cible est uniquement une **instance d'agent managée** ; un
+  couple `runtime_id`/`agent_id` nu n'est plus accepté à la création.
+- Le mode RAG est détecté automatiquement dès que l'agent renvoie un contexte récupéré :
   vous n'avez rien à configurer côté métriques.
 - La suite (suivi temps réel, verdict, scores par cas) est décrite dans
   [`evaluate-an-agent.md`](evaluate-an-agent.md).

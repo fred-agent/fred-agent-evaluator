@@ -135,28 +135,37 @@ before writing the reference answers.
 
 ---
 
-## What's next — from your file to the campaign
+## What's next — from your file to the evaluation
 
-Your file is the `cases` list. To launch the evaluation, it is wrapped in a campaign
-request that names the **target agent** and the **judge**:
+Two steps. First **save** your file as a dataset: it becomes a first-class, immutable
+object, reusable across future evaluations.
 
 ```jsonc
-POST /evaluation/v1/campaigns
+POST /evaluation/v1/datasets         // → 201, returns dataset_id (+ server-assigned name/version)
 {
-  "name": "ArxivAi — ReAct agent v1",
   "team_id": "<your team>",
-  "target": { "kind": "runtime_agent", "runtime_id": "<runtime>", "agent_id": "<ReAct agent>" },
-  "profile": "auto",                     // auto-detects RAG mode
-  "judge_profile_id": "<LLM judge>",
-  "dataset": {
-    "name": "arxiv-ai-eval",
-    "version": "v1",
-    "cases": [ /* … the contents of your file … */ ]
-  }
+  "origin": "upload",
+  "source_filename": "arxiv-ai-eval.json",
+  "cases": [ /* … the contents of your file … */ ]
 }
 ```
 
-- `profile: "auto"` detects RAG mode as soon as the agent returns a retrieval context:
+Then **reference it by id** when creating the evaluation. The server owns the name, the
+scoring profile, the judge, and the concurrency/timeout defaults — you only choose the
+target agent and the dataset:
+
+```jsonc
+POST /evaluation/v1/campaigns        // → 202, returns campaign_id + run_id
+{
+  "team_id": "<your team>",
+  "target": { "kind": "managed_instance", "agent_instance_id": "<instance>" },
+  "dataset_id": "<dataset_id from the call above>"
+}
+```
+
+- Since **EVAL-04** the target is a **managed agent instance** only; a bare
+  `runtime_id`/`agent_id` pair is no longer accepted at creation.
+- RAG mode is detected automatically as soon as the agent returns a retrieval context:
   nothing to configure on the metrics side.
 - The rest (real-time progress, verdict, per-case scores) is described in
   [`evaluate-an-agent.md`](evaluate-an-agent.md).
