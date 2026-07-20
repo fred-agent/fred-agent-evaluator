@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -32,9 +33,9 @@ class CustomMetricSpec(BaseModel):
     def _known_parameters(cls, value: list[str]) -> list[str]:
         unknown = set(value) - cls.valid_parameters()
         if unknown:
+            allowed = sorted(cls.valid_parameters())
             raise ValueError(
-                f"unknown GEval parameters {sorted(unknown)}; "
-                f"allowed: {sorted(cls.valid_parameters())}"
+                f"unknown GEval parameters {sorted(unknown)}; allowed: {allowed}"
             )
         return value
 

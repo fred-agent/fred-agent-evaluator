@@ -47,6 +47,7 @@ def score_trace(
 ) -> tuple[list[EvaluationMetricResult], list[str]]:
     from deepeval.metrics import (
         AnswerRelevancyMetric,
+        BaseMetric,
         ContextualPrecisionMetric,
         ContextualRecallMetric,
         ContextualRelevancyMetric,
@@ -60,7 +61,9 @@ def score_trace(
     def _metric(cls, **kwargs):
         return cls(model=judge, async_mode=False, **kwargs)
 
-    metrics = [_metric(AnswerRelevancyMetric)]
+    # Annotated as the base type: the list is heterogeneous (built-ins + GEval), and
+    # inferring it from the first element would reject every later append.
+    metrics: list[BaseMetric] = [_metric(AnswerRelevancyMetric)]
 
     if profile == "rag" and retrieval_context:
         metrics.append(_metric(FaithfulnessMetric))
@@ -89,8 +92,14 @@ def score_trace(
         # Built-in metrics report their class name (AnswerRelevancyMetric, …). A GEval is
         # generic — every custom criterion is the same class — so it must report the
         # user-given name instead, or all custom metrics would collapse to "GEval".
-        is_geval = type(metric).__name__ == "GEval"
-        name = metric.name if is_geval else metric.__class__.__name__
+        # Matched on the class name rather than isinstance(): the offline tests swap the
+        # DeepEval metric classes for fakes, so GEval is not always a real type here.
+        # `__qualname__`, not `__name__`: DeepEval shadows `__name__` with a property
+        # returning a display label ("Answer Relevancy"), hiding the class name.
+        class_name = type(metric).__qualname__
+        name = (
+            getattr(metric, "name", class_name) if class_name == "GEval" else class_name
+        )
         try:
             metric.measure(test_case)
             results.append(
