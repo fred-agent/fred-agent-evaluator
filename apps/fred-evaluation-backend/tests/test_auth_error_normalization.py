@@ -9,7 +9,7 @@ error envelope. `main.py` registers `normalize_unstructured_auth_error` as the
 app's `HTTPException` handler to close that gap at the evaluator's own public
 boundary — without touching fred-core's own authentication decisions.
 
-These tests drive the real `create_campaign` route over an in-process ASGI
+These tests drive the real `start_run` route over an in-process ASGI
 transport (no sockets, no DB, no live Keycloak/JWKS).
 """
 
@@ -24,9 +24,10 @@ from fastapi import FastAPI, HTTPException
 from fred_core import get_config, get_current_user, get_user_store
 from pytest import MonkeyPatch
 
-from fred_evaluation_backend.campaigns.api import (
+from fred_evaluation_backend.runs.api import (
     _get_control_plane_client,
-    _get_evaluation_store,
+    _get_evaluation_catalog_store,
+    _get_run_store,
     build_evaluations_router,
 )
 from fred_evaluation_backend.execution.evaluator_errors import (
@@ -34,21 +35,30 @@ from fred_evaluation_backend.execution.evaluator_errors import (
     normalize_unstructured_auth_error,
 )
 
-CAMPAIGN_BODY = {
-    "name": "My Campaign",
+EVALUATION_ID = "eval-ds-1"
+RUN_BODY = {
     "team_id": "team-1",
     "target": {"kind": "managed_instance", "agent_instance_id": "inst-1"},
-    "dataset": {"name": "ds1", "cases": [{"input": "q1"}]},
-    "judge_profile_id": "default",
 }
 
 
 class _FakeStore:
-    async def create_campaign(self, **kwargs: object) -> None:
+    async def create_run(self, **kwargs: object) -> None:
         return None
 
     async def create_case(self, **kwargs: object) -> None:
         return None
+
+
+class _FakeEvaluationStore:
+    async def get_evaluation(self, evaluation_id: str) -> object:
+        return SimpleNamespace(
+            evaluation_id=evaluation_id,
+            team_id="team-1",
+            name="ds1",
+            version="v1",
+            cases_json='[{"input": "q1"}]',
+        )
 
 
 class _UnreachedControlPlaneClient:
@@ -74,7 +84,10 @@ def _build_app(
     )
     # get_current_user's own sub-dependency — unrelated to what's under test here.
     app.dependency_overrides[get_user_store] = lambda: None
-    app.dependency_overrides[_get_evaluation_store] = lambda: _FakeStore()
+    app.dependency_overrides[_get_run_store] = lambda: _FakeStore()
+    app.dependency_overrides[_get_evaluation_catalog_store] = (
+        lambda: _FakeEvaluationStore()
+    )
     app.dependency_overrides[_get_control_plane_client] = lambda: (
         _UnreachedControlPlaneClient()
     )
@@ -93,7 +106,9 @@ async def test_missing_authorization_header_hits_the_real_boundary_and_returns_s
     app = _build_app()
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.post("/campaigns", json=CAMPAIGN_BODY)  # no header at all
+        resp = await client.post(
+            f"/evaluations/{EVALUATION_ID}/runs", json=RUN_BODY
+        )  # no header at all
 
     assert resp.status_code == 401
     assert resp.json() == {
@@ -112,7 +127,7 @@ async def test_missing_authorization_header_preserves_www_authenticate(
     app = _build_app()
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.post("/campaigns", json=CAMPAIGN_BODY)
+        resp = await client.post(f"/evaluations/{EVALUATION_ID}/runs", json=RUN_BODY)
 
     assert resp.status_code == 401
     assert resp.headers["www-authenticate"] == "Bearer"
@@ -134,8 +149,8 @@ async def test_unstructured_403_from_auth_dependency_returns_structured_access_f
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
-            "/campaigns",
-            json=CAMPAIGN_BODY,
+            f"/evaluations/{EVALUATION_ID}/runs",
+            json=RUN_BODY,
             headers={"Authorization": "Bearer irrelevant"},
         )
 
@@ -164,8 +179,8 @@ async def test_already_structured_evaluator_error_passes_through_unchanged() -> 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
-            "/campaigns",
-            json=CAMPAIGN_BODY,
+            f"/evaluations/{EVALUATION_ID}/runs",
+            json=RUN_BODY,
             headers={"Authorization": "Bearer irrelevant"},
         )
 

@@ -65,7 +65,7 @@ class SchedulerConfig(BaseModel):
 
 
 def _default_analysis() -> ModelConfiguration:
-    """Provider-agnostic default for the campaign analysis model.
+    """Provider-agnostic default for the run analysis model.
 
     Same schema as the judge (`provider` / `name` / `settings`) so the analysis
     is built by the shared `build_judge_model` factory. Kept as a separate config

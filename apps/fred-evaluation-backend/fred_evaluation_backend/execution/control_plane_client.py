@@ -29,12 +29,12 @@ class ControlPlaneInvalidResponseError(Exception):
 # Authorization happens at the runtime pod via the caller's JWT + OpenFGA. These
 # preparations therefore only carry routing (evaluate_url) and the team scope.
 #
-# EVAL-04: `runtime_agent` is no longer an accepted target at campaign
-# *creation* (creation is managed-instance-only). This preparation type and
+# EVAL-04: `runtime_agent` is no longer an accepted target at run
+# creation (creation is managed-instance-only). This preparation type and
 # the client method below are kept because the worker (workers/workflow.py,
-# workers/runner.py) still executes campaigns created before EVAL-04 with
+# workers/runner.py) still executes legacy rows created before EVAL-04 with
 # `target_kind == "runtime_agent"` — removing them would break in-flight
-# execution of pre-existing campaigns, not just tidy up unused code.
+# execution of pre-existing work, not just tidy up unused code.
 class RuntimeAgentExecutionPreparation(BaseModel):
     runtime_id: str
     agent_id: str
@@ -52,7 +52,7 @@ class ManagedInstanceExecutionPreparation(BaseModel):
 class TeamMembership(BaseModel):
     """Whether the caller belongs to a team — no execution target involved.
 
-    Used for dataset endpoints, which (unlike campaigns) have no agent/runtime
+    Used for evaluation-catalog endpoints, which (unlike runs) have no agent/runtime
     target whose own `prepare-execution` call already enforces team scope.
     """
 
@@ -225,7 +225,7 @@ class ControlPlaneClient:
         """Check whether the caller belongs to `team_id` — no execution target.
 
         Reuses the caller's propagated JWT the same way `prepare_*_execution`
-        does; this is the datasets domain's team-scoping check, since datasets
+        does; this is the evaluation-catalog domain's team-scoping check, since evaluations
         have no agent/runtime target to piggyback authorization on.
         """
         url = f"{self._base_url}/teams/{team_id}"

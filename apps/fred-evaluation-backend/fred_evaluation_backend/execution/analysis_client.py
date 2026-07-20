@@ -62,7 +62,7 @@ class CaseDetail:
 
 
 def _build_prompt(
-    campaign_name: str,
+    evaluation_name: str,
     profile: str,
     verdict: str,
     total_cases: int,
@@ -96,7 +96,7 @@ def _build_prompt(
         f"for an enterprise LLM agent. The agent runs in a production environment and is used "
         f"by internal teams. Your analysis must be technical, precise, and actionable — "
         f"written for engineers, not business stakeholders.\n\n"
-        f"CAMPAIGN: {campaign_name}\n"
+        f"EVALUATION: {evaluation_name}\n"
         f"PROFILE: {profile}\n"
         f"VERDICT: {verdict.upper()} — {passed_cases}/{total_cases} cases passed, {failed_cases} failed\n\n"
         f"METRIC AVERAGES:\n{metrics_lines}\n\n"
@@ -115,7 +115,7 @@ def _build_prompt(
 
 
 class AnalysisClient:
-    """Generate a textual analysis of a campaign, provider-agnostically.
+    """Generate a textual analysis of an evaluation run, provider-agnostically.
 
     Reuses the judge factory (`build_judge_model`) so the analysis works with any
     provider (litellm / openai / ollama) selected purely by config — the same
@@ -129,7 +129,7 @@ class AnalysisClient:
 
     async def analyze(
         self,
-        campaign_name: str,
+        evaluation_name: str,
         profile: str,
         verdict: str,
         total_cases: int,
@@ -139,7 +139,7 @@ class AnalysisClient:
         cases: list[CaseDetail],
     ) -> str:
         prompt = _build_prompt(
-            campaign_name=campaign_name,
+            evaluation_name=evaluation_name,
             profile=profile,
             verdict=verdict,
             total_cases=total_cases,

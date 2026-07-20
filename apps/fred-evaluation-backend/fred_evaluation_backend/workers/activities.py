@@ -6,7 +6,7 @@ import logging
 from fred_core import M2MTokenProvider
 from opentelemetry.trace import Status, StatusCode
 
-from fred_evaluation_backend.campaigns.store import EvaluationStore
+from fred_evaluation_backend.runs.store import RunStore
 from fred_evaluation_backend.execution.agent_client import AgentClient
 from fred_evaluation_backend.telemetry.otel import get_tracer
 
@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 async def execute_and_score_case(
     *,
     case_id: str,
-    campaign_id: str,
     created_by: str,
     input: str,
     expected_output: str | None,
@@ -29,22 +28,23 @@ async def execute_and_score_case(
     profile: str,
     judge,
     custom_metrics: list | None = None,
-    store: EvaluationStore,
+    store: RunStore,
     agent_client: AgentClient,
+    run_id: str,
 ) -> None:
     tracer = get_tracer()
     with tracer.start_as_current_span("eval.case") as span:
-        span.set_attribute("eval.campaign_id", campaign_id)
+        span.set_attribute("eval.run_id", run_id)
         span.set_attribute("eval.case_id", case_id)
         span.set_attribute("eval.profile", profile)
         span.set_attribute("gen_ai.prompt", input[:500])
         # Langfuse v3 OTLP semantic attributes for session grouping
-        span.set_attribute("session.id", campaign_id)
+        span.set_attribute("session.id", run_id)
         span.set_attribute("user.id", created_by)
         await _execute_and_score_case_inner(
             span=span,
             case_id=case_id,
-            campaign_id=campaign_id,
+            run_id=run_id,
             created_by=created_by,
             input=input,
             expected_output=expected_output,
@@ -66,8 +66,8 @@ async def _execute_and_score_case_inner(
     *,
     span,
     case_id: str,
-    campaign_id: str,
     created_by: str,
+    run_id: str,
     input: str,
     expected_output: str | None,
     agent_id: str | None,
@@ -79,7 +79,7 @@ async def _execute_and_score_case_inner(
     profile: str,
     judge,
     custom_metrics: list | None = None,
-    store: EvaluationStore,
+    store: RunStore,
     agent_client: AgentClient,
 ) -> None:
     from fred_deepeval_cli.core.evaluator import classify_outcome
@@ -126,7 +126,7 @@ async def _execute_and_score_case_inner(
             scoring_errors_json=None,
             structural_checks_json=None,
         )
-        await _emit_event(campaign_id, case_id, "case_error", store)
+        await emit_run_event(run_id, case_id, "case_error", store)
         return
 
     trace_dict = eval_trace.model_dump()
@@ -174,7 +174,7 @@ async def _execute_and_score_case_inner(
             scoring_errors_json=None,
             structural_checks_json=None,
         )
-        await _emit_event(campaign_id, case_id, "case_error", store)
+        await emit_run_event(run_id, case_id, "case_error", store)
         return
 
     structural_ok = all(c.passed is not False for c in structural_checks)
@@ -237,7 +237,7 @@ async def _execute_and_score_case_inner(
     for metric in metrics:
         await store.create_metric_result(
             case_id=case_id,
-            campaign_id=campaign_id,
+            run_id=run_id,
             name=metric.name,
             provider=metric.provider,
             score=metric.score,
@@ -247,17 +247,23 @@ async def _execute_and_score_case_inner(
             error=metric.error,
         )
 
-    await _emit_event(campaign_id, case_id, "case_completed", store)
+    await emit_run_event(run_id, case_id, "case_completed", store)
 
 
-async def _emit_event(
-    campaign_id: str,
+async def emit_run_event(
+    run_id: str,
     case_id: str,
     kind: str,
-    store: EvaluationStore,
+    store: RunStore,
 ) -> None:
-    await store.create_event(
-        campaign_id,
-        kind=kind,
-        payload_json=json.dumps({"case_id": case_id}),
-    )
+    """Record a per-case run event (SSE / `evaluation_event` table).
+
+    Why this exists: it's the one place that knows the `{"case_id": ...}`
+    payload shape for case-scoped events, so every caller — success, agent
+    error, scoring error, or a per-case setup failure caught in the Temporal
+    activity wrapper (`workers/workflow.py::run_case_for_run`) — stays
+    consistent. Public (no leading underscore) because it's shared across
+    `workers/activities.py` and `workers/workflow.py`.
+    """
+    payload = json.dumps({"case_id": case_id})
+    await store.create_run_event(run_id, kind=kind, payload_json=payload)

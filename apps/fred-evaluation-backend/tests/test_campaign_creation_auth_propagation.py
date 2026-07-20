@@ -1,4 +1,4 @@
-"""POST /campaigns identity propagation (EVAL-AUTH RFC — issue #33, parts 1+2).
+"""POST /evaluations/{evaluation_id}/runs identity propagation (EVAL-AUTH RFC — issue #33, parts 1+2).
 
 Drives the real FastAPI route (`campaigns/api.py` -> `campaigns/service.py` ->
 `execution/runtime_resolver.py`) end-to-end over an in-process ASGI transport
@@ -17,10 +17,10 @@ import pytest
 from fastapi import FastAPI, HTTPException
 from fred_core import KeycloakUser, get_config, get_current_user
 
-from fred_evaluation_backend.campaigns.api import (
+from fred_evaluation_backend.runs.api import (
     _get_control_plane_client,
-    _get_dataset_store,
-    _get_evaluation_store,
+    _get_evaluation_catalog_store,
+    _get_run_store,
     build_evaluations_router,
 )
 from fred_evaluation_backend.execution.evaluator_errors import (
@@ -32,18 +32,17 @@ from fred_evaluation_backend.execution.outbound_auth import (
     UserAuthentication,
 )
 
-DATASET_ID = "eval-ds-1"
+EVALUATION_ID = "eval-1"
 
-CAMPAIGN_BODY = {
+RUN_BODY = {
     "team_id": "team-1",
     "target": {"kind": "managed_instance", "agent_instance_id": "inst-1"},
-    "dataset_id": DATASET_ID,
 }
 
 
-def _dataset_row(*, dataset_id: str = DATASET_ID, team_id: str = "team-1"):
+def _evaluation_row(*, evaluation_id: str = EVALUATION_ID, team_id: str = "team-1"):
     return SimpleNamespace(
-        dataset_id=dataset_id,
+        evaluation_id=evaluation_id,
         name="ds1",
         version="v1",
         team_id=team_id,
@@ -57,7 +56,7 @@ class _FakeStore:
     def __init__(self) -> None:
         self.created_cases: list[dict[str, object]] = []
 
-    async def create_campaign(self, **kwargs):
+    async def create_run(self, **kwargs):
         return None
 
     async def create_case(self, **kwargs):
@@ -65,14 +64,14 @@ class _FakeStore:
         return None
 
 
-class _FakeDatasetStore:
-    """Serves one dataset (`DATASET_ID`, team `team-1`) — 404s everything else."""
+class _FakeEvaluationStore:
+    """Serves one evaluation (`EVALUATION_ID`, team `team-1`) — 404s everything else."""
 
     def __init__(self, *, rows: dict[str, object] | None = None) -> None:
-        self._rows = rows if rows is not None else {DATASET_ID: _dataset_row()}
+        self._rows = rows if rows is not None else {EVALUATION_ID: _evaluation_row()}
 
-    async def get_dataset(self, dataset_id: str):
-        return self._rows.get(dataset_id)
+    async def get_evaluation(self, evaluation_id: str):
+        return self._rows.get(evaluation_id)
 
 
 class _RecordingControlPlaneClient:
@@ -130,7 +129,7 @@ def _build_app(
     security_enabled: bool,
     cp_client: _RecordingControlPlaneClient | _ForbiddenControlPlaneClient,
     store: _FakeStore | None = None,
-    dataset_store: _FakeDatasetStore | None = None,
+    evaluation_store: _FakeEvaluationStore | None = None,
 ) -> FastAPI:
     app = FastAPI()
     app.include_router(build_evaluations_router())
@@ -144,23 +143,23 @@ def _build_app(
         security=SimpleNamespace(user=SimpleNamespace(enabled=security_enabled)),
         worker=SimpleNamespace(judge_profiles={}),
     )
-    app.dependency_overrides[_get_evaluation_store] = lambda: store or _FakeStore()
-    app.dependency_overrides[_get_dataset_store] = lambda: (
-        dataset_store or _FakeDatasetStore()
+    app.dependency_overrides[_get_run_store] = lambda: store or _FakeStore()
+    app.dependency_overrides[_get_evaluation_catalog_store] = lambda: (
+        evaluation_store or _FakeEvaluationStore()
     )
     app.dependency_overrides[_get_control_plane_client] = lambda: cp_client
     return app
 
 
 @pytest.mark.asyncio
-async def test_create_campaign_propagates_the_caller_authorization_header():
+async def test_start_run_propagates_the_caller_authorization_header():
     cp_client = _RecordingControlPlaneClient()
     app = _build_app(security_enabled=True, cp_client=cp_client)
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
-            "/campaigns",
-            json=CAMPAIGN_BODY,
+            f"/evaluations/{EVALUATION_ID}/runs",
+            json=RUN_BODY,
             headers={"Authorization": "Bearer alice-token"},
         )
 
@@ -172,14 +171,14 @@ async def test_create_campaign_propagates_the_caller_authorization_header():
 
 
 @pytest.mark.asyncio
-async def test_create_campaign_never_uses_service_authentication_interactively():
+async def test_start_run_never_uses_service_authentication_interactively():
     cp_client = _RecordingControlPlaneClient()
     app = _build_app(security_enabled=True, cp_client=cp_client)
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
-            "/campaigns",
-            json=CAMPAIGN_BODY,
+            f"/evaluations/{EVALUATION_ID}/runs",
+            json=RUN_BODY,
             headers={"Authorization": "Bearer alice-token"},
         )
 
@@ -190,13 +189,13 @@ async def test_create_campaign_never_uses_service_authentication_interactively()
 
 
 @pytest.mark.asyncio
-async def test_create_campaign_dev_mode_security_disabled_is_explicit_not_m2m():
+async def test_start_run_dev_mode_security_disabled_is_explicit_not_m2m():
     cp_client = _RecordingControlPlaneClient()
     app = _build_app(security_enabled=False, cp_client=cp_client)
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         # No Authorization header at all — mirrors local dev without Keycloak.
-        resp = await client.post("/campaigns", json=CAMPAIGN_BODY)
+        resp = await client.post(f"/evaluations/{EVALUATION_ID}/runs", json=RUN_BODY)
 
     assert resp.status_code == 202
     assert len(cp_client.received_auths) == 1
@@ -210,13 +209,13 @@ async def test_two_requests_with_different_bearer_tokens_do_not_leak_into_each_o
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp_a = await client.post(
-            "/campaigns",
-            json=CAMPAIGN_BODY,
+            f"/evaluations/{EVALUATION_ID}/runs",
+            json=RUN_BODY,
             headers={"Authorization": "Bearer token-A"},
         )
         resp_b = await client.post(
-            "/campaigns",
-            json=CAMPAIGN_BODY,
+            f"/evaluations/{EVALUATION_ID}/runs",
+            json=RUN_BODY,
             headers={"Authorization": "Bearer token-B"},
         )
 
@@ -235,8 +234,8 @@ async def test_upstream_403_returns_the_exact_structured_envelope_and_status():
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
-            "/campaigns",
-            json=CAMPAIGN_BODY,
+            f"/evaluations/{EVALUATION_ID}/runs",
+            json=RUN_BODY,
             headers={"Authorization": "Bearer alice-token"},
         )
 
@@ -264,7 +263,9 @@ async def test_inline_dataset_or_cases_payload_is_rejected() -> None:
     }
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
-            "/campaigns", json=body, headers={"Authorization": "Bearer alice-token"}
+            f"/evaluations/{EVALUATION_ID}/runs",
+            json=body,
+            headers={"Authorization": "Bearer alice-token"},
         )
 
     assert resp.status_code == 422
@@ -272,62 +273,62 @@ async def test_inline_dataset_or_cases_payload_is_rejected() -> None:
 
 
 @pytest.mark.asyncio
-async def test_cross_team_dataset_id_is_rejected() -> None:
+async def test_cross_team_evaluation_id_is_rejected() -> None:
     cp_client = _RecordingControlPlaneClient()
-    other_team_dataset_store = _FakeDatasetStore(
-        rows={DATASET_ID: _dataset_row(team_id="team-2")}
+    other_team_evaluation_store = _FakeEvaluationStore(
+        rows={EVALUATION_ID: _evaluation_row(team_id="team-2")}
     )
     app = _build_app(
         security_enabled=True,
         cp_client=cp_client,
-        dataset_store=other_team_dataset_store,
+        evaluation_store=other_team_evaluation_store,
     )
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
-            "/campaigns",
-            json=CAMPAIGN_BODY,
+            f"/evaluations/{EVALUATION_ID}/runs",
+            json=RUN_BODY,
             headers={"Authorization": "Bearer alice-token"},
         )
 
     assert resp.status_code == 404
     assert resp.json() == {
         "detail": {
-            "code": "dataset_not_found",
-            "message": "The selected dataset could not be found.",
+            "code": "evaluation_not_found",
+            "message": "The selected evaluation could not be found.",
         }
     }
-    # Never reached the target resolver — the dataset check runs first.
+    # Never reached the target resolver — the evaluation check runs first.
     assert cp_client.received_auths == []
 
 
 @pytest.mark.asyncio
-async def test_unknown_dataset_id_is_rejected_the_same_way_as_cross_team() -> None:
+async def test_unknown_evaluation_id_is_rejected_the_same_way_as_cross_team() -> None:
     cp_client = _RecordingControlPlaneClient()
-    empty_dataset_store = _FakeDatasetStore(rows={})
+    empty_evaluation_store = _FakeEvaluationStore(rows={})
     app = _build_app(
-        security_enabled=True, cp_client=cp_client, dataset_store=empty_dataset_store
+        security_enabled=True, cp_client=cp_client, evaluation_store=empty_evaluation_store
     )
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
-            "/campaigns",
-            json=CAMPAIGN_BODY,
+            f"/evaluations/{EVALUATION_ID}/runs",
+            json=RUN_BODY,
             headers={"Authorization": "Bearer alice-token"},
         )
 
     assert resp.status_code == 404
-    assert resp.json()["detail"]["code"] == "dataset_not_found"
+    assert resp.json()["detail"]["code"] == "evaluation_not_found"
 
 
 @pytest.mark.asyncio
-async def test_campaign_copies_cases_from_the_referenced_dataset() -> None:
+async def test_run_copies_cases_from_the_referenced_evaluation() -> None:
     cp_client = _RecordingControlPlaneClient()
     store = _FakeStore()
-    dataset_store = _FakeDatasetStore(
+    evaluation_store = _FakeEvaluationStore(
         rows={
-            DATASET_ID: SimpleNamespace(
-                dataset_id=DATASET_ID,
+            EVALUATION_ID: SimpleNamespace(
+                evaluation_id=EVALUATION_ID,
                 name="ds1",
                 version="v1",
                 team_id="team-1",
@@ -346,13 +347,13 @@ async def test_campaign_copies_cases_from_the_referenced_dataset() -> None:
         security_enabled=True,
         cp_client=cp_client,
         store=store,
-        dataset_store=dataset_store,
+        evaluation_store=evaluation_store,
     )
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
-            "/campaigns",
-            json=CAMPAIGN_BODY,
+            f"/evaluations/{EVALUATION_ID}/runs",
+            json=RUN_BODY,
             headers={"Authorization": "Bearer alice-token"},
         )
 

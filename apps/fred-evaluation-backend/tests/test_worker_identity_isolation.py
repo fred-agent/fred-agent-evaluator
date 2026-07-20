@@ -1,11 +1,11 @@
 """Worker identity isolation (EVAL-AUTH RFC — issue #33, part 2).
 
 Proves the invariants that must hold on the asynchronous side:
-- the Temporal payload (`CampaignInput`) carries only `campaign_id` — never a
+- the Temporal payload (`RunInput`) carries only `run_id` — never a
   bearer token;
-- the persisted campaign row carries `created_by` + `team_id` (the legitimacy
+- the persisted run row carries `created_by` + `team_id` (the legitimacy
   anchor) but no credential column;
-- the Temporal activity (`run_case`) resolves the Control Plane using the
+- the Temporal activity (`run_case_for_run`) resolves the Control Plane using the
   worker's own M2M service identity, never a user token — proven by actually
   running the activity function against a real `ControlPlaneClient` wired to
   an `httpx.MockTransport`.
@@ -23,14 +23,18 @@ import pytest
 from fred_core import M2MAuthConfig, M2MTokenProvider
 from pytest import MonkeyPatch
 
-from fred_evaluation_backend.campaigns.models import EvaluationCampaignRow
-from fred_evaluation_backend.campaigns.store import EvaluationStore
+from fred_evaluation_backend.runs.models import EvaluationRunRow
+from fred_evaluation_backend.runs.store import RunStore
 from fred_evaluation_backend.config.models import EvaluationConfig
 from fred_evaluation_backend.execution.agent_client import AgentClient
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
 from fred_evaluation_backend.execution.outbound_auth import UserAuthentication
 from fred_evaluation_backend.workers import _activity_context
-from fred_evaluation_backend.workers.workflow import CampaignInput, CaseInput, run_case
+from fred_evaluation_backend.workers.workflow import (
+    RunCaseInput,
+    RunInput,
+    run_case_for_run,
+)
 
 Handler = (
     Callable[[httpx.Request], httpx.Response]
@@ -65,14 +69,14 @@ def _patch_transport(monkeypatch: MonkeyPatch, handler: Handler) -> None:
     monkeypatch.setattr(httpx, "AsyncClient", factory)
 
 
-def test_campaign_input_carries_only_the_campaign_id():
+def test_run_input_carries_only_the_run_id():
     """The Temporal workflow payload must never widen to carry a credential."""
-    fields = {f.name for f in dataclasses.fields(CampaignInput)}
-    assert fields == {"campaign_id"}
+    fields = {f.name for f in dataclasses.fields(RunInput)}
+    assert fields == {"run_id"}
 
 
-def test_campaign_row_has_the_legitimacy_anchor_but_no_credential_column():
-    columns = {c.name for c in EvaluationCampaignRow.__table__.columns}
+def test_run_row_has_the_legitimacy_anchor_but_no_credential_column():
+    columns = {c.name for c in EvaluationRunRow.__table__.columns}
     assert {"created_by", "team_id"} <= columns
 
     forbidden_substrings = (
@@ -86,33 +90,46 @@ def test_campaign_row_has_the_legitimacy_anchor_but_no_credential_column():
     for column in columns:
         lowered = column.lower()
         assert not any(bad in lowered for bad in forbidden_substrings), (
-            f"campaign row column {column!r} looks like a stored credential"
+            f"run row column {column!r} looks like a stored credential"
         )
 
 
 class _FakeStore:
-    """Duck-typed EvaluationStore stand-in — only the two methods run_case calls."""
+    """Duck-typed RunStore stand-in — only the methods run_case_for_run calls."""
 
-    async def get_campaign(self, campaign_id: str) -> object:
+    def __init__(self) -> None:
+        # Recorded so tests can assert the incremental-progress refresh
+        # (added alongside the worker-identity fix) actually ran.
+        self.aggregate_updates: list[dict[str, object]] = []
+
+    async def get_run(self, run_id: str) -> object:
         return SimpleNamespace(
-            campaign_id=campaign_id,
+            run_id=run_id,
+            evaluation_id="eval-1",
             team_id="team-1",
-            target_kind="managed_instance",
-            target_runtime_id=None,
-            target_agent_id=None,
             target_instance_id="inst-1",
             judge_profile_id="none-configured",
             custom_metrics_json=None,
             created_by="alice",
             profile="auto",
+            target_agent_id=None,
         )
 
     async def get_case(self, case_id: str) -> object:
         return SimpleNamespace(case_id=case_id, input="q1", expected_output=None)
 
+    async def list_cases_by_run(self, run_id: str, limit: int = 10000) -> list[object]:
+        # execute_and_score_case is faked out in these tests, so no real case
+        # rows exist to read back — an empty list is enough for
+        # run_case_for_run's post-case aggregate refresh to run harmlessly.
+        return []
+
+    async def update_run_aggregates(self, run_id: str, **kwargs: object) -> None:
+        self.aggregate_updates.append({"run_id": run_id, **kwargs})
+
 
 @pytest.mark.asyncio
-async def test_run_case_activity_resolves_control_plane_with_worker_m2m_identity(
+async def test_run_case_for_run_activity_resolves_control_plane_with_worker_m2m_identity(
     monkeypatch: MonkeyPatch,
 ) -> None:
     seen_auth_headers: list[str | None] = []
@@ -144,10 +161,10 @@ async def test_run_case_activity_resolves_control_plane_with_worker_m2m_identity
     )
 
     # Test doubles satisfy the runtime interface run_case actually uses; cast
-    # tells the type checker to trust that (EvaluationStore/EvaluationConfig/
+    # tells the type checker to trust that (RunStore/EvaluationConfig/
     # AgentClient are concrete classes, not Protocols, so structural fakes need it).
     _activity_context.init(
-        store=cast(EvaluationStore, cast(object, _FakeStore())),
+        store=cast(RunStore, cast(object, _FakeStore())),
         config=cast(
             EvaluationConfig,
             cast(object, SimpleNamespace(worker=SimpleNamespace(judge_profiles={}))),
@@ -156,7 +173,7 @@ async def test_run_case_activity_resolves_control_plane_with_worker_m2m_identity
         cp_client=cp_client,
     )
 
-    await run_case(CaseInput(case_id="case-1", campaign_id="camp-1"))
+    await run_case_for_run(RunCaseInput(case_id="case-1", run_id="run-1"))
 
     # The Control Plane call used the worker's M2M identity, not a user token.
     assert seen_auth_headers == ["Bearer worker-m2m-token"]
@@ -207,7 +224,7 @@ async def test_worker_resolution_cannot_reuse_a_prior_api_caller_token(
         fake_execute_and_score_case,
     )
     _activity_context.init(
-        store=cast(EvaluationStore, cast(object, _FakeStore())),
+        store=cast(RunStore, cast(object, _FakeStore())),
         config=cast(
             EvaluationConfig,
             cast(object, SimpleNamespace(worker=SimpleNamespace(judge_profiles={}))),
@@ -217,6 +234,6 @@ async def test_worker_resolution_cannot_reuse_a_prior_api_caller_token(
     )
 
     # The worker's own resolution — must use M2M, never the prior caller's token.
-    await run_case(CaseInput(case_id="case-1", campaign_id="camp-1"))
+    await run_case_for_run(RunCaseInput(case_id="case-1", run_id="run-1"))
 
     assert seen_auth_headers == ["Bearer api-caller-token", "Bearer worker-m2m-token"]

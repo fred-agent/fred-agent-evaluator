@@ -14,14 +14,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from fred_evaluation_backend.campaigns.store import EvaluationStore
+    from fred_evaluation_backend.runs.store import RunStore
     from fred_evaluation_backend.config.models import EvaluationConfig
     from fred_evaluation_backend.execution.agent_client import AgentClient
     from fred_evaluation_backend.execution.control_plane_client import (
         ControlPlaneClient,
     )
 
-_store: "EvaluationStore | None" = None
+_store: "RunStore | None" = None
 _config: "EvaluationConfig | None" = None
 _agent_client: "AgentClient | None" = None
 _cp_client: "ControlPlaneClient | None" = None
@@ -29,7 +29,7 @@ _cp_client: "ControlPlaneClient | None" = None
 
 def init(
     *,
-    store: "EvaluationStore",
+    store: "RunStore",
     config: "EvaluationConfig",
     agent_client: "AgentClient",
     cp_client: "ControlPlaneClient",
@@ -41,7 +41,7 @@ def init(
     _cp_client = cp_client
 
 
-def get_store() -> "EvaluationStore":
+def get_store() -> "RunStore":
     if _store is None:
         raise RuntimeError("Activity context not initialised — call init() first")
     return _store

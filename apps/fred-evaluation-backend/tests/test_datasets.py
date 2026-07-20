@@ -1,4 +1,4 @@
-"""Dataset domain model tests.
+"""Evaluation catalog domain model tests.
 
 These lock in the Phase 1 contract from docs/rfc/EVAL-DATASET-RFC.md:
 - the Pydantic models round-trip through JSON (the persistence boundary),
@@ -10,10 +10,10 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fred_evaluation_backend.datasets.schemas import (
-    DatasetCase,
-    DatasetCompleteness,
-    EvaluationDataset,
+from fred_evaluation_backend.evaluations.schemas import (
+    Evaluation,
+    EvaluationCase,
+    EvaluationCompleteness,
     QuestionCandidate,
     QuestionSet,
     QuestionSetStatus,
@@ -28,9 +28,9 @@ def _now() -> datetime:
 # ── completeness derivation ───────────────────────────────────────────────────
 
 
-def _dataset(cases: list[DatasetCase], version: str = "v1") -> EvaluationDataset:
-    return EvaluationDataset(
-        dataset_id="ds-1",
+def _evaluation(cases: list[EvaluationCase], version: str = "v1") -> Evaluation:
+    return Evaluation(
+        evaluation_id="eval-1",
         name="MyDataset",
         version=version,
         team_id="team-1",
@@ -42,52 +42,54 @@ def _dataset(cases: list[DatasetCase], version: str = "v1") -> EvaluationDataset
 
 
 def test_completeness_complete_when_all_cases_have_expected_output():
-    ds = _dataset(
+    evaluation = _evaluation(
         [
-            DatasetCase(input="q1", expected_output="a1"),
-            DatasetCase(input="q2", expected_output="a2"),
+            EvaluationCase(input="q1", expected_output="a1"),
+            EvaluationCase(input="q2", expected_output="a2"),
         ]
     )
-    assert ds.completeness is DatasetCompleteness.complete
+    assert evaluation.completeness is EvaluationCompleteness.complete
 
 
 def test_completeness_minimal_when_one_case_lacks_expected_output():
-    ds = _dataset(
+    evaluation = _evaluation(
         [
-            DatasetCase(input="q1", expected_output="a1"),
-            DatasetCase(input="q2"),  # no expected_output
+            EvaluationCase(input="q1", expected_output="a1"),
+            EvaluationCase(input="q2"),  # no expected_output
         ]
     )
-    assert ds.completeness is DatasetCompleteness.minimal
+    assert evaluation.completeness is EvaluationCompleteness.minimal
 
 
 def test_completeness_minimal_for_empty_cases():
-    assert _dataset([]).completeness is DatasetCompleteness.minimal
+    assert _evaluation([]).completeness is EvaluationCompleteness.minimal
 
 
 def test_completeness_is_derived_not_trusted_as_input():
     # Caller claims complete, but a case lacks expected_output → forced to minimal.
-    ds = EvaluationDataset(
-        dataset_id="ds-1",
+    evaluation = Evaluation(
+        evaluation_id="eval-1",
         name="MyDataset",
         version="v1",
         team_id="team-1",
         created_by="alice",
         origin="upload",
-        completeness=DatasetCompleteness.complete,
-        cases=[DatasetCase(input="q1")],
+        completeness=EvaluationCompleteness.complete,
+        cases=[EvaluationCase(input="q1")],
         created_at=_now(),
     )
-    assert ds.completeness is DatasetCompleteness.minimal
+    assert evaluation.completeness is EvaluationCompleteness.minimal
 
 
 # ── JSON round-trip (persistence boundary) ────────────────────────────────────
 
 
-def test_evaluation_dataset_json_round_trip():
-    ds = _dataset([DatasetCase(input="q1", expected_output="a1", tags=["rag"])])
-    restored = EvaluationDataset.model_validate_json(ds.model_dump_json())
-    assert restored == ds
+def test_evaluation_json_round_trip():
+    evaluation = _evaluation(
+        [EvaluationCase(input="q1", expected_output="a1", tags=["rag"])]
+    )
+    restored = Evaluation.model_validate_json(evaluation.model_dump_json())
+    assert restored == evaluation
 
 
 def test_question_set_json_round_trip():
@@ -122,9 +124,9 @@ def test_question_set_json_round_trip():
 
 
 def test_version_is_part_of_identity():
-    cases = [DatasetCase(input="q1")]
-    v1 = _dataset(cases, version="v1")
-    v2 = _dataset(cases, version="v2")
+    cases = [EvaluationCase(input="q1")]
+    v1 = _evaluation(cases, version="v1")
+    v2 = _evaluation(cases, version="v2")
     # Same lineage (name), distinct frozen versions.
     assert v1.name == v2.name
     assert v1.version != v2.version

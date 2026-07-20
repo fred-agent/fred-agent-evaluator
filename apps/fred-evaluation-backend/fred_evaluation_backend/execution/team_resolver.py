@@ -33,10 +33,10 @@ async def resolve_team_membership(
     control_plane_client: ControlPlaneClient,
     auth: OutboundAuth,
 ) -> None:
-    """Authorize a team-scoped action that has no execution target (datasets).
+    """Authorize a team-scoped action that has no execution target (evaluations).
 
-    Campaigns validate team scope for free, as a side effect of the target's
-    own `prepare-execution` call. Datasets have no target, so this calls
+    Run creation validates team scope as a side effect of the target's own
+    `prepare-execution` call. Evaluation catalog operations have no target, so this calls
     Control Plane's `GET /teams/{team_id}` directly with the caller's
     propagated JWT and raises the same target-neutral error vocabulary
     (`evaluator_errors`) on either a boundary failure or a non-member.

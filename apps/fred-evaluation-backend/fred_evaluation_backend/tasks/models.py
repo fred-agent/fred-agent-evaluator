@@ -11,11 +11,12 @@ from fred_core.tasks import (
     TaskTarget,
 )
 
-from fred_evaluation_backend.campaigns.models import EvaluationCampaignRow
+from fred_evaluation_backend.runs.models import EvaluationRunRow
+from fred_evaluation_backend.runs.schemas import RunSnapshot
 
-# ── Mapping: evaluation campaign row → canonical task shape ───────────────────
+# ── Mapping: evaluation run row → canonical task shape ────────────────────────
 
-# The campaign's `operational_state` predates the task state machine; map it onto
+# The run's `operational_state` predates the task state machine; map it onto
 # the canonical six-state `TaskState`. "completed" is a terminal success.
 _STATE_MAP: dict[str, TaskState] = {
     "pending": TaskState.pending,
@@ -32,18 +33,24 @@ def map_state(operational_state: str) -> TaskState:
     return _STATE_MAP.get(operational_state, TaskState.pending)
 
 
-def _progress(row: EvaluationCampaignRow) -> float | None:
+def _progress(row: EvaluationRunRow) -> float | None:
     return (row.completed_cases / row.total_cases) if row.total_cases else None
 
 
-def _target(row: EvaluationCampaignRow) -> TaskTarget:
-    return TaskTarget(type="evaluation_campaign", id=row.campaign_id, label=row.name)
+def _target(row: EvaluationRunRow) -> TaskTarget:
+    label = row.run_id
+    if row.snapshot_json:
+        try:
+            label = RunSnapshot.model_validate_json(row.snapshot_json).evaluation_name
+        except Exception:
+            label = row.run_id
+    return TaskTarget(type="evaluation_run", id=row.run_id, label=label)
 
 
-def campaign_to_summary(row: EvaluationCampaignRow) -> TaskSummary:
-    """One campaign row → a current-state task snapshot (GET /tasks)."""
+def run_to_summary(row: EvaluationRunRow) -> TaskSummary:
+    """One run row → a current-state task snapshot (GET /tasks)."""
     return TaskSummary(
-        task_id=row.task_id or row.campaign_id,
+        task_id=row.task_id or row.run_id,
         kind="evaluation",
         state=map_state(row.operational_state),
         progress=_progress(row),
@@ -57,10 +64,10 @@ def campaign_to_summary(row: EvaluationCampaignRow) -> TaskSummary:
     )
 
 
-def campaign_to_event(row: EvaluationCampaignRow, seq: int) -> EvaluationTaskEvent:
-    """One campaign row → a canonical evaluation task event (SSE / latest)."""
+def run_to_event(row: EvaluationRunRow, seq: int) -> EvaluationTaskEvent:
+    """One run row → a canonical evaluation task event (SSE / latest)."""
     return EvaluationTaskEvent(
-        task_id=row.task_id or row.campaign_id,
+        task_id=row.task_id or row.run_id,
         state=map_state(row.operational_state),
         seq=seq,
         timestamp=datetime.now(timezone.utc),
@@ -70,7 +77,7 @@ def campaign_to_event(row: EvaluationCampaignRow, seq: int) -> EvaluationTaskEve
         target=_target(row),
         owner=row.created_by,
         detail=EvaluationDetail(
-            campaign_id=row.campaign_id,
+            campaign_id=row.run_id,
             completed=row.completed_cases,
             total=row.total_cases,
             passed=row.passed_cases,
@@ -89,6 +96,6 @@ __all__ = [
     "TaskState",
     "TaskTarget",
     "map_state",
-    "campaign_to_summary",
-    "campaign_to_event",
+    "run_to_summary",
+    "run_to_event",
 ]

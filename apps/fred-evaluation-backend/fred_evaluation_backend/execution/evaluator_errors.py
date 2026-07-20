@@ -45,7 +45,7 @@ EvaluatorErrorCode = Literal[
     "target_invalid",
     "control_plane_unavailable",
     "control_plane_invalid_response",
-    "dataset_not_found",
+    "evaluation_not_found",
 ]
 
 # Known external-boundary failures the resolver is allowed to reclassify. Anything
@@ -172,20 +172,13 @@ def map_control_plane_error(
             code=mapping.code, message=mapping.message
         ).model_dump(),
     )
-
-
-def dataset_not_found_error() -> HTTPException:
-    """A campaign referenced a `dataset_id` that doesn't exist for the caller's team.
-
-    Deliberately the same message/code for "no such dataset" and "dataset
-    belongs to another team" — the two are indistinguishable from the
-    caller's side, avoiding a cross-team existence leak.
-    """
+def evaluation_not_found_error() -> HTTPException:
+    """The selected evaluation does not exist for the caller's team."""
     return HTTPException(
         status_code=404,
         detail=EvaluatorErrorDetail(
-            code="dataset_not_found",
-            message="The selected dataset could not be found.",
+            code="evaluation_not_found",
+            message="The selected evaluation could not be found.",
         ).model_dump(),
     )
 
