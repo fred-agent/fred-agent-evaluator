@@ -586,16 +586,16 @@
             {
                 "code": "reportUnknownVariableType",
                 "range": {
-                    "startColumn": 53,
-                    "endColumn": 76,
+                    "startColumn": 42,
+                    "endColumn": 53,
                     "lineCount": 1
                 }
             },
             {
                 "code": "reportUnknownVariableType",
                 "range": {
-                    "startColumn": 42,
-                    "endColumn": 53,
+                    "startColumn": 53,
+                    "endColumn": 76,
                     "lineCount": 1
                 }
             },
@@ -1344,34 +1344,10 @@
                 }
             },
             {
-                "code": "reportArgumentType",
+                "code": "reportUnknownMemberType",
                 "range": {
-                    "startColumn": 23,
-                    "endColumn": 50,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 23,
-                    "endColumn": 57,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 27,
-                    "endColumn": 61,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 27,
-                    "endColumn": 58,
+                    "startColumn": 12,
+                    "endColumn": 26,
                     "lineCount": 1
                 }
             },
@@ -1380,22 +1356,6 @@
                 "range": {
                     "startColumn": 12,
                     "endColumn": 37,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 25,
-                    "endColumn": 50,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 25,
-                    "endColumn": 50,
                     "lineCount": 1
                 }
             }
@@ -3882,14 +3842,6 @@
         ],
         "./tests/test_deepeval_adapter.py": [
             {
-                "code": "reportUnknownVariableType",
-                "range": {
-                    "startColumn": 43,
-                    "endColumn": 53,
-                    "lineCount": 1
-                }
-            },
-            {
                 "code": "reportPrivateUsage",
                 "range": {
                     "startColumn": 42,
@@ -3902,6 +3854,14 @@
                 "range": {
                     "startColumn": 42,
                     "endColumn": 61,
+                    "lineCount": 1
+                }
+            },
+            {
+                "code": "reportUnknownVariableType",
+                "range": {
+                    "startColumn": 43,
+                    "endColumn": 53,
                     "lineCount": 1
                 }
             },
