@@ -421,3 +421,123 @@ async def test_deleting_an_unknown_evaluation_is_a_404() -> None:
             "/evaluations/nope", headers={"Authorization": "Bearer alice-token"}
         )
     assert resp.status_code == 404
+
+
+# ── EVAL-06: malformed documents are refused, never half-accepted ─────────────
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("label", "body"),
+    [
+        # The pre-EVAL-06 format was a bare array of cases. It is not supported and
+        # must fail at the boundary rather than be coerced into something partial.
+        ("legacy bare array", [{"input": "q1"}]),
+        (
+            "legacy inline dataset key",
+            {
+                "team_id": "t",
+                "name": "n",
+                "origin": "upload",
+                "dataset": {"cases": [{"input": "q"}]},
+            },
+        ),
+        # A typo must not be silently dropped: "expectd_output" would cost the case
+        # its reference answer and quietly demote the evaluation to `minimal`.
+        (
+            "typo in a case field",
+            {
+                "team_id": "t",
+                "name": "n",
+                "origin": "upload",
+                "cases": [{"input": "q", "expectd_output": "a"}],
+            },
+        ),
+        (
+            "typo in a document field",
+            {
+                "team_id": "t",
+                "name": "n",
+                "origin": "upload",
+                "cases": [{"input": "q"}],
+                "autor": "X",
+            },
+        ),
+        ("no cases at all", {"team_id": "t", "name": "n", "origin": "upload"}),
+        ("empty cases", {"team_id": "t", "name": "n", "origin": "upload", "cases": []}),
+        (
+            "case without input",
+            {
+                "team_id": "t",
+                "name": "n",
+                "origin": "upload",
+                "cases": [{"expected_output": "a"}],
+            },
+        ),
+        (
+            "input of the wrong type",
+            {
+                "team_id": "t",
+                "name": "n",
+                "origin": "upload",
+                "cases": [{"input": 123}],
+            },
+        ),
+        (
+            "missing name",
+            {"team_id": "t", "origin": "upload", "cases": [{"input": "q"}]},
+        ),
+        (
+            "empty name",
+            {"team_id": "t", "name": "", "origin": "upload", "cases": [{"input": "q"}]},
+        ),
+        (
+            "unsupported origin",
+            {"team_id": "t", "name": "n", "origin": "csv", "cases": [{"input": "q"}]},
+        ),
+        (
+            "over the 200-case ceiling",
+            {
+                "team_id": "t",
+                "name": "n",
+                "origin": "upload",
+                "cases": [{"input": "q"}] * 201,
+            },
+        ),
+    ],
+)
+async def test_malformed_documents_are_rejected_and_nothing_is_persisted(
+    label: str, body: object
+) -> None:
+    store = _InMemoryEvaluationStore()
+    app = _build_app(cp_client=_MemberControlPlaneClient(), store=store)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/evaluations", json=body, headers={"Authorization": "Bearer alice-token"}
+        )
+    assert resp.status_code == 422, f"{label} should be refused, got {resp.status_code}"
+    assert store.rows == {}, f"{label} left something persisted"
+
+
+@pytest.mark.asyncio
+async def test_rejection_names_the_offending_field_so_a_ui_can_point_at_it() -> None:
+    """A refusal is only 'clean' if the author can tell what to fix: the error must
+    locate the exact case index and key, not just say the payload is invalid."""
+    app = _build_app(cp_client=_MemberControlPlaneClient())
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/evaluations",
+            json={
+                "team_id": "t",
+                "name": "n",
+                "origin": "upload",
+                "cases": [{"input": "q1"}, {"input": "q2", "expectd_output": "a"}],
+            },
+            headers={"Authorization": "Bearer alice-token"},
+        )
+    assert resp.status_code == 422
+    assert ["body", "cases", 1, "expectd_output"] in [
+        d["loc"] for d in resp.json()["detail"]
+    ]

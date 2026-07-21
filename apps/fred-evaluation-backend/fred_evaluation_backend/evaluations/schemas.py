@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class QuestionSetStatus(str, Enum):
@@ -58,6 +58,11 @@ class QuestionSet(BaseModel):
 
 
 class EvaluationCase(BaseModel):
+    # Unknown keys are rejected, not dropped: a misspelt "expectd_output" would
+    # otherwise be silently discarded and quietly demote the whole evaluation from
+    # `complete` to `minimal`, changing which metrics can run.
+    model_config = ConfigDict(extra="forbid")
+
     external_id: str | None = None
     input: str
     expected_output: str | None = None
@@ -102,6 +107,8 @@ class CreateEvaluationRequest(BaseModel):
     out. `author` is declarative and may be any label; the authenticated
     uploader is recorded separately as `created_by` and cannot be forged.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     team_id: str
     name: str = Field(min_length=1, max_length=255)

@@ -374,6 +374,24 @@
                 }
             }
         ],
+        "./fred_evaluation_backend/evaluations/schemas.py": [
+            {
+                "code": "reportUnannotatedClassAttribute",
+                "range": {
+                    "startColumn": 4,
+                    "endColumn": 16,
+                    "lineCount": 1
+                }
+            },
+            {
+                "code": "reportUnannotatedClassAttribute",
+                "range": {
+                    "startColumn": 4,
+                    "endColumn": 16,
+                    "lineCount": 1
+                }
+            }
+        ],
         "./fred_evaluation_backend/evaluations/service.py": [
             {
                 "code": "reportUnusedCallResult",
@@ -6390,6 +6408,14 @@
                 "range": {
                     "startColumn": 4,
                     "endColumn": 8,
+                    "lineCount": 1
+                }
+            },
+            {
+                "code": "reportAny",
+                "range": {
+                    "startColumn": 21,
+                    "endColumn": 22,
                     "lineCount": 1
                 }
             }
