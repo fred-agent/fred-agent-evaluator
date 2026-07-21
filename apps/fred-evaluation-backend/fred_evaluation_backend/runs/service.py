@@ -16,6 +16,7 @@ from fred_evaluation_backend.execution.evaluator_errors import (
 from fred_evaluation_backend.execution.outbound_auth import OutboundAuth
 from fred_evaluation_backend.execution.runtime_resolver import resolve_managed_instance
 from fred_evaluation_backend.runs.schemas import (
+    CustomMetricSpecInput,
     EvaluationCaseListResponse,
     EvaluationCaseResponse,
     EvaluationMetricResultResponse,
@@ -49,6 +50,8 @@ async def start_run(
     auth: OutboundAuth,
     profile: str,
     judge_profile_id: str,
+    metrics: list[str],
+    custom_metrics: list[CustomMetricSpecInput],
 ) -> RunCreatedResponse:
     evaluation = await evaluation_store.get_evaluation(evaluation_id)
     if evaluation is None or evaluation.team_id != team_id:
@@ -76,7 +79,7 @@ async def start_run(
         judge_profile_id=judge_profile_id,
     )
 
-    await store.create_run(
+    _ = await store.create_run(
         run_id=run_id,
         evaluation_id=evaluation_id,
         team_id=team_id,
@@ -89,7 +92,10 @@ async def start_run(
         profile=profile,
         judge_profile_id=judge_profile_id,
         total_cases=len(cases),
-        custom_metrics_json=None,
+        metrics_json=json.dumps(metrics),
+        custom_metrics_json=json.dumps([m.model_dump() for m in custom_metrics])
+        if custom_metrics
+        else None,
         snapshot_json=snapshot.model_dump_json(),
     )
 

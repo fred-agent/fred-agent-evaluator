@@ -123,6 +123,7 @@ class RunRunner:
             CustomMetricSpec.model_validate(m)
             for m in json.loads(run.custom_metrics_json or "[]")
         ]
+        metrics: list[str] = json.loads(run.metrics_json or "[]")
         cases = await self._store.list_cases_by_run(run_id, limit=10000)
 
         async def _run_case(case) -> None:
@@ -143,6 +144,7 @@ class RunRunner:
                         profile=run.profile,
                         judge=judge,
                         custom_metrics=custom_metrics,
+                        metrics=metrics,
                         store=self._store,
                         agent_client=self._agent_client,
                     )

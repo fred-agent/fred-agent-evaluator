@@ -37,6 +37,7 @@ EVALUATION_ID = "eval-1"
 RUN_BODY = {
     "team_id": "team-1",
     "target": {"kind": "managed_instance", "agent_instance_id": "inst-1"},
+    "metrics": ["answer_relevancy"],
 }
 
 

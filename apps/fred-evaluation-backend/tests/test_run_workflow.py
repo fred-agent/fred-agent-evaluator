@@ -147,6 +147,8 @@ async def _start_run(
         auth=NoAuthentication(),
         profile="auto",
         judge_profile_id="mistral-small",
+        metrics=["answer_relevancy"],
+        custom_metrics=[],
     )
 
 

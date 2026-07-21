@@ -38,12 +38,30 @@ def _trace_to_test_case(trace: dict, expected_output: str | None = None) -> LLMT
     )
 
 
+#: Built-in metric ids selectable via `score_trace(metrics=...)`. Kept in sync by
+#: convention (and cross-checked in tests) with
+#: `fred_evaluation_backend.runs.metrics_catalog.BUILTIN_METRIC_IDS` — that module
+#: can't import this one back, since the API image never installs `deepeval`.
+_BUILTIN_METRIC_CLASS_NAMES: dict[str, str] = {
+    "answer_relevancy": "AnswerRelevancyMetric",
+    "faithfulness": "FaithfulnessMetric",
+    "contextual_relevancy": "ContextualRelevancyMetric",
+    "contextual_precision": "ContextualPrecisionMetric",
+    "contextual_recall": "ContextualRecallMetric",
+}
+
+#: These need an `expected_output` to judge against; selected without one, they are
+#: reported as `skipped` instead of being handed to DeepEval (which would error).
+_REQUIRES_EXPECTED_OUTPUT = {"contextual_precision", "contextual_recall"}
+
+
 def score_trace(
     trace: dict,
     profile: str = "default",
     expected_output: str | None = None,
     judge=None,
     custom_metrics: list[CustomMetricSpec] | None = None,
+    metrics: list[str] | None = None,
 ) -> tuple[list[EvaluationMetricResult], list[str]]:
     from deepeval.metrics import (
         AnswerRelevancyMetric,
@@ -61,21 +79,52 @@ def score_trace(
     def _metric(cls, **kwargs):
         return cls(model=judge, async_mode=False, **kwargs)
 
+    results: list[EvaluationMetricResult] = []
+    scoring_errors: list[str] = []
+
     # Annotated as the base type: the list is heterogeneous (built-ins + GEval), and
     # inferring it from the first element would reject every later append.
-    metrics: list[BaseMetric] = [_metric(AnswerRelevancyMetric)]
+    metrics_to_run: list[BaseMetric] = []
 
-    if profile == "rag" and retrieval_context:
-        metrics.append(_metric(FaithfulnessMetric))
-        metrics.append(_metric(ContextualRelevancyMetric))
-        if expected_output:
-            metrics.append(_metric(ContextualPrecisionMetric))
-            metrics.append(_metric(ContextualRecallMetric))
+    if metrics is not None:
+        # Explicit, user-chosen selection (the run-creation API). Ids are already
+        # validated against the same catalog at that layer, so an unknown id here
+        # would be a programming error, not bad user input.
+        metric_classes: dict[str, type[BaseMetric]] = {
+            "answer_relevancy": AnswerRelevancyMetric,
+            "faithfulness": FaithfulnessMetric,
+            "contextual_relevancy": ContextualRelevancyMetric,
+            "contextual_precision": ContextualPrecisionMetric,
+            "contextual_recall": ContextualRecallMetric,
+        }
+        for metric_id in metrics:
+            if metric_id in _REQUIRES_EXPECTED_OUTPUT and not expected_output:
+                results.append(
+                    EvaluationMetricResult(
+                        name=_BUILTIN_METRIC_CLASS_NAMES[metric_id],
+                        provider="deepeval",
+                        score=None,
+                        verdict="skipped",
+                        explanation="Requires an expected_output, which this case does not have.",
+                    )
+                )
+                continue
+            metrics_to_run.append(_metric(metric_classes[metric_id]))
+    else:
+        # No explicit selection (CLI standalone path) — fall back to the automatic
+        # profile-based cascade.
+        metrics_to_run.append(_metric(AnswerRelevancyMetric))
+        if profile == "rag" and retrieval_context:
+            metrics_to_run.append(_metric(FaithfulnessMetric))
+            metrics_to_run.append(_metric(ContextualRelevancyMetric))
+            if expected_output:
+                metrics_to_run.append(_metric(ContextualPrecisionMetric))
+                metrics_to_run.append(_metric(ContextualRecallMetric))
 
     # User-defined criteria: each becomes a GEval judged in plain language. The result
     # slots into the same measure/verdict loop below, indistinguishable from a built-in.
     for spec in custom_metrics or []:
-        metrics.append(
+        metrics_to_run.append(
             _metric(
                 GEval,
                 name=spec.name,
@@ -85,10 +134,7 @@ def score_trace(
             )
         )
 
-    results: list[EvaluationMetricResult] = []
-    scoring_errors: list[str] = []
-
-    for metric in metrics:
+    for metric in metrics_to_run:
         # Built-in metrics report their class name (AnswerRelevancyMetric, …). A GEval is
         # generic — every custom criterion is the same class — so it must report the
         # user-given name instead, or all custom metrics would collapse to "GEval".

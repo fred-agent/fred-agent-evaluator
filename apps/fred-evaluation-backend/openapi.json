@@ -197,57 +197,6 @@
         }
       }
     },
-    "/evaluation/v1/runs": {
-      "get": {
-        "tags": [
-          "Evaluations"
-        ],
-        "summary": "List Team Runs",
-        "operationId": "list_team_runs_evaluation_v1_runs_get",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "team_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Team Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/EvaluationRun"
-                  },
-                  "title": "Response List Team Runs Evaluation V1 Runs Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/evaluation/v1/runs/{run_id}": {
       "get": {
         "tags": [
@@ -1118,6 +1067,86 @@
         ],
         "title": "CreateEvaluationRequest"
       },
+      "CustomMetricSpecInput": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Name"
+          },
+          "criteria": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Criteria"
+          },
+          "parameters": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Parameters"
+          },
+          "threshold": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Threshold",
+            "default": 0.5
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "criteria",
+          "parameters"
+        ],
+        "title": "CustomMetricSpecInput",
+        "description": "API-side twin of `fred_deepeval_cli.core.models.CustomMetricSpec`.\n\nValidates shape only \u2014 not whether `parameters` names are valid\n`LLMTestCaseParams` members, since that check imports `deepeval`, which\nthe API image never installs (see `dockerfiles/Dockerfile-api`). An\nunknown parameter name is instead caught by the worker's own\n`CustomMetricSpec.model_validate()` and surfaces as a per-case scoring\nerror rather than a run-creation error."
+      },
+      "ErasureDetail": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErasureReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stores_ok": {
+            "type": "integer",
+            "title": "Stores Ok",
+            "default": 0
+          },
+          "stores_total": {
+            "type": "integer",
+            "title": "Stores Total",
+            "default": 0
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "ErasureDetail",
+        "description": "Compact per-conversation erasure progress. Never carries conversation content.\n\nSurfaces the governance view a platform/team admin needs: why the conversation\nis being erased and how far the fan-out has got (`stores_ok`/`stores_total`).\nThe *when* lives on the task's ``scheduled_for`` (see ``TaskSummary``)."
+      },
+      "ErasureReason": {
+        "type": "string",
+        "enum": [
+          "user_deleted",
+          "member_removed",
+          "idle_expired"
+        ],
+        "title": "ErasureReason",
+        "description": "Why a conversation is being erased (CTRLP-12). Not the content \u2014 the trigger."
+      },
       "EvaluationCase": {
         "properties": {
           "external_id": {
@@ -1208,17 +1237,6 @@
           "case_id": {
             "type": "string",
             "title": "Case Id"
-          },
-          "campaign_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Campaign Id"
           },
           "run_id": {
             "anyOf": [
@@ -1915,7 +1933,7 @@
               "target_invalid",
               "control_plane_unavailable",
               "control_plane_invalid_response",
-              "dataset_not_found"
+              "evaluation_not_found"
             ],
             "title": "Code"
           },
@@ -1976,6 +1994,44 @@
         "type": "object",
         "title": "HealthResponse"
       },
+      "IngestionDetail": {
+        "properties": {
+          "processed": {
+            "type": "integer",
+            "title": "Processed"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "preview": {
+            "type": "integer",
+            "title": "Preview"
+          },
+          "vectorized": {
+            "type": "integer",
+            "title": "Vectorized"
+          },
+          "sql_indexed": {
+            "type": "integer",
+            "title": "Sql Indexed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "processed",
+          "total",
+          "failed",
+          "preview",
+          "vectorized",
+          "sql_indexed"
+        ],
+        "title": "IngestionDetail"
+      },
       "ManagedInstanceTarget": {
         "properties": {
           "kind": {
@@ -1988,12 +2044,159 @@
             "title": "Agent Instance Id"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "kind",
           "agent_instance_id"
         ],
         "title": "ManagedInstanceTarget"
+      },
+      "MigrationDetail": {
+        "properties": {
+          "step_id": {
+            "type": "string",
+            "title": "Step Id"
+          },
+          "processed": {
+            "type": "integer",
+            "title": "Processed"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MigrationResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "step_id",
+          "processed",
+          "total",
+          "failed"
+        ],
+        "title": "MigrationDetail"
+      },
+      "MigrationResult": {
+        "properties": {
+          "import_id": {
+            "type": "string",
+            "title": "Import Id"
+          },
+          "source_platform": {
+            "type": "string",
+            "title": "Source Platform"
+          },
+          "identities_created": {
+            "type": "integer",
+            "title": "Identities Created",
+            "default": 0
+          },
+          "users_processed": {
+            "type": "integer",
+            "title": "Users Processed",
+            "default": 0
+          },
+          "users_skipped": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Users Skipped"
+          },
+          "teams_imported": {
+            "type": "integer",
+            "title": "Teams Imported",
+            "default": 0
+          },
+          "teams_skipped": {
+            "type": "integer",
+            "title": "Teams Skipped",
+            "default": 0
+          },
+          "teams_provisioned": {
+            "type": "integer",
+            "title": "Teams Provisioned",
+            "default": 0
+          },
+          "team_roles_granted": {
+            "type": "integer",
+            "title": "Team Roles Granted",
+            "default": 0
+          },
+          "team_roles_skipped": {
+            "type": "integer",
+            "title": "Team Roles Skipped",
+            "default": 0
+          },
+          "platform_roles_granted": {
+            "type": "integer",
+            "title": "Platform Roles Granted",
+            "default": 0
+          },
+          "agents_imported": {
+            "type": "integer",
+            "title": "Agents Imported",
+            "default": 0
+          },
+          "agents_skipped": {
+            "type": "integer",
+            "title": "Agents Skipped",
+            "default": 0
+          },
+          "agents_gap": {
+            "type": "integer",
+            "title": "Agents Gap",
+            "default": 0
+          },
+          "tags_imported": {
+            "type": "integer",
+            "title": "Tags Imported",
+            "default": 0
+          },
+          "tags_skipped": {
+            "type": "integer",
+            "title": "Tags Skipped",
+            "default": 0
+          },
+          "docs_imported": {
+            "type": "integer",
+            "title": "Docs Imported",
+            "default": 0
+          },
+          "docs_skipped": {
+            "type": "integer",
+            "title": "Docs Skipped",
+            "default": 0
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "import_id",
+          "source_platform"
+        ],
+        "title": "MigrationResult",
+        "description": "Structured outcome of a platform import (AUTHZ-07 Step 3).\n\nA typed public projection of `import_export/importer.py::MigrationReport`\n(control-plane-internal) \u2014 converted via `importer.py::to_migration_result`,\nnever re-derived \u2014 so the terminal `succeeded` event and `GET /tasks` can\nboth carry it. A non-empty `warnings` list is what makes a partial\nreconciliation distinguishable from full success; the state stays\n`succeeded` either way (RFC TASK-EVENT-STREAM-RFC.md \u2014 no new TaskState)."
       },
       "ReadyResponse": {
         "properties": {
@@ -2209,7 +2412,7 @@
           "agent_id"
         ],
         "title": "RuntimeAgentTarget",
-        "description": "Historical target kind \u2014 no longer accepted on creation (EVAL-04).\n\nKept only so `EvaluationCampaignResponse.target` can still render campaigns\ncreated before EVAL-04 removed this path. Never used by\n`CreateEvaluationCampaignRequest`, which is `ManagedInstanceTarget`-only."
+        "description": "Historical target kind \u2014 no longer accepted on creation (EVAL-04)."
       },
       "StartRunRequest": {
         "properties": {
@@ -2219,12 +2422,29 @@
           },
           "target": {
             "$ref": "#/components/schemas/ManagedInstanceTarget"
+          },
+          "metrics": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Metrics"
+          },
+          "custom_metrics": {
+            "items": {
+              "$ref": "#/components/schemas/CustomMetricSpecInput"
+            },
+            "type": "array",
+            "title": "Custom Metrics"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "team_id",
-          "target"
+          "target",
+          "metrics"
         ],
         "title": "StartRunRequest"
       },
@@ -2268,6 +2488,29 @@
           "tasks"
         ],
         "title": "TaskListResponse"
+      },
+      "TaskLogDetail": {
+        "properties": {
+          "level": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warn",
+              "error"
+            ],
+            "title": "Level"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "level",
+          "message"
+        ],
+        "title": "TaskLogDetail"
       },
       "TaskState": {
         "type": "string",
@@ -2380,6 +2623,29 @@
               }
             ],
             "title": "Scheduled For"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IngestionDetail"
+              },
+              {
+                "$ref": "#/components/schemas/EvaluationDetail"
+              },
+              {
+                "$ref": "#/components/schemas/TaskLogDetail"
+              },
+              {
+                "$ref": "#/components/schemas/MigrationDetail"
+              },
+              {
+                "$ref": "#/components/schemas/ErasureDetail"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
           }
         },
         "type": "object",

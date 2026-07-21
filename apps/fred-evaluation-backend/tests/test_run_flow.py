@@ -83,6 +83,8 @@ async def _start(evaluation_id, evaluation_store, run_store, *, instance, by="al
         auth=NoAuthentication(),
         profile="auto",
         judge_profile_id="mistral-small",
+        metrics=["answer_relevancy"],
+        custom_metrics=[],
     )
 
 
@@ -94,9 +96,13 @@ async def test_start_run_persists_config_snapshot_and_cases_on_run_id():
     result = await _start(evaluation_id, ds_store, run_store, instance="inst-9")
 
     run_row = await run_store.get_run(result.run_id)
+    assert run_row is not None
     assert run_row.evaluation_id == evaluation_id
     assert run_row.target_instance_id == "inst-9"
     assert run_row.judge_profile_id == "mistral-small"
+    assert run_row.metrics_json is not None
+    assert json.loads(run_row.metrics_json) == ["answer_relevancy"]
+    assert run_row.custom_metrics_json is None
     snapshot = json.loads(run_row.snapshot_json)
     assert snapshot["evaluation_name"] == "usage-arxivai"
     assert snapshot["evaluation_version"] == "v1"
