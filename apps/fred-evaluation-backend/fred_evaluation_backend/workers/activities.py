@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from typing import TYPE_CHECKING
 
 from fred_core import M2MTokenProvider
 from opentelemetry.trace import Status, StatusCode
@@ -9,6 +10,12 @@ from opentelemetry.trace import Status, StatusCode
 from fred_evaluation_backend.execution.agent_client import AgentClient
 from fred_evaluation_backend.runs.store import RunStore
 from fred_evaluation_backend.telemetry.otel import get_tracer
+
+if TYPE_CHECKING:
+    # Type-only: the API image never installs fred-deepeval-cli/deepeval (`scoring`
+    # extra is worker-only), so this must never become a runtime import here — this
+    # module is imported by the API process to register the Temporal workflow.
+    from fred_deepeval_cli.core.models import EvaluationMetricResult
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +35,7 @@ async def execute_and_score_case(
     profile: str,
     judge,
     custom_metrics: list | None = None,
+    metrics: list[str] | None = None,
     store: RunStore,
     agent_client: AgentClient,
     run_id: str,
@@ -57,6 +65,7 @@ async def execute_and_score_case(
             profile=profile,
             judge=judge,
             custom_metrics=custom_metrics,
+            metrics=metrics,
             store=store,
             agent_client=agent_client,
         )
@@ -79,6 +88,7 @@ async def _execute_and_score_case_inner(
     profile: str,
     judge,
     custom_metrics: list | None = None,
+    metrics: list[str] | None = None,
     store: RunStore,
     agent_client: AgentClient,
 ) -> None:
@@ -148,15 +158,16 @@ async def _execute_and_score_case_inner(
             trace_dict, profile=resolved_profile
         )
 
-        metrics: list = []
+        metric_results: list[EvaluationMetricResult] = []
         scoring_errors: list[str] = []
         if judge is not None:
-            metrics, scoring_errors = score_trace(
+            metric_results, scoring_errors = score_trace(
                 trace_dict,
                 profile=resolved_profile,
                 expected_output=expected_output,
                 judge=judge,
                 custom_metrics=custom_metrics,
+                metrics=metrics,
             )
     except Exception as exc:
         logger.error("[ACTIVITY] scoring failed case=%s: %s", case_id, exc)
@@ -178,13 +189,18 @@ async def _execute_and_score_case_inner(
         return
 
     structural_ok = all(c.passed is not False for c in structural_checks)
-    metrics_ok = all(m.verdict == "passed" for m in metrics) if metrics else True
+    metrics_ok = (
+        all(m.verdict == "passed" for m in metric_results) if metric_results else True
+    )
     metrics_insufficient_only = (
         (
             not metrics_ok
-            and all(m.verdict in ("passed", "insufficient", "skipped") for m in metrics)
+            and all(
+                m.verdict in ("passed", "insufficient", "skipped")
+                for m in metric_results
+            )
         )
-        if metrics
+        if metric_results
         else False
     )
     if structural_ok and not scoring_errors:
@@ -202,13 +218,15 @@ async def _execute_and_score_case_inner(
     span.set_attribute("eval.outcome", outcome)
     if eval_trace.latency_ms is not None:
         span.set_attribute("eval.latency_ms", eval_trace.latency_ms)
-    for m in metrics:
+    for m in metric_results:
         if m.score is not None:
             span.set_attribute(f"eval.metric.{m.name}.score", m.score)
         span.set_attribute(f"eval.metric.{m.name}.verdict", m.verdict)
 
     metric_summary = ", ".join(
-        f"{m.name}={round(m.score * 100)}%" for m in metrics if m.score is not None
+        f"{m.name}={round(m.score * 100)}%"
+        for m in metric_results
+        if m.score is not None
     )
     span.set_attribute(
         "gen_ai.completion",
@@ -234,7 +252,7 @@ async def _execute_and_score_case_inner(
         structural_checks_json=json.dumps([c.model_dump() for c in structural_checks]),
     )
 
-    for metric in metrics:
+    for metric in metric_results:
         await store.create_metric_result(
             case_id=case_id,
             run_id=run_id,

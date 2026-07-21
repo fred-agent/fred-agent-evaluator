@@ -135,6 +135,8 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
             judge_profile_id=service.default_judge_profile_id(
                 configuration.worker.judge_profiles
             ),
+            metrics=body.metrics,
+            custom_metrics=body.custom_metrics,
         )
 
         temporal_provider = _get_temporal_client_provider(request)
