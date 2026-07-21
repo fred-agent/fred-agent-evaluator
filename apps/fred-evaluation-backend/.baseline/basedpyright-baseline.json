@@ -900,6 +900,14 @@
         ],
         "./fred_evaluation_backend/main.py": [
             {
+                "code": "reportUnusedCallResult",
+                "range": {
+                    "startColumn": 8,
+                    "endColumn": 75,
+                    "lineCount": 1
+                }
+            },
+            {
                 "code": "reportArgumentType",
                 "range": {
                     "startColumn": 22,

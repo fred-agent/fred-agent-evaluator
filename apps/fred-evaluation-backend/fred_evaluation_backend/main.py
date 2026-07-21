@@ -6,12 +6,13 @@ from typing import Literal
 
 from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fred_core import get_config, initialize_user_security, log_setup
+from fred_core import build_log_store, get_config, initialize_user_security, log_setup
 from fred_core.common import read_env_bool
-from fred_core.logs.null_log_store import NullLogStore
+from fred_core.kpi import KPIMiddleware, build_kpi_writer
 from fred_core.scheduler import SchedulerBackend, TemporalClientProvider
 from fred_core.sql import create_async_engine_from_config
 from fred_core.users.store.postgres_user_store import init_user_store
+from prometheus_client import start_http_server
 from pydantic import BaseModel
 
 from fred_evaluation_backend.config.loader import load_configuration
@@ -42,8 +43,34 @@ def create_app() -> FastAPI:
     log_setup(
         service_name="fred-evaluation",
         log_level=configuration.app.log_level,
-        store=NullLogStore(),
+        # Generic diagnostic logs (OBSERVABILITY-AND-AUDIT.md §6). Hardcoding
+        # NullLogStore discarded them outright; the store now follows config,
+        # so a deployment that sets `storage.log_store: opensearch` gets them
+        # durable and explorable from OpenSearch Dashboards.
+        store=build_log_store(
+            log_store_config=configuration.storage.log_store,
+            opensearch_config=configuration.storage.opensearch,
+        ),
     )
+
+    # Stream 1 (OBSERVABILITY-AND-AUDIT.md §3): operational metrics, scraped by
+    # Prometheus. Built from the same fred-core factory every other Fred backend
+    # uses, so the evaluator reports through the same pipeline rather than a
+    # bespoke one.
+    kpi_writer = build_kpi_writer(
+        kpi_config=configuration.observability.kpi,
+        opensearch_config=configuration.storage.opensearch,
+        service_name="fred-evaluation",
+        log_level=configuration.app.log_level,
+    )
+    prometheus_cfg = configuration.observability.kpi.prometheus
+    if prometheus_cfg.enabled:
+        start_http_server(prometheus_cfg.port, addr=prometheus_cfg.address)
+        logger.info(
+            "[fred-evaluation] Prometheus metrics exporter ready at %s:%s",
+            prometheus_cfg.address,
+            prometheus_cfg.port,
+        )
 
     initialize_user_security(configuration.security.user)
     docs_enabled = read_env_bool("PRODUCTION_FASTAPI_DOCS_ENABLED", default=True)
@@ -104,6 +131,12 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type", "Authorization"],
     )
+
+    # Per-request latency/throughput/error metrics, on the same middleware every
+    # other Fred backend uses — the labels it emits are the allow-listed, identity-
+    # free set Stream 1 requires (§3), so the evaluator cannot leak identity into
+    # Grafana by construction.
+    app.add_middleware(KPIMiddleware, kpi=lambda: kpi_writer)
 
     # fred-core's auth dependencies (get_current_user) run before any route body
     # and raise their own unstructured HTTPException on failure — normalize those

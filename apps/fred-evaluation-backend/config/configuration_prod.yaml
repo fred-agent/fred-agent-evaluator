@@ -43,6 +43,9 @@ observability:
     log:
       enabled: true
     prometheus:
+      # Stream 1 (§3): operational metrics scraped by Prometheus. Enable in any
+      # deployment that is monitored — the exporter binds its own port, separate
+      # from the API's.
       enabled: false
     opensearch:
       enabled: false

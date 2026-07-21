@@ -3,8 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from fred_core import log_setup
-from fred_core.logs.null_log_store import NullLogStore
+from fred_core import build_log_store, log_setup
 from fred_core.scheduler import SchedulerBackend
 from fred_core.sql import create_async_engine_from_config
 
@@ -90,7 +89,14 @@ async def main() -> None:
     log_setup(
         service_name="fred-evaluation-worker",
         log_level=configuration.app.log_level,
-        store=NullLogStore(),
+        # Generic diagnostic logs (OBSERVABILITY-AND-AUDIT.md §6). Hardcoding
+        # NullLogStore discarded them outright; the store now follows config,
+        # so a deployment that sets `storage.log_store: opensearch` gets them
+        # durable and explorable from OpenSearch Dashboards.
+        store=build_log_store(
+            log_store_config=configuration.storage.log_store,
+            opensearch_config=configuration.storage.opensearch,
+        ),
     )
     logger.info("Fred evaluation worker starting...")
     if configuration.observability.tracer == "langfuse":

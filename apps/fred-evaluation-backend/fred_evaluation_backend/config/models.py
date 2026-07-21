@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fred_core import SecurityConfiguration
+from fred_core import LogStorageConfig, SecurityConfiguration
 from fred_core.common import KpiObservabilityConfig, ModelConfiguration
 from fred_core.common.structures import (
     OpenSearchStoreConfig,
@@ -32,6 +32,11 @@ class ControlPlaneConfig(BaseModel):
 class StorageConfig(BaseModel):
     postgres: PostgresStoreConfig = Field(default_factory=PostgresStoreConfig)
     opensearch: OpenSearchStoreConfig | None = None
+    # Stream 4 of docs/swift/platform/OBSERVABILITY-AND-AUDIT.md §6: generic
+    # diagnostic logs. `opensearch` makes them durable and explorable from
+    # OpenSearch Dashboards; absent, fred-core falls back to a bounded in-memory
+    # ring, which is fine for local dev and is not a durability guarantee.
+    log_store: LogStorageConfig | None = None
 
 
 class LangfuseObservabilityConfig(BaseModel):
