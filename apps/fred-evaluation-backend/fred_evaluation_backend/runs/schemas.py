@@ -159,3 +159,23 @@ class RunAnalysisResponse(BaseModel):
     run_id: str
     analysis: RunAnalysisResult
     cached: bool
+
+
+class RunReport(BaseModel):
+    """Self-contained, archivable record of one run — what was asked (the run's
+    metadata, target, and metric selection), how it went (aggregates), what came
+    out per case (input/expected/actual, per-metric scores and judge
+    explanations), and any cached analysis. Suitable for archiving or for
+    feeding to an LLM-as-judge.
+
+    Deliberately reuses `EvaluationRun`/`EvaluationCaseResponse` rather than
+    redeclaring their fields — one shape for "a run" and "a case" everywhere.
+
+    Known limitation: cannot include the RAG retrieval context — it isn't
+    persisted on the case (only `raw_trace_ref`).
+    """
+
+    schema_version: Literal["1"] = "1"
+    run: EvaluationRun
+    cases: list[EvaluationCaseResponse]
+    analysis: RunAnalysisResult | None = None

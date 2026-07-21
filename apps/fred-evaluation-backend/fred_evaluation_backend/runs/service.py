@@ -22,7 +22,9 @@ from fred_evaluation_backend.runs.schemas import (
     EvaluationMetricResultResponse,
     EvaluationRun,
     ManagedInstanceTarget,
+    RunAnalysisResult,
     RunCreatedResponse,
+    RunReport,
     RunSnapshot,
     StructuralCheckResponse,
 )
@@ -260,3 +262,25 @@ async def delete_run(
             detail=f"Run '{run_id}' is currently running and cannot be deleted.",
         )
     await store.delete_run(run_id)
+
+
+async def get_run_report(run_id: str, *, store: RunStore) -> RunReport:
+    row = await store.get_run(run_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found.")
+
+    # An evaluation is capped at 200 cases (EvaluationCase.cases, max_length=200),
+    # so a run never has more — one page is always the complete set, no pagination
+    # needed for an archivable report.
+    cases_page = await list_run_cases(run_id, limit=200, store=store)
+
+    analysis: RunAnalysisResult | None = None
+    if row.analysis_json:
+        stored: dict[str, object] = json.loads(row.analysis_json)
+        analysis = RunAnalysisResult.model_validate(stored["analysis"])
+
+    return RunReport(
+        run=_run_to_response(row),
+        cases=cases_page.cases,
+        analysis=analysis,
+    )

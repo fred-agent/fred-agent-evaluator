@@ -282,6 +282,53 @@
         }
       }
     },
+    "/evaluation/v1/runs/{run_id}/report": {
+      "get": {
+        "tags": [
+          "Evaluations"
+        ],
+        "summary": "Get Run Report",
+        "operationId": "get_run_report_evaluation_v1_runs__run_id__report_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunReport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/evaluation/v1/runs/{run_id}/cases": {
       "get": {
         "tags": [
@@ -2330,6 +2377,43 @@
           "state"
         ],
         "title": "RunCreatedResponse"
+      },
+      "RunReport": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1",
+            "title": "Schema Version",
+            "default": "1"
+          },
+          "run": {
+            "$ref": "#/components/schemas/EvaluationRun"
+          },
+          "cases": {
+            "items": {
+              "$ref": "#/components/schemas/EvaluationCaseResponse"
+            },
+            "type": "array",
+            "title": "Cases"
+          },
+          "analysis": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunAnalysisResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "run",
+          "cases"
+        ],
+        "title": "RunReport",
+        "description": "Self-contained, archivable record of one run \u2014 what was asked (the run's\nmetadata, target, and metric selection), how it went (aggregates), what came\nout per case (input/expected/actual, per-metric scores and judge\nexplanations), and any cached analysis. Suitable for archiving or for\nfeeding to an LLM-as-judge.\n\nDeliberately reuses `EvaluationRun`/`EvaluationCaseResponse` rather than\nredeclaring their fields \u2014 one shape for \"a run\" and \"a case\" everywhere.\n\nKnown limitation: cannot include the RAG retrieval context \u2014 it isn't\npersisted on the case (only `raw_trace_ref`)."
       },
       "RunSnapshot": {
         "properties": {

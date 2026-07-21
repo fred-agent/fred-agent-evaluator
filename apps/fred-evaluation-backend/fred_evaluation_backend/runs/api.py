@@ -30,6 +30,7 @@ from fred_evaluation_backend.runs.schemas import (
     RunAnalysisResponse,
     RunAnalysisResult,
     RunCreatedResponse,
+    RunReport,
     StartRunRequest,
 )
 from fred_evaluation_backend.runs.store import RunStore
@@ -172,6 +173,14 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         store: Annotated[RunStore, Depends(_get_run_store)],
     ) -> EvaluationRun:
         return await service.get_run(run_id, store=store)
+
+    @router.get("/runs/{run_id}/report", response_model=RunReport)
+    async def get_run_report(
+        run_id: str,
+        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        store: Annotated[RunStore, Depends(_get_run_store)],
+    ) -> RunReport:
+        return await service.get_run_report(run_id, store=store)
 
     @router.get("/runs/{run_id}/cases", response_model=EvaluationCaseListResponse)
     async def list_run_cases(

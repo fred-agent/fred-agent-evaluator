@@ -1700,6 +1700,22 @@
                 }
             },
             {
+                "code": "reportUnusedFunction",
+                "range": {
+                    "startColumn": 14,
+                    "endColumn": 28,
+                    "lineCount": 1
+                }
+            },
+            {
+                "code": "reportUnusedParameter",
+                "range": {
+                    "startColumn": 8,
+                    "endColumn": 12,
+                    "lineCount": 1
+                }
+            },
+            {
                 "code": "reportCallInDefaultInitializer",
                 "range": {
                     "startColumn": 22,
@@ -3286,6 +3302,14 @@
                 "range": {
                     "startColumn": 4,
                     "endColumn": 34,
+                    "lineCount": 1
+                }
+            },
+            {
+                "code": "reportAny",
+                "range": {
+                    "startColumn": 8,
+                    "endColumn": 14,
                     "lineCount": 1
                 }
             }

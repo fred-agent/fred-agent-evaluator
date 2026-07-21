@@ -192,6 +192,44 @@ async def test_run_aggregates_persist_metric_averages_and_analysis():
 
 
 @pytest.mark.asyncio
+async def test_run_report_is_404_for_an_unknown_run():
+    _, run_store = await _make_stores()
+    with pytest.raises(HTTPException) as exc:
+        _ = await service.get_run_report("nope", store=run_store)
+    assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_run_report_combines_run_cases_and_cached_analysis():
+    ds_store, run_store = await _make_stores()
+    evaluation_id = await _seed_evaluation(ds_store)
+    result = await _start(evaluation_id, ds_store, run_store, instance="inst-9")
+
+    # No analysis yet — the report must not trigger one, just report it absent.
+    report = await service.get_run_report(result.run_id, store=run_store)
+    assert report.run.run_id == result.run_id
+    assert report.run.metrics == ["answer_relevancy"]
+    assert {c.input for c in report.cases} == {"q1", "q2"}
+    assert report.analysis is None
+
+    full_analysis = {
+        "summary": "ok",
+        "strengths": ["clear answers"],
+        "weaknesses": [],
+        "recommendations": ["none"],
+        "risk_level": "low",
+    }
+    await run_store.update_run_analysis(
+        result.run_id, analysis_json=json.dumps({"analysis": full_analysis})
+    )
+
+    report = await service.get_run_report(result.run_id, store=run_store)
+    assert report.analysis is not None
+    assert report.analysis.summary == "ok"
+    assert report.analysis.risk_level == "low"
+
+
+@pytest.mark.asyncio
 async def test_run_store_task_lookup_and_scopes():
     ds_store, run_store = await _make_stores()
     evaluation_id = await _seed_evaluation(ds_store)

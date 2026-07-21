@@ -92,6 +92,7 @@ ligne à la création d'un run — les cas viennent toujours de l'evaluation.
 | POST | `/evaluations/{id}/runs` | 202 | Démarrer un run — `{team_id, target, metrics, custom_metrics}` (`extra: forbid`). Cible **`managed_instance` uniquement** (`runtime_agent` retiré de la création, conservé en lecture pour l'historique). `metrics` (obligatoire, non vide) est la sélection manuelle des métriques DeepEval à calculer ; `custom_metrics` (optionnel) porte les critères GEval. Judge et concurrence restent fixés côté serveur et figés dans un `RunSnapshot`. |
 | GET | `/evaluations/{id}/runs` | 200 | Lister les runs d'une evaluation |
 | GET | `/runs/{run_id}` | 200 | Détail d'un run + agrégats |
+| GET | `/runs/{run_id}/report` | 200 | Rapport archivable auto-porteur (EVAL-06 §3) — `{run, cases, analysis}` : le run complet (cible, sélection de métriques, agrégats), tous ses cas (jamais paginé — une evaluation est plafonnée à 200 cas), et l'analyse LLM en cache si elle existe (`null` sinon — ne déclenche jamais un nouvel appel LLM). Limite connue : ne peut pas inclure le contexte de récupération RAG, non persisté sur le cas (seulement `raw_trace_ref`). |
 | GET | `/runs/{run_id}/cases` | 200 | Cas paginés |
 | GET | `/runs/{run_id}/cases/{case_id}` | 200 | Détail d'un cas |
 | GET | `/runs/{run_id}/events` | 200 | SSE temps réel |
