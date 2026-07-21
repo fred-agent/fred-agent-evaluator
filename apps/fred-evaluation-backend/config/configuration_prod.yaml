@@ -52,7 +52,10 @@ control_plane:
   runtime_base_url: http://localhost:8000
 
 worker:
-  max_concurrent_cases: 4
+  # Serial by default: each case is a live agent turn + judge call, so bursts hit
+  # external rate limits. Raise deliberately, and remember this bounds each worker
+  # replica independently — N replicas means N concurrent cases.
+  max_concurrent_cases: 1
   poll_interval_seconds: 5
   judge_profiles:
     # Available providers: litellm | openai | ollama

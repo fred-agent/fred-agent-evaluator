@@ -51,7 +51,13 @@ class ObservabilityConfig(BaseModel):
 
 
 class WorkerConfig(BaseModel):
-    max_concurrent_cases: int = 4
+    # Serial by default. Every case is a real agent turn against a live runtime and a
+    # judge LLM, so concurrency here is a burst against someone else's rate limits, not
+    # a local speed dial. Raise it deliberately once the target is known to absorb it.
+    # This is the single lever for both execution paths: the in-memory runner's
+    # semaphore and, for Temporal, `max_concurrent_activities` plus the activity
+    # executor's pool size (see main_worker.py).
+    max_concurrent_cases: int = 1
     poll_interval_seconds: int = 5
     # Judge models follow fred's canonical ModelConfiguration (provider / name /
     # settings). Switching provider/model is config-only; building the DeepEval
