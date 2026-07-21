@@ -58,6 +58,9 @@ class TeamMembership(BaseModel):
 
     team_id: str
     is_member: bool
+    # The Control Plane returns the team's display name; keep it so callers that
+    # archive or present a result are not left holding an opaque id.
+    name: str | None = None
 
 
 class ControlPlaneClient:
@@ -237,8 +240,11 @@ class ControlPlaneClient:
             response.raise_for_status()
             try:
                 data = response.json()
+                raw_name = data.get("name")
                 return TeamMembership(
-                    team_id=team_id, is_member=bool(data["is_member"])
+                    team_id=team_id,
+                    is_member=bool(data["is_member"]),
+                    name=str(raw_name) if raw_name else None,
                 )
             except (KeyError, TypeError, ValueError, AttributeError) as exc:
                 raise ControlPlaneInvalidResponseError(

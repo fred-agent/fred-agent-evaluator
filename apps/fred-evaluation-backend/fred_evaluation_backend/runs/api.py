@@ -204,14 +204,24 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     )
     async def get_run_report(
         run_id: str,
+        request: Request,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[RunStore, Depends(_get_run_store)],
         evaluation_store: Annotated[
             EvaluationStore, Depends(_get_evaluation_catalog_store)
         ],
+        cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> RunReportResponse:
+        configuration = request.app.dependency_overrides.get(get_config, get_config)()
+        auth = resolve_interactive_auth(
+            request, user_security_enabled=configuration.security.user.enabled
+        )
         return await service.build_run_report(
-            run_id, store=store, evaluation_store=evaluation_store
+            run_id,
+            store=store,
+            evaluation_store=evaluation_store,
+            control_plane_client=cp_client,
+            auth=auth,
         )
 
     @router.get("/runs/{run_id}/events")

@@ -144,6 +144,10 @@ class RunReportEvaluation(BaseModel):
     name: str
     version: str
     team_id: str
+    # Resolved from the Control Plane at report time. The id alone is opaque: a report
+    # is meant to be archived or read by an LLM judge, neither of which can do anything
+    # with a bare UUID. None when the lookup fails — the report is still worth having.
+    team_name: str | None = None
     author: str | None  # declared in the document; None when not provided
     created_by: str  # authenticated uploader — verified
     origin: str

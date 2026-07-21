@@ -265,6 +265,8 @@ async def build_run_report(
     *,
     store: RunStore,
     evaluation_store: EvaluationStore,
+    control_plane_client: ControlPlaneClient | None = None,
+    auth: OutboundAuth | None = None,
 ) -> RunReportResponse:
     """Assemble the complete, self-contained JSON record of one run."""
     run_row = await store.get_run(run_id)
@@ -280,6 +282,20 @@ async def build_run_report(
                 "no longer exists."
             ),
         )
+
+    # Best-effort: a report that loses its team name is degraded, one that 500s
+    # because the Control Plane hiccuped is useless. Never fail the archive on it.
+    team_name: str | None = None
+    if control_plane_client is not None and auth is not None:
+        try:
+            membership = await control_plane_client.get_team(
+                team_id=evaluation_row.team_id, auth=auth
+            )
+            team_name = membership.name
+        except Exception:
+            logger.warning(
+                "[REPORT] could not resolve team name for %s", evaluation_row.team_id
+            )
 
     case_rows = await store.list_cases_by_run(run_id, limit=_REPORT_CASE_LIMIT)
     cases = [
@@ -302,6 +318,7 @@ async def build_run_report(
             name=evaluation_row.name,
             version=evaluation_row.version,
             team_id=evaluation_row.team_id,
+            team_name=team_name,
             author=evaluation_row.author,
             created_by=evaluation_row.created_by,
             origin=evaluation_row.origin,
