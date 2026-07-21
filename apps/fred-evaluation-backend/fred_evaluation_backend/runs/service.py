@@ -126,6 +126,11 @@ def _run_to_response(row) -> EvaluationRun:
         ),
         profile=row.profile,
         judge_profile_id=row.judge_profile_id,
+        metrics=json.loads(row.metrics_json or "[]"),
+        custom_metrics=[
+            CustomMetricSpecInput.model_validate(m)
+            for m in json.loads(row.custom_metrics_json or "[]")
+        ],
         operational_state=row.operational_state,
         verdict=row.verdict,
         total_cases=row.total_cases,

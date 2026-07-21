@@ -114,6 +114,10 @@ async def test_start_run_persists_config_snapshot_and_cases_on_run_id():
     # read side
     run_resp = await service.get_run(result.run_id, store=run_store)
     assert run_resp.snapshot.evaluation_name == "usage-arxivai"
+    # The read response must echo the metric selection back — a rerun (or any other
+    # caller) needs this to reproduce the same run without re-deriving it.
+    assert run_resp.metrics == ["answer_relevancy"]
+    assert run_resp.custom_metrics == []
     cases_resp = await service.list_run_cases(result.run_id, store=run_store)
     assert cases_resp.total == 2
 

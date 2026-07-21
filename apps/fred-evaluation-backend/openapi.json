@@ -1669,6 +1669,20 @@
             "type": "string",
             "title": "Judge Profile Id"
           },
+          "metrics": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Metrics"
+          },
+          "custom_metrics": {
+            "items": {
+              "$ref": "#/components/schemas/CustomMetricSpecInput"
+            },
+            "type": "array",
+            "title": "Custom Metrics"
+          },
           "operational_state": {
             "type": "string",
             "title": "Operational State"
@@ -1748,6 +1762,8 @@
           "target",
           "profile",
           "judge_profile_id",
+          "metrics",
+          "custom_metrics",
           "operational_state",
           "verdict",
           "total_cases",
