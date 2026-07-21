@@ -368,3 +368,47 @@ async def test_serial_pacing_really_means_one_at_a_time():
     await asyncio.gather(*[_run_case(f"case-{i}") for i in range(14)])
 
     assert peak == 1
+
+
+@pytest.mark.asyncio
+async def test_scoring_a_case_clears_metrics_left_by_a_previous_attempt():
+    """`run_case_for_run` is retryable, so writing metrics must be repeatable.
+
+    `create_metric_result` inserts. Without clearing first, a Temporal retry that
+    already reached the metric loop leaves two rows per metric, double-counting the
+    run's averages off an infrastructure hiccup rather than anything the agent did.
+
+    Asserted by planting the row a previous attempt would have written and checking
+    the activity removes it — the offline fake scores nothing, so counting rows the
+    activity itself produced would assert 0 == 0 and prove nothing.
+    """
+    ds_store, run_store = await _make_stores()
+    evaluation_id = await _seed_evaluation(ds_store, num_cases=1)
+    result = await _start_run(
+        evaluation_id, ds_store, run_store, cp_client=_FakeControlPlaneOK()
+    )
+    case_id = (await run_store.list_cases_by_run(result.run_id, limit=10))[0].case_id
+
+    await run_store.create_metric_result(
+        case_id=case_id,
+        run_id=result.run_id,
+        name="AnswerRelevancyMetric",
+        provider="deepeval",
+        score=1.0,
+        threshold=None,
+        verdict="passed",
+        explanation="left behind by a previous attempt",
+        error=None,
+    )
+    assert len(await run_store.list_metrics_by_case(case_id)) == 1
+
+    _init_activity_context(
+        run_store, cp_client=_FakeControlPlaneOK(), agent_client=_FakeAgentClient()
+    )
+    await mark_run_started(result.run_id)
+    await run_case_for_run(RunCaseInput(case_id=case_id, run_id=result.run_id))
+
+    remaining = await run_store.list_metrics_by_case(case_id)
+    assert remaining == [], (
+        f"{len(remaining)} stale metric row(s) survived a re-scoring"
+    )

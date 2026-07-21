@@ -99,7 +99,7 @@ async def _execute_and_score_case_inner(
         structural_checks_json=None,
     )
 
-    print(f"[ACTIVITY-DEBUG] case={case_id} calling agent_client.evaluate", flush=True)
+    logger.debug("[ACTIVITY] calling agent case=%s", case_id)
     try:
         eval_trace = await agent_client.evaluate(
             evaluate_url=evaluate_url,
@@ -130,10 +130,6 @@ async def _execute_and_score_case_inner(
         return
 
     trace_dict = eval_trace.model_dump()
-    print(
-        f"[ACTIVITY-DEBUG] case={case_id} tools_called={eval_trace.tools_called} steps_count={len(eval_trace.steps)}",
-        flush=True,
-    )
     logger.info(
         "[TRACE] case=%s tools_called=%s steps_count=%d",
         case_id,
@@ -234,6 +230,9 @@ async def _execute_and_score_case_inner(
         structural_checks_json=json.dumps([c.model_dump() for c in structural_checks]),
     )
 
+    # This activity is retryable, so scoring a case must be repeatable: drop any
+    # rows a previous attempt left behind before writing this attempt's.
+    await store.delete_metrics_by_case(case_id)
     for metric in metrics:
         await store.create_metric_result(
             case_id=case_id,
