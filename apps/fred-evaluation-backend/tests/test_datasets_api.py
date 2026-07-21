@@ -20,6 +20,7 @@ from fred_core import KeycloakUser, get_config, get_current_user
 from fred_evaluation_backend.evaluations.api import (
     _get_control_plane_client,
     _get_evaluation_catalog_store,
+    _get_run_store,
     build_evaluation_catalog_router,
 )
 from fred_evaluation_backend.execution.evaluator_errors import (
@@ -45,12 +46,39 @@ class _InMemoryEvaluationStore:
         return [row for row in self.rows.values() if row.team_id == team_id]
 
     async def get_latest_version_number(self, team_id: str, name: str) -> int:
-        numbers = [
-            int(str(r.version).lstrip("v"))
-            for r in self.rows.values()
-            if r.team_id == team_id and r.name == name
-        ]
+        numbers = []
+        for r in self.rows.values():
+            if r.team_id == team_id and r.name == name:
+                try:
+                    numbers.append(int(str(r.version).lstrip("v")))
+                except ValueError:
+                    continue  # a declared version ("1.0.0") is not in the v<n> series
         return max(numbers, default=0)
+
+    async def version_exists(self, team_id: str, name: str, version: str) -> bool:
+        return any(
+            r.team_id == team_id and r.name == name and r.version == version
+            for r in self.rows.values()
+        )
+
+    async def delete_evaluation(self, evaluation_id: str) -> bool:
+        return self.rows.pop(evaluation_id, None) is not None
+
+
+class _InMemoryRunStore:
+    """Just enough of RunStore for the evaluation-delete cascade."""
+
+    def __init__(self, runs: list[SimpleNamespace] | None = None) -> None:
+        self.runs = runs or []
+        self.deleted: list[str] = []
+
+    async def list_runs_by_evaluation(self, evaluation_id: str):
+        return [r for r in self.runs if r.evaluation_id == evaluation_id]
+
+    async def delete_run(self, run_id: str) -> bool:
+        self.deleted.append(run_id)
+        self.runs = [r for r in self.runs if r.run_id != run_id]
+        return True
 
 
 class _MemberControlPlaneClient:
@@ -63,7 +91,12 @@ class _NonMemberControlPlaneClient:
         return SimpleNamespace(team_id=team_id, is_member=False)
 
 
-def _build_app(*, cp_client, store: _InMemoryEvaluationStore | None = None) -> FastAPI:
+def _build_app(
+    *,
+    cp_client,
+    store: _InMemoryEvaluationStore | None = None,
+    run_store: _InMemoryRunStore | None = None,
+) -> FastAPI:
     app = FastAPI()
     app.include_router(build_evaluation_catalog_router())
     app.add_exception_handler(HTTPException, normalize_unstructured_auth_error)
@@ -77,6 +110,7 @@ def _build_app(*, cp_client, store: _InMemoryEvaluationStore | None = None) -> F
         store or _InMemoryEvaluationStore()
     )
     app.dependency_overrides[_get_control_plane_client] = lambda: cp_client
+    app.dependency_overrides[_get_run_store] = lambda: run_store or _InMemoryRunStore()
     return app
 
 
@@ -137,8 +171,10 @@ async def test_name_is_user_supplied_and_first_import_is_v1() -> None:
     body = resp.json()
     assert body["name"] == "golden-set"
     assert body["version"] == "v1"
-    # EVAL-05: the evaluation format is self-contained — it carries its author.
-    assert body["author"] == "alice"
+    # EVAL-06: the document declares no author here, so `author` is None while the
+    # verified uploader is exposed separately as `created_by`.
+    assert body["author"] is None
+    assert body["created_by"] == "alice"
     # Every case has an expected_output -> complete.
     assert body["completeness"] == "complete"
     assert body["case_count"] == 2
@@ -202,3 +238,186 @@ async def test_non_member_cannot_create_or_list_team_datasets() -> None:
 
     assert create_resp.status_code == 403
     assert list_resp.status_code == 403
+
+
+# ── EVAL-06: self-describing document (name / version / author) ───────────────
+
+
+def _doc(**overrides) -> dict:
+    body = {
+        "team_id": "team-1",
+        "name": "golden-set",
+        "origin": "upload",
+        "cases": [{"input": "q1", "expected_output": "a1"}],
+    }
+    body.update(overrides)
+    return body
+
+
+@pytest.mark.asyncio
+async def test_declared_version_is_kept_verbatim_instead_of_being_reassigned() -> None:
+    """A document that states its own version owns its identity: the server must
+    store "1.0.0" as-is rather than overwriting it with the v<n> sequence."""
+    app = _build_app(cp_client=_MemberControlPlaneClient())
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/evaluations",
+            json=_doc(version="1.0.0"),
+            headers={"Authorization": "Bearer alice-token"},
+        )
+    assert resp.status_code == 201
+    assert resp.json()["version"] == "1.0.0"
+
+
+@pytest.mark.asyncio
+async def test_reusing_a_declared_version_is_rejected_as_a_conflict() -> None:
+    """(team, name, version) is an identity — re-uploading the same version must
+    not silently create a second, indistinguishable evaluation."""
+    store = _InMemoryEvaluationStore()
+    app = _build_app(cp_client=_MemberControlPlaneClient(), store=store)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        first = await client.post(
+            "/evaluations",
+            json=_doc(version="1.0.0"),
+            headers={"Authorization": "Bearer alice-token"},
+        )
+        second = await client.post(
+            "/evaluations",
+            json=_doc(version="1.0.0"),
+            headers={"Authorization": "Bearer alice-token"},
+        )
+    assert first.status_code == 201
+    assert second.status_code == 409
+    assert len(store.rows) == 1
+
+
+@pytest.mark.asyncio
+async def test_declared_version_does_not_disturb_the_auto_increment_sequence() -> None:
+    """Mixing a semver document with auto-versioned ones must not make the next
+    auto version collide or jump: "1.0.0" is simply not part of the v<n> series."""
+    store = _InMemoryEvaluationStore()
+    app = _build_app(cp_client=_MemberControlPlaneClient(), store=store)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        auto_first = await client.post(
+            "/evaluations", json=_doc(), headers={"Authorization": "Bearer t"}
+        )
+        await client.post(
+            "/evaluations",
+            json=_doc(version="1.0.0"),
+            headers={"Authorization": "Bearer t"},
+        )
+        auto_second = await client.post(
+            "/evaluations", json=_doc(), headers={"Authorization": "Bearer t"}
+        )
+    assert auto_first.json()["version"] == "v1"
+    assert auto_second.json()["version"] == "v2"
+
+
+@pytest.mark.asyncio
+async def test_declared_author_is_kept_and_never_replaces_the_verified_uploader() -> (
+    None
+):
+    """`author` is free-form provenance from the document; `created_by` stays the
+    authenticated identity, so a document cannot claim to be someone else."""
+    app = _build_app(cp_client=_MemberControlPlaneClient())
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/evaluations",
+            json=_doc(author="Data Team"),
+            headers={"Authorization": "Bearer alice-token"},
+        )
+    body = resp.json()
+    assert body["author"] == "Data Team"
+    assert body["created_by"] == "alice"
+
+
+# ── EVAL-06: DELETE /evaluations/{id} ─────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_deleting_an_evaluation_also_removes_its_runs() -> None:
+    """evaluation_run.evaluation_id is a plain FK with no ON DELETE, so the runs
+    must be removed first — otherwise the delete would fail on integrity."""
+    store = _InMemoryEvaluationStore()
+    runs = _InMemoryRunStore(
+        [
+            SimpleNamespace(
+                run_id="run-1", evaluation_id="e1", operational_state="completed"
+            ),
+            SimpleNamespace(
+                run_id="run-2", evaluation_id="e1", operational_state="failed"
+            ),
+            SimpleNamespace(
+                run_id="run-9", evaluation_id="other", operational_state="completed"
+            ),
+        ]
+    )
+    store.rows["e1"] = SimpleNamespace(evaluation_id="e1", team_id="team-1")
+    app = _build_app(cp_client=_MemberControlPlaneClient(), store=store, run_store=runs)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.delete(
+            "/evaluations/e1", headers={"Authorization": "Bearer alice-token"}
+        )
+    assert resp.status_code == 204
+    assert "e1" not in store.rows
+    assert sorted(runs.deleted) == ["run-1", "run-2"]  # the other run is untouched
+
+
+@pytest.mark.asyncio
+async def test_deleting_is_refused_while_one_of_its_runs_is_still_running() -> None:
+    """Same guard as DELETE /runs/{id}: results being produced are not destroyed
+    underneath the worker."""
+    store = _InMemoryEvaluationStore()
+    runs = _InMemoryRunStore(
+        [
+            SimpleNamespace(
+                run_id="run-1", evaluation_id="e1", operational_state="running"
+            )
+        ]
+    )
+    store.rows["e1"] = SimpleNamespace(evaluation_id="e1", team_id="team-1")
+    app = _build_app(cp_client=_MemberControlPlaneClient(), store=store, run_store=runs)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.delete(
+            "/evaluations/e1", headers={"Authorization": "Bearer alice-token"}
+        )
+    assert resp.status_code == 409
+    assert "e1" in store.rows
+    assert runs.deleted == []
+
+
+@pytest.mark.asyncio
+async def test_non_member_cannot_delete_another_teams_evaluation() -> None:
+    """Membership is resolved from the stored row's team, not from anything the
+    caller supplies, so the check cannot be side-stepped."""
+    store = _InMemoryEvaluationStore()
+    store.rows["e1"] = SimpleNamespace(evaluation_id="e1", team_id="team-1")
+    app = _build_app(
+        cp_client=_NonMemberControlPlaneClient(),
+        store=store,
+        run_store=_InMemoryRunStore(),
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.delete(
+            "/evaluations/e1", headers={"Authorization": "Bearer mallory-token"}
+        )
+    assert resp.status_code == 403
+    assert "e1" in store.rows
+
+
+@pytest.mark.asyncio
+async def test_deleting_an_unknown_evaluation_is_a_404() -> None:
+    app = _build_app(cp_client=_MemberControlPlaneClient())
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.delete(
+            "/evaluations/nope", headers={"Authorization": "Bearer alice-token"}
+        )
+    assert resp.status_code == 404
