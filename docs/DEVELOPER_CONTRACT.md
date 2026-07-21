@@ -138,6 +138,11 @@ Both fields are persisted verbatim (`metrics_json`, `custom_metrics_json` on
 the in-memory `runner.py`) to build the metric list passed to
 `fred_deepeval_cli.core.scorer.score_trace(metrics=..., custom_metrics=...)`.
 
+They are also echoed back on `EvaluationRun` (`GET /evaluations/{id}/runs`,
+`GET /runs/{run_id}`) as `metrics: list[str]` / `custom_metrics: list[CustomMetricSpecInput]`,
+so a caller — e.g. the frontend's rerun — can read back which metrics a given
+run was scored against instead of guessing a default.
+
 ## Scoring profiles (structural checks only)
 
 `resolve_profile()` (`fred-deepeval-cli`) still runs automatically — but now

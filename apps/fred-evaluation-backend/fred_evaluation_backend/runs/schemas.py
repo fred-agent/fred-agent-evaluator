@@ -89,6 +89,10 @@ class EvaluationRun(BaseModel):
     target: EvaluationTarget
     profile: str
     judge_profile_id: str
+    # The metric selection this run was started with — read back so a caller (e.g. the
+    # frontend's one-click rerun) can reuse the same choice instead of guessing a default.
+    metrics: list[str]
+    custom_metrics: list[CustomMetricSpecInput]
     operational_state: str
     verdict: Literal["pending", "passed", "failed", "inconclusive"]
     total_cases: int
