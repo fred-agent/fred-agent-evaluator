@@ -53,6 +53,7 @@ async def start_run(
     auth: OutboundAuth,
     profile: str,
     judge_profile_id: str,
+    max_concurrency: int,
 ) -> RunCreatedResponse:
     evaluation = await evaluation_store.get_evaluation(evaluation_id)
     if evaluation is None or evaluation.team_id != team_id:
@@ -72,12 +73,16 @@ async def start_run(
     run_id = f"eval-run-{uuid4().hex[:8]}"
     task_id = f"eval-task-{uuid4().hex[:8]}"
 
+    # Frozen with the rest of the run's parameters. Concurrency is a property of
+    # THIS run against THIS target — a later config change must not retroactively
+    # describe how a past run was paced.
     snapshot = RunSnapshot(
         evaluation_name=evaluation.name,
         evaluation_version=evaluation.version,
         target=target,
         profile=profile,
         judge_profile_id=judge_profile_id,
+        execution={"max_concurrency": max_concurrency},
     )
 
     await store.create_run(

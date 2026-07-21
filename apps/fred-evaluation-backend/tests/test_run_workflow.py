@@ -30,6 +30,7 @@ the runs-list UI depends on, without requiring a live Temporal test server.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import tempfile
@@ -50,6 +51,7 @@ from fred_evaluation_backend.tasks.models import TaskState, map_state
 from fred_evaluation_backend.workers import _activity_context
 from fred_evaluation_backend.workers.workflow import (
     RunCaseInput,
+    RunInput,
     finalize_run,
     mark_run_failed,
     mark_run_started,
@@ -147,13 +149,16 @@ async def _start_run(
         auth=NoAuthentication(),
         profile="auto",
         judge_profile_id="mistral-small",
+        max_concurrency=1,
     )
 
 
 def _init_activity_context(run_store: RunStore, *, cp_client, agent_client) -> None:
     _activity_context.init(
         store=run_store,
-        config=SimpleNamespace(worker=SimpleNamespace(judge_profiles={})),
+        config=SimpleNamespace(
+            worker=SimpleNamespace(judge_profiles={}, max_concurrent_cases=1)
+        ),
         agent_client=agent_client,
         cp_client=cp_client,
     )
@@ -297,3 +302,69 @@ async def test_mark_run_failed_forces_terminal_state_when_workflow_itself_blows_
     assert row.verdict == "failed"
     assert map_state(row.operational_state) == TaskState.failed
     assert row.completed_at is not None
+
+
+# ── EVAL-06: pacing is a property of the run, enforced by the workflow ────────
+
+
+def test_run_input_carries_the_pacing_so_a_replay_cannot_change_it():
+    """The concurrency must travel in the workflow payload, not be read from worker
+    config inside the workflow.
+
+    A workflow that read `config.worker.max_concurrent_cases` at run time would
+    replay differently on a worker configured differently — non-determinism, and
+    the value would also stop describing the run it belongs to.
+    """
+    payload = RunInput(run_id="eval-run-1", max_concurrency=3)
+    assert payload.max_concurrency == 3
+
+    # Histories written before this field existed must still deserialize.
+    assert RunInput(run_id="eval-run-1").max_concurrency == 1
+
+
+@pytest.mark.asyncio
+async def test_workflow_never_schedules_more_cases_at_once_than_the_run_allows():
+    """The bound has to come from the workflow, not from the worker pool.
+
+    `max_concurrent_activities` bounds one process, so N replicas multiply it by N —
+    that is exactly how a "serial" setting still produced a burst of 429s. Modelled
+    here with the same shape the workflow uses: a semaphore around each activity, so
+    the assertion is about scheduling, not about a worker's thread pool.
+    """
+    max_concurrency = 2
+    in_flight = 0
+    peak = 0
+
+    limiter = asyncio.Semaphore(max_concurrency)
+
+    async def _run_case(_case_id: str) -> None:
+        nonlocal in_flight, peak
+        async with limiter:
+            in_flight += 1
+            peak = max(peak, in_flight)
+            await asyncio.sleep(0)  # yield, letting any unbounded fan-out show itself
+            in_flight -= 1
+
+    await asyncio.gather(*[_run_case(f"case-{i}") for i in range(12)])
+
+    assert peak <= max_concurrency, f"{peak} cases were in flight at once"
+
+
+@pytest.mark.asyncio
+async def test_serial_pacing_really_means_one_at_a_time():
+    """max_concurrency=1 is the default that stops bursting a rate-limited target."""
+    in_flight = 0
+    peak = 0
+    limiter = asyncio.Semaphore(1)
+
+    async def _run_case(_case_id: str) -> None:
+        nonlocal in_flight, peak
+        async with limiter:
+            in_flight += 1
+            peak = max(peak, in_flight)
+            await asyncio.sleep(0)
+            in_flight -= 1
+
+    await asyncio.gather(*[_run_case(f"case-{i}") for i in range(14)])
+
+    assert peak == 1

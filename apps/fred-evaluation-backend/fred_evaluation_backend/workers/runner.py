@@ -12,6 +12,7 @@ from fred_evaluation_backend.execution.agent_client import AgentClient
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
 from fred_evaluation_backend.execution.outbound_auth import ServiceAuthentication
 from fred_evaluation_backend.model.factory import build_judge_model
+from fred_evaluation_backend.runs.schemas import RunSnapshot
 from fred_evaluation_backend.runs.store import RunStore
 from fred_evaluation_backend.workers.activities import execute_and_score_case
 
@@ -30,12 +31,12 @@ class RunRunner:
         self._store = RunStore(engine)
         self._cp_client = cp_client
         self._agent_client = AgentClient()
-        self._sem = asyncio.Semaphore(config.worker.max_concurrent_cases)
         self._running: set[str] = set()
 
     async def run_forever(self) -> None:
         logger.info(
-            "[RUNNER] starting — max_concurrent=%d poll_interval=%ds",
+            "[RUNNER] starting — default_max_concurrency=%d poll_interval=%ds "
+            "(each run is paced by its own frozen snapshot)",
             self._config.worker.max_concurrent_cases,
             self._config.worker.poll_interval_seconds,
         )
@@ -84,6 +85,12 @@ class RunRunner:
         from fred_deepeval_cli.core.models import CustomMetricSpec
 
         run_id = run.run_id
+        # Read from the run's own frozen snapshot, exactly like the Temporal path reads
+        # it from the workflow payload — so both engines pace a given run identically,
+        # and a config change never re-paces a run that is already under way.
+        snapshot = RunSnapshot.model_validate_json(run.snapshot_json)
+        max_concurrency = max(1, (snapshot.execution or {}).get("max_concurrency", 1))
+        limiter = asyncio.Semaphore(max_concurrency)
 
         try:
             prep = await self._cp_client.prepare_managed_instance_execution(
@@ -126,7 +133,7 @@ class RunRunner:
         cases = await self._store.list_cases_by_run(run_id, limit=10000)
 
         async def _run_case(case) -> None:
-            async with self._sem:
+            async with limiter:
                 try:
                     await execute_and_score_case(
                         case_id=case.case_id,

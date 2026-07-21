@@ -141,7 +141,7 @@ def _build_app(
     )
     app.dependency_overrides[get_config] = lambda: SimpleNamespace(
         security=SimpleNamespace(user=SimpleNamespace(enabled=security_enabled)),
-        worker=SimpleNamespace(judge_profiles={}),
+        worker=SimpleNamespace(judge_profiles={}, max_concurrent_cases=1),
     )
     app.dependency_overrides[_get_run_store] = lambda: store or _FakeStore()
     app.dependency_overrides[_get_evaluation_catalog_store] = lambda: (

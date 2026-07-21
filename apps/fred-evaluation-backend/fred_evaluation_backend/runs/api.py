@@ -123,6 +123,9 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         auth = resolve_interactive_auth(
             request, user_security_enabled=configuration.security.user.enabled
         )
+        # Read once: the same value is frozen into the run's snapshot and carried in
+        # the workflow payload, so the two can never disagree.
+        max_concurrency = configuration.worker.max_concurrent_cases
         result = await service.start_run(
             evaluation_id=evaluation_id,
             team_id=body.team_id,
@@ -136,6 +139,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
             judge_profile_id=service.default_judge_profile_id(
                 configuration.worker.judge_profiles
             ),
+            max_concurrency=max_concurrency,
         )
 
         temporal_provider = _get_temporal_client_provider(request)
@@ -149,7 +153,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
             client = await temporal_provider.get_client()
             await client.start_workflow(
                 RunWorkflow.run,
-                RunInput(run_id=result.run_id),
+                RunInput(run_id=result.run_id, max_concurrency=max_concurrency),
                 id=f"run-eval-{result.run_id}",
                 task_queue=task_queue,
             )
