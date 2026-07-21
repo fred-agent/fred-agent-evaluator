@@ -140,6 +140,8 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
                 configuration.worker.judge_profiles
             ),
             max_concurrency=max_concurrency,
+            metrics=body.metrics,
+            custom_metrics=body.custom_metrics,
         )
 
         temporal_provider = _get_temporal_client_provider(request)

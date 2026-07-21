@@ -67,6 +67,7 @@ class EvaluationRunRow(Base):
     target_instance_id: Mapped[str] = mapped_column(String, nullable=False)
     profile: Mapped[str] = mapped_column(String(64), nullable=False)
     judge_profile_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    metrics_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     custom_metrics_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     snapshot_json: Mapped[str] = mapped_column(Text, nullable=False)
     operational_state: Mapped[str] = mapped_column(

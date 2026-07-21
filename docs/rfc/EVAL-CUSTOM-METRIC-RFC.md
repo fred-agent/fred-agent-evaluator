@@ -1,11 +1,19 @@
 # RFC EVAL-CUSTOM-METRIC — User-defined evaluation criteria via GEval
 
-**Status:** draft for discussion
+**Status:** accepted — implemented (2026-07-21). Scope extended to include §5's
+first non-goal (manual selection of the built-in metrics) — see §9.
 **Author:** Odelia Cohen
 **Reviewers:** Dimitri Tombroff, Evaluation backend owner
 **Track:** `EVAL-CUSTOM-METRIC`
-**Related:** `EVAL-DATASET-RFC.md` (campaign creation payload), `EVAL-SCHEDULING-BUS-RFC.md`
-(campaign lifecycle), `libs/fred-deepeval-cli` (`score_trace`)
+**Related:** `EVAL-DATASET-RFC.md` (evaluation creation payload — historically
+"campaign", renamed since; see §9), `EVAL-SCHEDULING-BUS-RFC.md` (run
+lifecycle), `libs/fred-deepeval-cli` (`score_trace`)
+
+> **Vocabulary note:** this RFC predates the "campaign" → "evaluation"/"run"
+> rename (EVAL-04). Where it says `campaign`, read `evaluation` (the
+> definition) or `run` (an execution) — e.g. `campaigns/schemas.py` is now
+> `runs/schemas.py`, `CreateEvaluationCampaignRequest` is `StartRunRequest`.
+> Left as-is below for historical accuracy; §9 gives the current names.
 
 ---
 
@@ -97,11 +105,17 @@ consumers pin the new contract; the evaluator itself needs no bump to pick it up
 ---
 
 ## 5. Non-goals
-- Selecting/deselecting the five built-in metrics per campaign (that is configuration, not
-  a custom metric — a separate, smaller change if wanted).
+- ~~Selecting/deselecting the five built-in metrics per campaign~~ **Done, in the same
+  change as this RFC's implementation** — see §9. The reason: shipping custom metrics
+  without also letting the caller pick which built-ins run left analysts stuck with
+  whatever `resolve_profile()` guessed (e.g. a general-purpose agent with
+  document/tabular tools manually attached always fell back to `default` →
+  `AnswerRelevancy` only, regardless of the tools actually in play).
 - A reusable metric library / marketplace across campaigns. Here criteria are attached to
   one campaign at creation; sharing them is a later concern.
-- Changing profile auto-detection.
+- Changing profile auto-detection **for structural checks** (SQL/RAG/workflow non-LLM
+  checks in `build_structural_checks`) — `resolve_profile()` still runs automatically for
+  those; only the DeepEval *metric* list stopped depending on it.
 
 ---
 
@@ -127,10 +141,47 @@ consumers pin the new contract; the evaluator itself needs no bump to pick it up
 ---
 
 ## 8. Acceptance criteria
-- `CreateEvaluationCampaignRequest` accepts `custom_metrics`; they are persisted on the
-  campaign and readable by the worker.
-- `score_trace` scores each custom criterion via `GEval`, producing an
+- [x] `StartRunRequest` accepts `custom_metrics`; they are persisted on the run
+  (`custom_metrics_json`) and readable by the worker.
+- [x] `score_trace` scores each custom criterion via `GEval`, producing an
   `EvaluationMetricResult` indistinguishable in shape from a built-in metric.
-- A custom metric's score, verdict, and explanation appear in the campaign results and
-  count in the campaign verdict.
-- The `fred-deepeval-cli` version is bumped if its `score_trace` signature changes.
+- [x] A custom metric's score, verdict, and explanation appear in the run results and
+  count in the run verdict.
+- [ ] The `fred-deepeval-cli` version is bumped if its `score_trace` signature changes —
+  not done in this change (`score_trace` gained a new optional `metrics` parameter;
+  existing callers are unaffected, so treated as non-breaking). Revisit if that judgment
+  turns out wrong for an external consumer.
+
+---
+
+## 9. Implementation notes (2026-07-21)
+
+Landed together with manual built-in metric selection (§5). Current file names (see the
+vocabulary note at the top):
+
+- `runs/metrics_catalog.py` (**new**, `fred-evaluation-backend`) — the built-in metric id
+  catalog (`answer_relevancy`, `faithfulness`, `contextual_relevancy`,
+  `contextual_precision`, `contextual_recall`). Deliberately dependency-free: no
+  `deepeval`, no `fred_deepeval_cli` import.
+- `runs/schemas.py::CustomMetricSpecInput` (**new**) — API-side twin of
+  `fred_deepeval_cli.core.models.CustomMetricSpec`, discovered to be necessary because
+  **the API image never installs `deepeval`/`fred-deepeval-cli`**
+  (`dockerfiles/Dockerfile-api`, `scoring` extra is worker-only). `CustomMetricSpec`'s
+  `parameters` validator imports `deepeval.test_case.LLMTestCaseParams`, which would crash
+  the API process. `CustomMetricSpecInput` validates shape only; the DeepEval-enum check
+  stays worker-side, so a bad `parameters` name now surfaces as a per-case scoring error
+  at run time instead of a validation error at run-creation time — an accepted trade-off
+  of the API/worker boundary, not a bug.
+- `runs/schemas.py::StartRunRequest.metrics: list[str]` (**new**, required, non-empty) —
+  the manual built-in-metric selection from §5.
+- `runs/models.py::EvaluationRunRow.metrics_json` (**new column**, migration
+  `20260721_01_add_run_metrics_json.py`) — mirrors `custom_metrics_json`'s existing
+  pattern (separate nullable `Text` column, not folded into `RunSnapshot`).
+- `fred_deepeval_cli.core.scorer.score_trace(metrics=...)` (**new optional param**) —
+  when given, replaces the profile cascade for the built-in metric list (custom metrics
+  are unaffected either way); `None` (the default) preserves the old automatic cascade for
+  the CLI standalone path (`evaluator.py::evaluate_case_sync`), which has no explicit
+  selection to pass. `contextual_precision`/`contextual_recall` selected without
+  `expected_output` produce verdict `"skipped"` instead of erroring.
+- `resolve_profile()` / `build_structural_checks()` are untouched — still automatic, now
+  used only for the non-LLM SQL/RAG/workflow checks (§5, third non-goal).

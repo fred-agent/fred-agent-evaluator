@@ -150,6 +150,8 @@ async def _start_run(
         profile="auto",
         judge_profile_id="mistral-small",
         max_concurrency=1,
+        metrics=["answer_relevancy"],
+        custom_metrics=[],
     )
 
 

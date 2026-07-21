@@ -170,6 +170,8 @@ async def run_case_for_run(payload: RunCaseInput) -> None:
     try:
         run = await store.get_run(payload.run_id)
         case = await store.get_case(payload.case_id)
+        assert run is not None
+        assert case is not None
 
         prep = await cp_client.prepare_managed_instance_execution(
             team_id=run.team_id,
@@ -184,6 +186,7 @@ async def run_case_for_run(payload: RunCaseInput) -> None:
             CustomMetricSpec.model_validate(m)
             for m in json.loads(run.custom_metrics_json or "[]")
         ]
+        metrics: list[str] = json.loads(run.metrics_json or "[]")
 
         await execute_and_score_case(
             case_id=case.case_id,
@@ -200,6 +203,7 @@ async def run_case_for_run(payload: RunCaseInput) -> None:
             profile=run.profile,
             judge=judge,
             custom_metrics=custom_metrics,
+            metrics=metrics,
             store=store,
             agent_client=agent_client,
         )

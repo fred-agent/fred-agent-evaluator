@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import ClassVar, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from fred_evaluation_backend.runs.metrics_catalog import BUILTIN_METRIC_IDS
 
 
 class ManagedInstanceTarget(BaseModel):
@@ -35,11 +37,41 @@ class RunSnapshot(BaseModel):
     execution: dict[str, int] | None = None
 
 
+class CustomMetricSpecInput(BaseModel):
+    """API-side twin of `fred_deepeval_cli.core.models.CustomMetricSpec`.
+
+    Validates shape only — not whether `parameters` names are valid
+    `LLMTestCaseParams` members, since that check imports `deepeval`, which
+    the API image never installs (see `dockerfiles/Dockerfile-api`). An
+    unknown parameter name is instead caught by the worker's own
+    `CustomMetricSpec.model_validate()` and surfaces as a per-case scoring
+    error rather than a run-creation error.
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1)
+    criteria: str = Field(min_length=1)
+    parameters: list[str] = Field(min_length=1)
+    threshold: float = Field(default=0.5, ge=0.0, le=1.0)
+
+
 class StartRunRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     team_id: str
     target: ManagedInstanceTarget
+    metrics: list[str] = Field(min_length=1)
+    custom_metrics: list[CustomMetricSpecInput] = Field(default_factory=list)
+
+    @field_validator("metrics")
+    @classmethod
+    def _known_metrics(cls, value: list[str]) -> list[str]:
+        unknown = set(value) - BUILTIN_METRIC_IDS
+        if unknown:
+            allowed = sorted(BUILTIN_METRIC_IDS)
+            raise ValueError(f"unknown metrics {sorted(unknown)}; allowed: {allowed}")
+        return value
 
 
 class RunCreatedResponse(BaseModel):
@@ -57,6 +89,10 @@ class EvaluationRun(BaseModel):
     target: EvaluationTarget
     profile: str
     judge_profile_id: str
+    # The metric selection this run was started with — read back so a caller (e.g. the
+    # frontend's one-click rerun) can reuse the same choice instead of guessing a default.
+    metrics: list[str]
+    custom_metrics: list[CustomMetricSpecInput]
     operational_state: str
     verdict: Literal["pending", "passed", "failed", "inconclusive"]
     total_cases: int

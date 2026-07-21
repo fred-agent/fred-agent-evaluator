@@ -133,6 +133,7 @@ class _FakeStore:
             target_instance_id="inst-1",
             judge_profile_id="none-configured",
             custom_metrics_json=None,
+            metrics_json=None,
             created_by="alice",
             profile="auto",
             target_agent_id=None,

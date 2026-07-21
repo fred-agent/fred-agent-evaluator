@@ -90,7 +90,7 @@ ligne à la création d'un run — les cas viennent toujours de l'evaluation.
 | POST | `/evaluations` | 201 | Créer une evaluation immuable — `{team_id, name, cases}` requis, `{version, author, source_filename}` optionnels (`origin: upload \| manual`, 1 à 200 cas). Version déclarée = identité (409 si doublon) ; sinon assignée par le serveur. 409 aussi si `(team, name, version)` existe déjà. |
 | DELETE | `/evaluations/{id}` | 204 | Supprimer une evaluation **et tous ses runs** (cas, métriques, events). Refusé en 409 si un run est en cours. |
 | GET | `/evaluations` | 200 | Lister (param: `team_id`) — id, nom, version, auteur, origin, complétude, nombre de cas, `created_at` |
-| POST | `/evaluations/{id}/runs` | 202 | Démarrer un run — `{team_id, target}` uniquement (`extra: forbid`). Cible **`managed_instance` uniquement** (`runtime_agent` retiré de la création, conservé en lecture pour l'historique). Profil, judge et concurrence sont fixés côté serveur et figés dans un `RunSnapshot`. |
+| POST | `/evaluations/{id}/runs` | 202 | Démarrer un run — `{team_id, target, metrics, custom_metrics}` (`extra: forbid`). Cible **`managed_instance` uniquement** (`runtime_agent` retiré de la création, conservé en lecture pour l'historique). `metrics` (obligatoire, non vide) est la sélection manuelle des métriques DeepEval à calculer ; `custom_metrics` (optionnel) porte les critères GEval. Judge et concurrence restent fixés côté serveur et figés dans un `RunSnapshot`. |
 | GET | `/evaluations/{id}/runs` | 200 | Lister les runs d'une evaluation |
 | GET | `/runs/{run_id}` | 200 | Détail d'un run + agrégats |
 | GET | `/runs/{run_id}/cases` | 200 | Cas paginés |
@@ -113,15 +113,46 @@ cas de l'evaluation côté serveur (pas via l'API publique).
 
 Ce cycle **(EVAL-04, première version)** ne couvre que les runs sur agent managé
 (`managed_instance`). Sont volontairement différés : cible `runtime_agent` à la
-création, métriques personnalisées, sélection du profil judge, réglages de
-concurrence/timeout, CSV, et un écran de gestion des evaluations indépendant du
-démarrage d'un run.
+création, sélection du profil judge, réglages de concurrence/timeout, CSV, et
+un écran de gestion des evaluations indépendant du démarrage d'un run.
 
-## Scoring profiles
+## Metric selection (manual — replaces automatic profile detection for metrics)
 
-- `"auto"` — détection automatique RAG vs non-RAG via `resolve_profile()` dans fred-deepeval-cli
-- RAG détecté si `retrieval_context` non vide dans l'EvalTrace
-- `ContextualPrecision` et `ContextualRecall` nécessitent `expected_output` dans le cas
+`StartRunRequest.metrics: list[str]` is the caller's explicit, non-empty
+selection of built-in DeepEval metrics — no automatic detection. Allowed ids
+live in `runs/metrics_catalog.py` (API layer, zero `deepeval` dependency):
+`answer_relevancy`, `faithfulness`, `contextual_relevancy`,
+`contextual_precision`, `contextual_recall`. `contextual_precision` /
+`contextual_recall` selected on a case with no `expected_output` are reported
+with verdict `"skipped"` rather than erroring.
+
+`StartRunRequest.custom_metrics: list[CustomMetricSpecInput]` carries
+GEval-scored, user-authored criteria (`name`, `criteria`, `parameters`,
+`threshold`). It only validates shape — not whether `parameters` names are
+valid `LLMTestCaseParams` members, because that check imports `deepeval`,
+which the API image never installs (`dockerfiles/Dockerfile-api`). The
+stricter check happens worker-side (`fred_deepeval_cli.core.models.CustomMetricSpec`),
+so an unknown parameter name surfaces as a per-case scoring error, not a
+run-creation error.
+
+Both fields are persisted verbatim (`metrics_json`, `custom_metrics_json` on
+`EvaluationRunRow`) and read back by the worker (Temporal `workflow.py` and
+the in-memory `runner.py`) to build the metric list passed to
+`fred_deepeval_cli.core.scorer.score_trace(metrics=..., custom_metrics=...)`.
+
+They are also echoed back on `EvaluationRun` (`GET /evaluations/{id}/runs`,
+`GET /runs/{run_id}`) as `metrics: list[str]` / `custom_metrics: list[CustomMetricSpecInput]`,
+so a caller — e.g. the frontend's rerun — can read back which metrics a given
+run was scored against instead of guessing a default.
+
+## Scoring profiles (structural checks only)
+
+`resolve_profile()` (`fred-deepeval-cli`) still runs automatically — but now
+only feeds `build_structural_checks` (the non-LLM SQL/RAG/workflow checks),
+never the metric list above:
+
+- `"auto"` — détection automatique RAG/SQL/workflow via `resolve_profile()` dans fred-deepeval-cli
+- RAG détecté si `"rag"` figure dans `agent_tags` de l'EvalTrace
 
 ## Format dataset JSON
 
