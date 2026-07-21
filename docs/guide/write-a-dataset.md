@@ -43,7 +43,7 @@ answer for each.
 | `external_id`     |    —     | A stable, readable id of your own, to find the case back in the results. |
 | `tags`            |    —     | Free labels (theme, difficulty…) to sort your cases. |
 
-A dataset is a **JSON array of these cases**.
+The cases live in the document's `cases` list — see the envelope below.
 
 ---
 
@@ -71,49 +71,68 @@ compares meaning, not characters.
 
 ---
 
+## The document envelope
+
+Your file is a **self-describing document**: it states what it is, so an archived
+copy stays readable without the request that uploaded it.
+
+| Field     | Required | Role |
+| --------- | :------: | ---- |
+| `name`    |    ✅    | Names the set. With `version`, it identifies the evaluation. |
+| `version` |    —     | Your own version (e.g. `1.0.0`). Declared, it becomes the identity — re-uploading the same `(name, version)` is rejected with 409. Omitted, the server assigns `v1`, `v2`, … |
+| `author`  |    —     | Free-form provenance ("Data Team"). Purely declarative: the platform separately records the authenticated uploader as `created_by`, which no document can override. |
+| `cases`   |    ✅    | The questions — 1 to 200. |
+
+---
+
 ## Full example — ArxivAi corpus
 
 `arxiv-ai-eval.json` — six `complete` cases, each answerable from one paper in the corpus:
 
 ```json
-[
-  {
-    "external_id": "raguard-goal",
-    "input": "What problem does the RAGuard approach aim to solve?",
-    "expected_output": "Making retrieval-augmented generation (RAG) safer when the retrieved context contains misleading or malicious passages, by filtering/neutralizing those passages before they influence the LLM's answer.",
-    "tags": ["rag", "safety"]
-  },
-  {
-    "external_id": "policymaking-eval",
-    "input": "What does the study \"What Would an LLM Do?\" set out to measure about LLMs?",
-    "expected_output": "The policymaking capabilities of large language models: their ability to reason about and propose public-policy decisions.",
-    "tags": ["evaluation", "governance"]
-  },
-  {
-    "external_id": "mcp-medical",
-    "input": "Which protocol does the agentic framework for medical concept standardization use?",
-    "expected_output": "The Model Context Protocol (MCP), used within an agentic architecture to standardize medical concepts.",
-    "tags": ["agent", "healthcare"]
-  },
-  {
-    "external_id": "fama-marketplace",
-    "input": "What kind of marketplace is the FaMA assistant designed to operate on?",
-    "expected_output": "A consumer-to-consumer (C2C) marketplace, where FaMA acts as an LLM-empowered agentic assistant.",
-    "tags": ["agent", "e-commerce"]
-  },
-  {
-    "external_id": "planning-infinite-domains",
-    "input": "Which search method is proposed to handle infinite domain parameters in planning?",
-    "expected_output": "Best-First Search with Delayed Partial Expansions.",
-    "tags": ["planning"]
-  },
-  {
-    "external_id": "cot-space",
-    "input": "What does the CoT-Space framework propose?",
-    "expected_output": "A theoretical framework for the internal slow-thinking of LLMs, formalized through reinforcement learning.",
-    "tags": ["reasoning", "theory"]
-  }
-]
+{
+  "name": "ArxivAi — analyst set",
+  "version": "1.0.0",
+  "author": "Data Team",
+  "cases": [
+    {
+      "external_id": "raguard-goal",
+      "input": "What problem does the RAGuard approach aim to solve?",
+      "expected_output": "Making retrieval-augmented generation (RAG) safer when the retrieved context contains misleading or malicious passages, by filtering/neutralizing those passages before they influence the LLM's answer.",
+      "tags": ["rag", "safety"]
+    },
+    {
+      "external_id": "policymaking-eval",
+      "input": "What does the study \"What Would an LLM Do?\" set out to measure about LLMs?",
+      "expected_output": "The policymaking capabilities of large language models: their ability to reason about and propose public-policy decisions.",
+      "tags": ["evaluation", "governance"]
+    },
+    {
+      "external_id": "mcp-medical",
+      "input": "Which protocol does the agentic framework for medical concept standardization use?",
+      "expected_output": "The Model Context Protocol (MCP), used within an agentic architecture to standardize medical concepts.",
+      "tags": ["agent", "healthcare"]
+    },
+    {
+      "external_id": "fama-marketplace",
+      "input": "What kind of marketplace is the FaMA assistant designed to operate on?",
+      "expected_output": "A consumer-to-consumer (C2C) marketplace, where FaMA acts as an LLM-empowered agentic assistant.",
+      "tags": ["agent", "e-commerce"]
+    },
+    {
+      "external_id": "planning-infinite-domains",
+      "input": "Which search method is proposed to handle infinite domain parameters in planning?",
+      "expected_output": "Best-First Search with Delayed Partial Expansions.",
+      "tags": ["planning"]
+    },
+    {
+      "external_id": "cot-space",
+      "input": "What does the CoT-Space framework propose?",
+      "expected_output": "A theoretical framework for the internal slow-thinking of LLMs, formalized through reinforcement learning.",
+      "tags": ["reasoning", "theory"]
+    }
+  ]
+}
 ```
 
 **`minimal` variant:** drop the `expected_output` fields. Useful for a quick first pass,
@@ -138,16 +157,18 @@ before writing the reference answers.
 ## What's next — from your file to the results
 
 Two steps, two objects. First **save** your cases as an **evaluation**: the immutable,
-versioned definition. You name it; the server assigns the version.
+versioned definition. Your document's `name`, `version` and `author` carry over.
 
 ```jsonc
 POST /evaluation/v1/evaluations      // → 201, returns evaluation_id (+ version, completeness)
 {
   "team_id": "<your team>",
-  "name": "ArxivAi — analyst set",
+  "name": "ArxivAi — analyst set",     // from your document
+  "version": "1.0.0",                  // from your document; omit to let the server assign v1, v2…
+  "author": "Data Team",               // from your document, optional
   "origin": "upload",
   "source_filename": "arxiv-ai-eval.json",
-  "cases": [ /* … the contents of your file … */ ]
+  "cases": [ /* … the `cases` list of your file … */ ]
 }
 ```
 

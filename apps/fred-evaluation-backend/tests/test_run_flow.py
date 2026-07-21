@@ -83,6 +83,7 @@ async def _start(evaluation_id, evaluation_store, run_store, *, instance, by="al
         auth=NoAuthentication(),
         profile="auto",
         judge_profile_id="mistral-small",
+        max_concurrency=1,
         metrics=["answer_relevancy"],
         custom_metrics=[],
     )

@@ -69,7 +69,11 @@ control_plane:
   service_token_env: CONTROL_PLANE_SERVICE_TOKEN
 
 worker:
-  max_concurrent_cases: 4
+  # Sérialisé par défaut : chaque cas est un vrai tour d'agent + un appel au juge,
+  # donc la concurrence est une rafale contre des quotas externes, pas un réglage
+  # local. À augmenter délibérément. Attention : cette valeur borne CHAQUE réplique
+  # du worker — N répliques = N cas simultanés.
+  max_concurrent_cases: 1
   poll_interval_seconds: 5
   judge_profiles:
     mistral-small:

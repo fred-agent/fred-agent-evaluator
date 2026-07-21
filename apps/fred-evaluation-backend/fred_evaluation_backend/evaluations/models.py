@@ -43,6 +43,9 @@ class EvaluationRow(Base):
     version: Mapped[str] = mapped_column(String(100), nullable=False)
     team_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     created_by: Mapped[str] = mapped_column(String, nullable=False)
+    # Declared by the uploaded document, free text, optional. Distinct from
+    # created_by, which is the authenticated uploader and cannot be forged.
+    author: Mapped[str | None] = mapped_column(String(255), nullable=True)
     origin: Mapped[str] = mapped_column(String(32), nullable=False)
     completeness: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     source_question_set_id: Mapped[str | None] = mapped_column(String, nullable=True)

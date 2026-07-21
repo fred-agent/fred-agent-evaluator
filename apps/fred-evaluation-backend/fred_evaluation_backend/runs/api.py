@@ -30,6 +30,7 @@ from fred_evaluation_backend.runs.schemas import (
     RunAnalysisResponse,
     RunAnalysisResult,
     RunCreatedResponse,
+    RunReportResponse,
     StartRunRequest,
 )
 from fred_evaluation_backend.runs.store import RunStore
@@ -122,6 +123,9 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         auth = resolve_interactive_auth(
             request, user_security_enabled=configuration.security.user.enabled
         )
+        # Read once: the same value is frozen into the run's snapshot and carried in
+        # the workflow payload, so the two can never disagree.
+        max_concurrency = configuration.worker.max_concurrent_cases
         result = await service.start_run(
             evaluation_id=evaluation_id,
             team_id=body.team_id,
@@ -135,6 +139,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
             judge_profile_id=service.default_judge_profile_id(
                 configuration.worker.judge_profiles
             ),
+            max_concurrency=max_concurrency,
             metrics=body.metrics,
             custom_metrics=body.custom_metrics,
         )
@@ -150,7 +155,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
             client = await temporal_provider.get_client()
             await client.start_workflow(
                 RunWorkflow.run,
-                RunInput(run_id=result.run_id),
+                RunInput(run_id=result.run_id, max_concurrency=max_concurrency),
                 id=f"run-eval-{result.run_id}",
                 task_queue=task_queue,
             )
@@ -193,6 +198,37 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         store: Annotated[RunStore, Depends(_get_run_store)],
     ) -> EvaluationCaseResponse:
         return await service.get_run_case(run_id, case_id, store=store)
+
+    @router.get(
+        "/runs/{run_id}/report",
+        response_model=RunReportResponse,
+        responses={
+            401: {"model": EvaluatorErrorResponse},
+            403: {"model": EvaluatorErrorResponse},
+            404: {"model": EvaluatorErrorResponse},
+        },
+    )
+    async def get_run_report(
+        run_id: str,
+        request: Request,
+        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        store: Annotated[RunStore, Depends(_get_run_store)],
+        evaluation_store: Annotated[
+            EvaluationStore, Depends(_get_evaluation_catalog_store)
+        ],
+        cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
+    ) -> RunReportResponse:
+        configuration = request.app.dependency_overrides.get(get_config, get_config)()
+        auth = resolve_interactive_auth(
+            request, user_security_enabled=configuration.security.user.enabled
+        )
+        return await service.build_run_report(
+            run_id,
+            store=store,
+            evaluation_store=evaluation_store,
+            control_plane_client=cp_client,
+            auth=auth,
+        )
 
     @router.get("/runs/{run_id}/events")
     async def stream_run_events(

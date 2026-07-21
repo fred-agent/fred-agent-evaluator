@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fred_core import SecurityConfiguration
+from fred_core import LogStorageConfig, SecurityConfiguration
 from fred_core.common import KpiObservabilityConfig, ModelConfiguration
 from fred_core.common.structures import (
     OpenSearchStoreConfig,
@@ -32,6 +32,11 @@ class ControlPlaneConfig(BaseModel):
 class StorageConfig(BaseModel):
     postgres: PostgresStoreConfig = Field(default_factory=PostgresStoreConfig)
     opensearch: OpenSearchStoreConfig | None = None
+    # Stream 4 of docs/swift/platform/OBSERVABILITY-AND-AUDIT.md §6: generic
+    # diagnostic logs. `opensearch` makes them durable and explorable from
+    # OpenSearch Dashboards; absent, fred-core falls back to a bounded in-memory
+    # ring, which is fine for local dev and is not a durability guarantee.
+    log_store: LogStorageConfig | None = None
 
 
 class LangfuseObservabilityConfig(BaseModel):
@@ -51,7 +56,13 @@ class ObservabilityConfig(BaseModel):
 
 
 class WorkerConfig(BaseModel):
-    max_concurrent_cases: int = 4
+    # Serial by default. Every case is a real agent turn against a live runtime and a
+    # judge LLM, so concurrency here is a burst against someone else's rate limits, not
+    # a local speed dial. Raise it deliberately once the target is known to absorb it.
+    # This is the single lever for both execution paths: the in-memory runner's
+    # semaphore and, for Temporal, `max_concurrent_activities` plus the activity
+    # executor's pool size (see main_worker.py).
+    max_concurrent_cases: int = 1
     poll_interval_seconds: int = 5
     # Judge models follow fred's canonical ModelConfiguration (provider / name /
     # settings). Switching provider/model is config-only; building the DeepEval

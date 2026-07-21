@@ -21,6 +21,30 @@ causes managed-instance `prepare-execution` to 403 for the worker — is
 execution-audit correlation (execution attributed to the service, referencing
 `created_by`) also remains pending. Status stays draft/pending security review.
 
+**Implementation note (2026-07-21, fred branch
+`fix/eval-03-service-agent-single-resource-checkpoints`):** a real evaluation
+run ("warfare-tracks", team fredlab) surfaced a gap in §8.2's knowledge-flow
+enforcement: the §8's "Scope note" assumption — *"the async evaluation worker
+does corpus search and never passes explicit document UIDs"* — did not hold
+for **tags**. The worker's tool calls (corpus-filesystem MCP tool, and
+vector-search's explicit-tag resolution) do resolve individual tag ids
+directly via `TagService.get_tag_for_user`, a single-resource checkpoint that
+had no `is_service_agent` bypass at all (only the bulk
+`resolve_authorized_tag_ids_in_rebac` did). Every such call was denied — zero
+per-user ReBAC relations, by design — logging a `ReBAC authorization denied`
+warning per lookup. Fixed on the `fred` side by scoping the bypass to the
+tag's own `owner_id` (reusing `resolve_authorized_tag_ids_in_rebac` against
+that team, rather than trusting an externally supplied `team_id`) — see the
+updated §8.2 scope note below. Also fixed: `AuthorizationError` (fred-core)
+now inherits from `PermissionError`, since `check_permission_or_raise` raises
+`AuthorizationError` but some controllers (e.g. knowledge-flow's tabular
+controller) only caught `PermissionError` before a generic-`Exception`→500
+handler, turning a legitimate denial into an unhandled 500 instead of 403.
+**fred-agent-evaluator itself needed no change** — `ServiceAuthentication()` /
+the M2M token path (§4) was already correct; the gap was entirely in
+knowledge-flow's authorization enforcement. One gap remains open, requiring
+its own design decision before it can be fixed — see the new §10 item.
+
 ---
 
 ## 1. Decision requested
@@ -214,14 +238,19 @@ So Solution A grants `service_agent` the **team `can_read` level, scoped to the 
        identity) is bypassed and the **team's** owner/editor/viewer tags are authorized
        directly, scoped to the request `team_id`; fail-closed (empty set) with no team
        or a personal team.
-       > **Scope note.** This covers the **corpus-scoping** path (`tag_ids`), which is
-       > what corpus RAG search uses — chunks are filtered by `tag_ids` in the vector
-       > index. The separate **explicit per-document** path
-       > (`MetadataService.filter_readable_document_uids`, used only when a caller passes
-       > explicit `document_uids`) is **not** widened for `service_agent`: the async
-       > evaluation worker does corpus search and never passes explicit document UIDs.
-       > If a future case needs explicit-document reads under a service identity, extend
-       > that path the same way.
+       > **Scope note (updated 2026-07-21).** Bulk resolution (`resolve_authorized_tag_ids_in_rebac`,
+       > used by corpus RAG search's `tag_ids` filtering) was covered from the start.
+       > `TagService.get_tag_for_user` — the **single-tag** lookup used by the
+       > corpus-filesystem MCP tool and by vector-search's explicit-tag resolution — was
+       > *not* covered, and the original assumption that the worker "never passes explicit
+       > document/tag ids" turned out to be false for tags: a real evaluation run showed
+       > the worker's tool calls do reach this single-resource checkpoint. Fixed by
+       > scoping the bypass to the **tag's own `owner_id`** (fetch the tag, then reuse
+       > `resolve_authorized_tag_ids_in_rebac` against that owning team) rather than
+       > requiring an externally supplied `team_id` — this needed no signature change on
+       > any of the tag's several callers. The equivalent **explicit-document** path
+       > (`MetadataService.get_document_metadata`, reached by corpus-filesystem document
+       > browsing) has the same gap and is still **not** widened — see §10.
 
 3. **Legitimacy anchoring**
    - The campaign records `created_by` and `team_id` at creation (created by a user
@@ -273,6 +302,18 @@ So Solution A grants `service_agent` the **team `can_read` level, scoped to the 
   a limited permission).
 - Whether Fapi needs any M2M client at all, or remains 100% user-JWT propagation.
 - Secret lifecycle/rotation for the `fred-evaluation-worker` client.
+- **(new, 2026-07-21) Corpus-filesystem discovery for `service_agent`.** General
+  browsing (`list_area`/`cat_area`/etc. on `/corpus` or `/corpus/libraries` *without*
+  an already-known `tag_id`) still returns empty for `service_agent`, because
+  `CorpusVirtualFilesystem`/`mcp_fs_service.py` (knowledge-flow) have no `team_id`
+  concept anywhere in their contract — by design, since a human user's own ReBAC
+  tuples already scope the listing across every team they belong to. A
+  `service_agent` has zero tuples, so nothing exists to scope a listing bypass to
+  without adding `team_id` as an explicit MCP tool parameter, which is a **public
+  tool-contract change** (the calling agent/LLM would need to know to pass it), not
+  an internal fix — needs its own design decision before implementation. Same-class
+  gap in `MetadataService.get_document_metadata` (explicit/untagged document reads
+  via corpus browsing).
 
 ---
 

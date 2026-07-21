@@ -8,6 +8,12 @@ app:
 storage:
   postgres:
     sqlite_path: "~/.fred/evaluation/evaluation.sqlite3"
+  # Generic diagnostic logs — OBSERVABILITY-AND-AUDIT.md §6 (fred).
+  # Absent: fred-core uses a bounded in-memory ring (fine for dev, not durable).
+  # Set to opensearch, with `storage.opensearch` configured, to make them durable
+  # and explorable from OpenSearch Dashboards:
+  #   log_store:
+  #     type: opensearch
 
 security:
   # user: consumed by the API (interactive requests) — outbound Control Plane
@@ -45,7 +51,9 @@ control_plane:
   runtime_base_url: http://localhost:8000
 
 worker:
-  max_concurrent_cases: 4
+  # Serial by default: each case is a live agent turn + judge call, so bursts hit
+  # external rate limits. Raise deliberately.
+  max_concurrent_cases: 1
   poll_interval_seconds: 5
   judge_profiles:
     # Available providers: litellm | openai | ollama

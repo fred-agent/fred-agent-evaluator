@@ -3998,6 +3998,24 @@
                 }
             }
         ],
+        "./tests/test_logging_hygiene.py": [
+            {
+                "code": "reportUnusedImport",
+                "range": {
+                    "startColumn": 15,
+                    "endColumn": 44,
+                    "lineCount": 1
+                }
+            },
+            {
+                "code": "reportUnusedImport",
+                "range": {
+                    "startColumn": 11,
+                    "endColumn": 40,
+                    "lineCount": 1
+                }
+            }
+        ],
         "./tests/test_main.py": [
             {
                 "code": "reportMissingParameterType",

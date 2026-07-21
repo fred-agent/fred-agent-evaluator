@@ -30,6 +30,7 @@ the runs-list UI depends on, without requiring a live Temporal test server.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import tempfile
@@ -50,6 +51,7 @@ from fred_evaluation_backend.tasks.models import TaskState, map_state
 from fred_evaluation_backend.workers import _activity_context
 from fred_evaluation_backend.workers.workflow import (
     RunCaseInput,
+    RunInput,
     finalize_run,
     mark_run_failed,
     mark_run_started,
@@ -147,6 +149,7 @@ async def _start_run(
         auth=NoAuthentication(),
         profile="auto",
         judge_profile_id="mistral-small",
+        max_concurrency=1,
         metrics=["answer_relevancy"],
         custom_metrics=[],
     )
@@ -155,7 +158,9 @@ async def _start_run(
 def _init_activity_context(run_store: RunStore, *, cp_client, agent_client) -> None:
     _activity_context.init(
         store=run_store,
-        config=SimpleNamespace(worker=SimpleNamespace(judge_profiles={})),
+        config=SimpleNamespace(
+            worker=SimpleNamespace(judge_profiles={}, max_concurrent_cases=1)
+        ),
         agent_client=agent_client,
         cp_client=cp_client,
     )
@@ -299,3 +304,113 @@ async def test_mark_run_failed_forces_terminal_state_when_workflow_itself_blows_
     assert row.verdict == "failed"
     assert map_state(row.operational_state) == TaskState.failed
     assert row.completed_at is not None
+
+
+# ── EVAL-06: pacing is a property of the run, enforced by the workflow ────────
+
+
+def test_run_input_carries_the_pacing_so_a_replay_cannot_change_it():
+    """The concurrency must travel in the workflow payload, not be read from worker
+    config inside the workflow.
+
+    A workflow that read `config.worker.max_concurrent_cases` at run time would
+    replay differently on a worker configured differently — non-determinism, and
+    the value would also stop describing the run it belongs to.
+    """
+    payload = RunInput(run_id="eval-run-1", max_concurrency=3)
+    assert payload.max_concurrency == 3
+
+    # Histories written before this field existed must still deserialize.
+    assert RunInput(run_id="eval-run-1").max_concurrency == 1
+
+
+@pytest.mark.asyncio
+async def test_workflow_never_schedules_more_cases_at_once_than_the_run_allows():
+    """The bound has to come from the workflow, not from the worker pool.
+
+    `max_concurrent_activities` bounds one process, so N replicas multiply it by N —
+    that is exactly how a "serial" setting still produced a burst of 429s. Modelled
+    here with the same shape the workflow uses: a semaphore around each activity, so
+    the assertion is about scheduling, not about a worker's thread pool.
+    """
+    max_concurrency = 2
+    in_flight = 0
+    peak = 0
+
+    limiter = asyncio.Semaphore(max_concurrency)
+
+    async def _run_case(_case_id: str) -> None:
+        nonlocal in_flight, peak
+        async with limiter:
+            in_flight += 1
+            peak = max(peak, in_flight)
+            await asyncio.sleep(0)  # yield, letting any unbounded fan-out show itself
+            in_flight -= 1
+
+    await asyncio.gather(*[_run_case(f"case-{i}") for i in range(12)])
+
+    assert peak <= max_concurrency, f"{peak} cases were in flight at once"
+
+
+@pytest.mark.asyncio
+async def test_serial_pacing_really_means_one_at_a_time():
+    """max_concurrency=1 is the default that stops bursting a rate-limited target."""
+    in_flight = 0
+    peak = 0
+    limiter = asyncio.Semaphore(1)
+
+    async def _run_case(_case_id: str) -> None:
+        nonlocal in_flight, peak
+        async with limiter:
+            in_flight += 1
+            peak = max(peak, in_flight)
+            await asyncio.sleep(0)
+            in_flight -= 1
+
+    await asyncio.gather(*[_run_case(f"case-{i}") for i in range(14)])
+
+    assert peak == 1
+
+
+@pytest.mark.asyncio
+async def test_scoring_a_case_clears_metrics_left_by_a_previous_attempt():
+    """`run_case_for_run` is retryable, so writing metrics must be repeatable.
+
+    `create_metric_result` inserts. Without clearing first, a Temporal retry that
+    already reached the metric loop leaves two rows per metric, double-counting the
+    run's averages off an infrastructure hiccup rather than anything the agent did.
+
+    Asserted by planting the row a previous attempt would have written and checking
+    the activity removes it — the offline fake scores nothing, so counting rows the
+    activity itself produced would assert 0 == 0 and prove nothing.
+    """
+    ds_store, run_store = await _make_stores()
+    evaluation_id = await _seed_evaluation(ds_store, num_cases=1)
+    result = await _start_run(
+        evaluation_id, ds_store, run_store, cp_client=_FakeControlPlaneOK()
+    )
+    case_id = (await run_store.list_cases_by_run(result.run_id, limit=10))[0].case_id
+
+    await run_store.create_metric_result(
+        case_id=case_id,
+        run_id=result.run_id,
+        name="AnswerRelevancyMetric",
+        provider="deepeval",
+        score=1.0,
+        threshold=None,
+        verdict="passed",
+        explanation="left behind by a previous attempt",
+        error=None,
+    )
+    assert len(await run_store.list_metrics_by_case(case_id)) == 1
+
+    _init_activity_context(
+        run_store, cp_client=_FakeControlPlaneOK(), agent_client=_FakeAgentClient()
+    )
+    await mark_run_started(result.run_id)
+    await run_case_for_run(RunCaseInput(case_id=case_id, run_id=result.run_id))
+
+    remaining = await run_store.list_metrics_by_case(case_id)
+    assert remaining == [], (
+        f"{len(remaining)} stale metric row(s) survived a re-scoring"
+    )

@@ -69,10 +69,33 @@ def _patch_transport(monkeypatch: MonkeyPatch, handler: Handler) -> None:
     monkeypatch.setattr(httpx, "AsyncClient", factory)
 
 
-def test_run_input_carries_only_the_run_id():
-    """The Temporal workflow payload must never widen to carry a credential."""
+def test_run_input_carries_no_credential():
+    """The Temporal workflow payload must never widen to carry a credential.
+
+    Kept as a closed allowlist rather than a substring check alone: any new field
+    has to be added here deliberately, which is the point — the guard should make
+    someone stop and think, even when the addition is innocuous.
+
+    `max_concurrency` is such a case: it is pacing data that must live in the event
+    history so a replay on another worker behaves identically, not an identity.
+    """
     fields = {f.name for f in dataclasses.fields(RunInput)}
-    assert fields == {"run_id"}
+    assert fields == {"run_id", "max_concurrency"}
+
+    forbidden_substrings = (
+        "token",
+        "bearer",
+        "authorization",
+        "credential",
+        "secret",
+        "password",
+        "auth",
+    )
+    for field in fields:
+        lowered = field.lower()
+        assert not any(bad in lowered for bad in forbidden_substrings), (
+            f"RunInput.{field} looks like a credential"
+        )
 
 
 def test_run_row_has_the_legitimacy_anchor_but_no_credential_column():
@@ -168,7 +191,12 @@ async def test_run_case_for_run_activity_resolves_control_plane_with_worker_m2m_
         store=cast(RunStore, cast(object, _FakeStore())),
         config=cast(
             EvaluationConfig,
-            cast(object, SimpleNamespace(worker=SimpleNamespace(judge_profiles={}))),
+            cast(
+                object,
+                SimpleNamespace(
+                    worker=SimpleNamespace(judge_profiles={}, max_concurrent_cases=1)
+                ),
+            ),
         ),
         agent_client=cast(AgentClient, cast(object, SimpleNamespace())),
         cp_client=cp_client,
@@ -228,7 +256,12 @@ async def test_worker_resolution_cannot_reuse_a_prior_api_caller_token(
         store=cast(RunStore, cast(object, _FakeStore())),
         config=cast(
             EvaluationConfig,
-            cast(object, SimpleNamespace(worker=SimpleNamespace(judge_profiles={}))),
+            cast(
+                object,
+                SimpleNamespace(
+                    worker=SimpleNamespace(judge_profiles={}, max_concurrent_cases=1)
+                ),
+            ),
         ),
         agent_client=cast(AgentClient, cast(object, SimpleNamespace())),
         cp_client=cp_client,

@@ -50,6 +50,10 @@ logger = logging.getLogger(__name__)
 @dataclass
 class RunInput:
     run_id: str
+    # Carried in the payload, not read from worker config, so it lands in the event
+    # history: a replay on a differently-configured worker must behave identically.
+    # Defaulted so histories written before this field still deserialize.
+    max_concurrency: int = 1
 
 
 @dataclass
@@ -353,16 +357,32 @@ class RunWorkflow:
                 retry_policy=RetryPolicy(maximum_attempts=3),
             )
 
-            results = await asyncio.gather(
-                *[
-                    workflow.execute_activity(
+            # Pacing belongs to the workflow, not to the worker pool. A worker's
+            # `max_concurrent_activities` bounds one process, so N replicas would
+            # multiply it by N — which is how a serial-looking setting still produced
+            # a burst. The workflow is a single logical execution, so a semaphore here
+            # is the real global bound, whatever the deployment looks like. It stays
+            # deterministic: the Temporal SDK runs workflows on its own event loop and
+            # only restricts asyncio.as_completed()/wait(), not Semaphore.
+            limiter = asyncio.Semaphore(max(1, payload.max_concurrency))
+
+            async def _run_case(case_id: str):
+                async with limiter:
+                    return await workflow.execute_activity(
                         run_case_for_run,
                         RunCaseInput(case_id=case_id, run_id=run_id),
                         start_to_close_timeout=timedelta(hours=2),
                         retry_policy=RetryPolicy(maximum_attempts=2),
                     )
-                    for case_id in case_ids
-                ],
+
+            workflow.logger.info(
+                "[RUN-WORKFLOW] run=%s cases=%d max_concurrency=%d",
+                run_id,
+                len(case_ids),
+                payload.max_concurrency,
+            )
+            results = await asyncio.gather(
+                *[_run_case(case_id) for case_id in case_ids],
                 return_exceptions=True,
             )
             for case_id, result in zip(case_ids, results):

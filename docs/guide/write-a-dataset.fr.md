@@ -44,7 +44,7 @@ donner pour chacune la réponse attendue.
 | `external_id`     |   —    | Un identifiant à vous, stable et lisible, pour retrouver le cas dans les résultats. |
 | `tags`            |   —    | Étiquettes libres (thème, difficulté…) pour trier vos cas. |
 
-Un dataset est un **tableau JSON de ces cas**.
+Les cas vivent dans la liste `cases` du document — voir l'enveloppe ci-dessous.
 
 ---
 
@@ -72,49 +72,68 @@ mot : le juge compare le sens, pas les caractères.
 
 ---
 
+## L'enveloppe du document
+
+Votre fichier est un **document auto-descriptif** : il énonce ce qu'il est, pour
+qu'une copie archivée reste lisible sans la requête qui l'a déposée.
+
+| Champ     | Requis | Rôle |
+| --------- | :----: | ---- |
+| `name`    |   ✅   | Nomme le jeu. Avec `version`, il identifie l'evaluation. |
+| `version` |   —    | Votre propre version (ex. `1.0.0`). Déclarée, elle devient l'identité — redéposer le même `(name, version)` est refusé en 409. Omise, le serveur attribue `v1`, `v2`, … |
+| `author`  |   —    | Provenance libre (« Équipe Data »). Purement déclaratif : la plateforme enregistre séparément l'uploadeur authentifié dans `created_by`, qu'aucun document ne peut usurper. |
+| `cases`   |   ✅   | Les questions — de 1 à 200. |
+
+---
+
 ## Exemple complet — corpus ArxivAi
 
 `arxiv-ai-eval.json` — six cas `complete`, chacun répondable depuis un article du corpus :
 
 ```json
-[
-  {
-    "external_id": "raguard-objectif",
-    "input": "Quel problème l'approche RAGuard cherche-t-elle à résoudre ?",
-    "expected_output": "Rendre la génération augmentée par récupération (RAG) plus sûre lorsque le contexte récupéré contient des passages trompeurs ou malveillants, en filtrant/neutralisant ces passages avant qu'ils n'influencent la réponse du LLM.",
-    "tags": ["rag", "sécurité"]
-  },
-  {
-    "external_id": "policymaking-eval",
-    "input": "Que cherche à mesurer l'étude « What Would an LLM Do? » sur les LLM ?",
-    "expected_output": "Les capacités des grands modèles de langage en matière de conception de politiques publiques (policymaking) : leur aptitude à raisonner et proposer des décisions de politique publique.",
-    "tags": ["évaluation", "gouvernance"]
-  },
-  {
-    "external_id": "mcp-medical",
-    "input": "Quel protocole le framework agentique de standardisation de concepts médicaux utilise-t-il ?",
-    "expected_output": "Le Model Context Protocol (MCP), employé dans une architecture agentique pour normaliser des concepts médicaux.",
-    "tags": ["agent", "santé"]
-  },
-  {
-    "external_id": "fama-marketplace",
-    "input": "Sur quel type de marché l'assistant FaMA est-il conçu pour opérer ?",
-    "expected_output": "Une marketplace de particulier à particulier (consumer-to-consumer, C2C), où FaMA agit comme assistant agentique animé par un LLM.",
-    "tags": ["agent", "e-commerce"]
-  },
-  {
-    "external_id": "planning-infinite-domains",
-    "input": "Quelle méthode de recherche est proposée pour gérer des paramètres de domaine infinis en planification ?",
-    "expected_output": "Une recherche best-first avec expansions partielles différées (Best-First Search with Delayed Partial Expansions).",
-    "tags": ["planification"]
-  },
-  {
-    "external_id": "cot-space",
-    "input": "Que propose le cadre CoT-Space ?",
-    "expected_output": "Un cadre théorique pour le « slow-thinking » interne des LLM, formalisé via l'apprentissage par renforcement.",
-    "tags": ["raisonnement", "théorie"]
-  }
-]
+{
+  "name": "ArxivAi — jeu analyste",
+  "version": "1.0.0",
+  "author": "Équipe Data",
+  "cases": [
+    {
+      "external_id": "raguard-objectif",
+      "input": "Quel problème l'approche RAGuard cherche-t-elle à résoudre ?",
+      "expected_output": "Rendre la génération augmentée par récupération (RAG) plus sûre lorsque le contexte récupéré contient des passages trompeurs ou malveillants, en filtrant/neutralisant ces passages avant qu'ils n'influencent la réponse du LLM.",
+      "tags": ["rag", "sécurité"]
+    },
+    {
+      "external_id": "policymaking-eval",
+      "input": "Que cherche à mesurer l'étude « What Would an LLM Do? » sur les LLM ?",
+      "expected_output": "Les capacités des grands modèles de langage en matière de conception de politiques publiques (policymaking) : leur aptitude à raisonner et proposer des décisions de politique publique.",
+      "tags": ["évaluation", "gouvernance"]
+    },
+    {
+      "external_id": "mcp-medical",
+      "input": "Quel protocole le framework agentique de standardisation de concepts médicaux utilise-t-il ?",
+      "expected_output": "Le Model Context Protocol (MCP), employé dans une architecture agentique pour normaliser des concepts médicaux.",
+      "tags": ["agent", "santé"]
+    },
+    {
+      "external_id": "fama-marketplace",
+      "input": "Sur quel type de marché l'assistant FaMA est-il conçu pour opérer ?",
+      "expected_output": "Une marketplace de particulier à particulier (consumer-to-consumer, C2C), où FaMA agit comme assistant agentique animé par un LLM.",
+      "tags": ["agent", "e-commerce"]
+    },
+    {
+      "external_id": "planning-infinite-domains",
+      "input": "Quelle méthode de recherche est proposée pour gérer des paramètres de domaine infinis en planification ?",
+      "expected_output": "Une recherche best-first avec expansions partielles différées (Best-First Search with Delayed Partial Expansions).",
+      "tags": ["planification"]
+    },
+    {
+      "external_id": "cot-space",
+      "input": "Que propose le cadre CoT-Space ?",
+      "expected_output": "Un cadre théorique pour le « slow-thinking » interne des LLM, formalisé via l'apprentissage par renforcement.",
+      "tags": ["raisonnement", "théorie"]
+    }
+  ]
+}
 ```
 
 Variante **`minimal`** : retirez les `expected_output`. Utile pour un premier passage
@@ -143,16 +162,18 @@ sans encore rédiger les réponses de référence.
 ## Et ensuite ? — de votre fichier aux résultats
 
 Deux étapes, deux objets. D'abord **enregistrer** vos cas comme une **evaluation** : la
-définition immuable et versionnée. Vous la nommez ; le serveur attribue la version.
+définition immuable et versionnée. Les `name`, `version` et `author` de votre document sont repris.
 
 ```jsonc
 POST /evaluation/v1/evaluations      // → 201, renvoie evaluation_id (+ version, completeness)
 {
   "team_id": "<votre équipe>",
-  "name": "ArxivAi — jeu analyste",
+  "name": "ArxivAi — jeu analyste",    // de votre document
+  "version": "1.0.0",                  // de votre document ; omettez-le pour laisser le serveur assigner v1, v2…
+  "author": "Équipe Data",             // de votre document, optionnel
   "origin": "upload",
   "source_filename": "arxiv-ai-eval.json",
-  "cases": [ /* … le contenu de votre fichier … */ ]
+  "cases": [ /* … la liste `cases` de votre fichier … */ ]
 }
 ```
 

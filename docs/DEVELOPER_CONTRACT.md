@@ -87,7 +87,8 @@ ligne à la création d'un run — les cas viennent toujours de l'evaluation.
 
 | Méthode | Route | Status | Description |
 |---|---|---|---|
-| POST | `/evaluations` | 201 | Créer une evaluation immuable — `{team_id, name, origin, cases}` (`origin: upload \| manual`, 1 à 200 cas). La version est assignée par le serveur ; le nom est fourni par l'appelant. |
+| POST | `/evaluations` | 201 | Créer une evaluation immuable — `{team_id, name, cases}` requis, `{version, author, source_filename}` optionnels (`origin: upload \| manual`, 1 à 200 cas). Version déclarée = identité (409 si doublon) ; sinon assignée par le serveur. 409 aussi si `(team, name, version)` existe déjà. |
+| DELETE | `/evaluations/{id}` | 204 | Supprimer une evaluation **et tous ses runs** (cas, métriques, events). Refusé en 409 si un run est en cours. |
 | GET | `/evaluations` | 200 | Lister (param: `team_id`) — id, nom, version, auteur, origin, complétude, nombre de cas, `created_at` |
 | POST | `/evaluations/{id}/runs` | 202 | Démarrer un run — `{team_id, target, metrics, custom_metrics}` (`extra: forbid`). Cible **`managed_instance` uniquement** (`runtime_agent` retiré de la création, conservé en lecture pour l'historique). `metrics` (obligatoire, non vide) est la sélection manuelle des métriques DeepEval à calculer ; `custom_metrics` (optionnel) porte les critères GEval. Judge et concurrence restent fixés côté serveur et figés dans un `RunSnapshot`. |
 | GET | `/evaluations/{id}/runs` | 200 | Lister les runs d'une evaluation |
@@ -95,6 +96,7 @@ ligne à la création d'un run — les cas viennent toujours de l'evaluation.
 | GET | `/runs/{run_id}/cases` | 200 | Cas paginés |
 | GET | `/runs/{run_id}/cases/{case_id}` | 200 | Détail d'un cas |
 | GET | `/runs/{run_id}/events` | 200 | SSE temps réel |
+| GET | `/runs/{run_id}/report` | 200 | Rapport JSON complet et autoportant d'un run — archivage / LLM-as-judge |
 | POST | `/runs/{run_id}/cancel` | 202 | Annuler |
 | DELETE | `/runs/{run_id}` | 204 | Supprimer (refusé si `operational_state == running`) |
 | POST | `/runs/{run_id}/analyze` | 200 | Analyse LLM du résultat, mise en cache |
@@ -154,17 +156,29 @@ never the metric list above:
 
 ## Format dataset JSON
 
-Format strict, unique — la liste `cases` de `POST /evaluations`
-(`origin: "upload"`), 1 à 200 cas :
+Le document est **auto-descriptif** : il porte son identité et sa provenance, pour
+qu'une copie archivée reste lisible sans la requête qui l'a déposée. 1 à 200 cas.
 
 ```json
-[
-  {
-    "input": "Question posée à l'agent",
-    "expected_output": "Réponse attendue (optionnel, requis pour ContextualPrecision/Recall)"
-  }
-]
+{
+  "name": "golden-set",
+  "version": "1.0.0",
+  "author": "Équipe Data",
+  "cases": [
+    {
+      "input": "Question posée à l'agent",
+      "expected_output": "Réponse attendue (optionnel, requis pour ContextualPrecision/Recall)"
+    }
+  ]
+}
 ```
+
+- `name` — requis.
+- `version` — optionnelle. **Déclarée, elle fait autorité** et `(team, name, version)`
+  devient l'identité : redéposer la même version renvoie 409. Omise, le serveur
+  assigne `v1`, `v2`… Une version déclarée non numérique ne perturbe pas cette suite.
+- `author` — optionnel, texte libre, purement **déclaratif**. L'uploadeur authentifié
+  est enregistré séparément dans `created_by` et ne peut pas être usurpé par le document.
 
 `external_id` et `tags` restent acceptés (voir `EvaluationCase`) mais ne sont
 pas requis. Pas de CSV. Une evaluation créée manuellement (`origin: "manual"`)

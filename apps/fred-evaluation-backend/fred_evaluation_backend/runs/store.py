@@ -79,6 +79,25 @@ class RunStore:
         async with use_session(self._sessions, session) as s:
             return await s.get(EvaluationCaseRow, case_id)
 
+    async def delete_metrics_by_case(
+        self,
+        case_id: str,
+        session: AsyncSession | None = None,
+    ) -> None:
+        """Clear a case's metric rows so re-scoring it is idempotent.
+
+        `create_metric_result` is a plain insert, and the scoring activity may run
+        more than once (Temporal retries it). Without this, a retry that got as far
+        as writing metrics would leave two rows per metric, double-counting the run's
+        averages.
+        """
+        async with use_session(self._sessions, session) as s:
+            await s.execute(
+                delete(EvaluationMetricResultRow).where(
+                    EvaluationMetricResultRow.case_id == case_id
+                )
+            )
+
     async def create_metric_result(
         self,
         *,

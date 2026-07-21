@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Literal, cast
 from uuid import uuid4
 
@@ -23,7 +24,10 @@ from fred_evaluation_backend.runs.schemas import (
     EvaluationRun,
     ManagedInstanceTarget,
     RunCreatedResponse,
+    RunReportEvaluation,
+    RunReportResponse,
     RunSnapshot,
+    StoredRunAnalysis,
     StructuralCheckResponse,
 )
 from fred_evaluation_backend.runs.store import RunStore
@@ -50,6 +54,7 @@ async def start_run(
     auth: OutboundAuth,
     profile: str,
     judge_profile_id: str,
+    max_concurrency: int,
     metrics: list[str],
     custom_metrics: list[CustomMetricSpecInput],
 ) -> RunCreatedResponse:
@@ -71,12 +76,16 @@ async def start_run(
     run_id = f"eval-run-{uuid4().hex[:8]}"
     task_id = f"eval-task-{uuid4().hex[:8]}"
 
+    # Frozen with the rest of the run's parameters. Concurrency is a property of
+    # THIS run against THIS target — a later config change must not retroactively
+    # describe how a past run was paced.
     snapshot = RunSnapshot(
         evaluation_name=evaluation.name,
         evaluation_version=evaluation.version,
         target=target,
         profile=profile,
         judge_profile_id=judge_profile_id,
+        execution={"max_concurrency": max_concurrency},
     )
 
     _ = await store.create_run(
@@ -260,3 +269,84 @@ async def delete_run(
             detail=f"Run '{run_id}' is currently running and cannot be deleted.",
         )
     await store.delete_run(run_id)
+
+
+# A run holds at most as many cases as its evaluation (capped at 200 on creation),
+# so a single unpaginated read is bounded; the ceiling is a guard, not a page size.
+_REPORT_CASE_LIMIT = 10_000
+
+
+async def build_run_report(
+    run_id: str,
+    *,
+    store: RunStore,
+    evaluation_store: EvaluationStore,
+    control_plane_client: ControlPlaneClient | None = None,
+    auth: OutboundAuth | None = None,
+) -> RunReportResponse:
+    """Assemble the complete, self-contained JSON record of one run."""
+    run_row = await store.get_run(run_id)
+    if run_row is None:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found.")
+
+    evaluation_row = await evaluation_store.get_evaluation(run_row.evaluation_id)
+    if evaluation_row is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"Evaluation '{run_row.evaluation_id}' backing run '{run_id}' "
+                "no longer exists."
+            ),
+        )
+
+    # Best-effort: a report that loses its team name is degraded, one that 500s
+    # because the Control Plane hiccuped is useless. Never fail the archive on it.
+    team_name: str | None = None
+    if control_plane_client is not None and auth is not None:
+        try:
+            membership = await control_plane_client.get_team(
+                team_id=evaluation_row.team_id, auth=auth
+            )
+            team_name = membership.name
+        except Exception:
+            logger.warning(
+                "[REPORT] could not resolve team name for %s", evaluation_row.team_id
+            )
+
+    case_rows = await store.list_cases_by_run(run_id, limit=_REPORT_CASE_LIMIT)
+    cases = [
+        _case_to_response(row, await store.list_metrics_by_case(row.case_id))
+        for row in case_rows
+    ]
+
+    # Stored wrapped as {"analysis": {...}} by the analyze endpoint, not as a bare
+    # RunAnalysisResult — unwrap it here rather than trusting the column shape.
+    analysis = (
+        StoredRunAnalysis.model_validate_json(run_row.analysis_json).analysis
+        if run_row.analysis_json
+        else None
+    )
+
+    return RunReportResponse(
+        generated_at=datetime.now(timezone.utc).replace(microsecond=0),
+        evaluation=RunReportEvaluation(
+            evaluation_id=evaluation_row.evaluation_id,
+            name=evaluation_row.name,
+            version=evaluation_row.version,
+            team_id=evaluation_row.team_id,
+            team_name=team_name,
+            author=evaluation_row.author,
+            created_by=evaluation_row.created_by,
+            origin=evaluation_row.origin,
+            completeness=evaluation_row.completeness,
+            created_at=evaluation_row.created_at,
+        ),
+        run=_run_to_response(run_row),
+        metric_averages=(
+            json.loads(run_row.metric_averages_json)
+            if run_row.metric_averages_json
+            else None
+        ),
+        analysis=analysis,
+        cases=cases,
+    )
