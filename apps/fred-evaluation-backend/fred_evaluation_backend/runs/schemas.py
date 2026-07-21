@@ -119,7 +119,52 @@ class RunAnalysisResult(BaseModel):
     risk_level: str
 
 
+class StoredRunAnalysis(BaseModel):
+    """On-disk shape of `evaluation_run.analysis_json` — the analyze endpoint
+    stores the result wrapped, so readers parse it declaratively rather than
+    indexing into a raw dict."""
+
+    analysis: RunAnalysisResult
+
+
 class RunAnalysisResponse(BaseModel):
     run_id: str
     analysis: RunAnalysisResult
     cached: bool
+
+
+class RunReportEvaluation(BaseModel):
+    """The definition this run executed, denormalised into the report.
+
+    Copied rather than referenced: a report is an archive, so it must stay
+    readable after the evaluation it came from is deleted.
+    """
+
+    evaluation_id: str
+    name: str
+    version: str
+    team_id: str
+    author: str | None  # declared in the document; None when not provided
+    created_by: str  # authenticated uploader — verified
+    origin: str
+    completeness: str
+    created_at: datetime
+
+
+class RunReportResponse(BaseModel):
+    """Self-contained JSON record of one run — for archiving, or for an LLM judge.
+
+    Everything needed to interpret the result without a second call: what was
+    asked (`evaluation`), how it was executed (`run.snapshot` — target, profile,
+    judge), what came out per case (`cases`, each with its metric scores and the
+    judge's explanations), and the aggregate view (`run` counters,
+    `metric_averages`, optional cached `analysis`).
+    """
+
+    schema_version: Literal["1"] = "1"
+    generated_at: datetime
+    evaluation: RunReportEvaluation
+    run: EvaluationRun
+    metric_averages: dict[str, float] | None = None
+    analysis: RunAnalysisResult | None = None
+    cases: list[EvaluationCaseResponse]

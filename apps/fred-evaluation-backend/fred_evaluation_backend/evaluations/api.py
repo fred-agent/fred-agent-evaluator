@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Response
 from fred_core import KeycloakUser, get_config, get_current_user
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -17,6 +17,7 @@ from fred_evaluation_backend.evaluations.store import EvaluationStore
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
 from fred_evaluation_backend.execution.evaluator_errors import EvaluatorErrorResponse
 from fred_evaluation_backend.execution.outbound_auth import resolve_interactive_auth
+from fred_evaluation_backend.runs.store import RunStore
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,11 @@ logger = logging.getLogger(__name__)
 def _get_evaluation_catalog_store(request: Request) -> EvaluationStore:
     engine: AsyncEngine = request.app.state.db_engine
     return EvaluationStore(engine)
+
+
+def _get_run_store(request: Request) -> RunStore:
+    engine: AsyncEngine = request.app.state.db_engine
+    return RunStore(engine)
 
 
 def _get_control_plane_client(request: Request) -> ControlPlaneClient:
@@ -87,5 +93,37 @@ def build_evaluation_catalog_router(prefix: str = "") -> APIRouter:
             control_plane_client=cp_client,
             auth=auth,
         )
+
+    @router.delete(
+        "/evaluations/{evaluation_id}",
+        status_code=204,
+        response_class=Response,
+        responses={
+            401: {"model": EvaluatorErrorResponse},
+            403: {"model": EvaluatorErrorResponse},
+            404: {"model": EvaluatorErrorResponse},
+            409: {"model": EvaluatorErrorResponse},
+        },
+    )
+    async def delete_evaluation(
+        evaluation_id: str,
+        request: Request,
+        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        store: Annotated[EvaluationStore, Depends(_get_evaluation_catalog_store)],
+        run_store: Annotated[RunStore, Depends(_get_run_store)],
+        cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
+    ) -> Response:
+        configuration = request.app.dependency_overrides.get(get_config, get_config)()
+        auth = resolve_interactive_auth(
+            request, user_security_enabled=configuration.security.user.enabled
+        )
+        await service.delete_evaluation(
+            evaluation_id,
+            store=store,
+            run_store=run_store,
+            control_plane_client=cp_client,
+            auth=auth,
+        )
+        return Response(status_code=204)
 
     return router

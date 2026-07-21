@@ -93,8 +93,20 @@ _MAX_DATASET_CASES = 200
 
 
 class CreateEvaluationRequest(BaseModel):
+    """The evaluation document, as authored and uploaded.
+
+    Self-describing: it carries its own identity (`name`, optional `version`) and
+    provenance (`author`), so an archived file can be read without the request
+    that created it. `version` is the identity when declared — (team, name,
+    version) is unique — and is assigned by the server (`v1`, `v2`, …) when left
+    out. `author` is declarative and may be any label; the authenticated
+    uploader is recorded separately as `created_by` and cannot be forged.
+    """
+
     team_id: str
     name: str = Field(min_length=1, max_length=255)
+    version: str | None = Field(default=None, min_length=1, max_length=100)
+    author: str | None = Field(default=None, max_length=255)
     origin: Literal["upload", "manual"]
     source_filename: str | None = None
     cases: list[EvaluationCase] = Field(min_length=1, max_length=_MAX_DATASET_CASES)
@@ -104,7 +116,8 @@ class EvaluationSummaryResponse(BaseModel):
     evaluation_id: str
     name: str
     version: str
-    author: str
+    author: str | None  # declared in the document; None when not provided
+    created_by: str  # authenticated uploader — verified, never client-supplied
     team_id: str
     origin: EvaluationOrigin
     completeness: EvaluationCompleteness

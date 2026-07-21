@@ -28,6 +28,7 @@ class EvaluationStore:
         version: str,
         team_id: str,
         created_by: str,
+        author: str | None = None,
         origin: str,
         completeness: str,
         cases_json: str,
@@ -39,6 +40,7 @@ class EvaluationStore:
             version=version,
             team_id=team_id,
             created_by=created_by,
+            author=author,
             origin=origin,
             completeness=completeness,
             source_question_set_id=None,
@@ -56,6 +58,30 @@ class EvaluationStore:
     ) -> EvaluationRow | None:
         async with use_session(self._sessions, session) as s:
             return await s.get(EvaluationRow, evaluation_id)
+
+    async def version_exists(
+        self,
+        team_id: str,
+        name: str,
+        version: str,
+        session: AsyncSession | None = None,
+    ) -> bool:
+        """A declared version is an identity: (team, name, version) must be unique."""
+        async with use_session(self._sessions, session) as s:
+            found = (
+                (
+                    await s.execute(
+                        select(EvaluationRow.evaluation_id).where(
+                            EvaluationRow.team_id == team_id,
+                            EvaluationRow.name == name,
+                            EvaluationRow.version == version,
+                        )
+                    )
+                )
+                .scalars()
+                .first()
+            )
+        return found is not None
 
     async def get_latest_version_number(
         self,
