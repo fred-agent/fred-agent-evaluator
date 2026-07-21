@@ -7,8 +7,17 @@ from deepeval.test_case import LLMTestCase
 
 from fred_deepeval_cli.core.models import CustomMetricSpec, EvaluationMetricResult
 
-logging.getLogger("LiteLLM").setLevel(logging.CRITICAL)
-logging.getLogger("root").setLevel(logging.CRITICAL)
+# Quiet LiteLLM's per-request chatter, which is voluminous enough to bury a run's
+# own logs. WARNING, not CRITICAL: rate limits and retries are exactly the signal an
+# operator needs when an evaluation starts failing, and silencing them hides the
+# cause of the failure rather than the noise.
+#
+# The root logger is deliberately left alone. `logging.getLogger("root")` is not a
+# private namespace — Python resolves that name to the real root logger — so setting
+# it here silenced the entire host application from the moment this module was
+# imported, which for the evaluation worker is the first time it scores a case.
+# Choosing log levels is the application's job, never a library's.
+logging.getLogger("LiteLLM").setLevel(logging.WARNING)
 
 # GEval asks the judge for token logprobs to compute a fine-grained score. Providers like
 # Mistral reject `logprobs`/`top_logprobs` outright, which would fail every custom metric.
