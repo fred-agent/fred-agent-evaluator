@@ -68,6 +68,7 @@ def _build_prompt(
     total_cases: int,
     passed_cases: int,
     failed_cases: int,
+    insufficient_cases: int,
     metric_averages: dict[str, float],
     cases: list[CaseDetail],
 ) -> str:
@@ -79,7 +80,16 @@ def _build_prompt(
 
     case_lines: list[str] = []
     for c in cases:
-        prefix = "PASS" if c.verdict == "passed" else "FAIL"
+        # Three-way, not PASS/FAIL binary: an "insufficient" case (partial
+        # metric coverage, no outright failure) mislabeled as FAIL here would
+        # bias the LLM's generated weaknesses/recommendations toward treating
+        # it as a genuine failure.
+        if c.verdict == "passed":
+            prefix = "PASS"
+        elif c.verdict == "insufficient":
+            prefix = "INSUFFICIENT"
+        else:
+            prefix = "FAIL"
         case_lines.append(f"  [{prefix}] {c.input[:120]}")
         if c.verdict != "passed":
             for m in c.metrics:
@@ -98,7 +108,8 @@ def _build_prompt(
         f"written for engineers, not business stakeholders.\n\n"
         f"EVALUATION: {evaluation_name}\n"
         f"PROFILE: {profile}\n"
-        f"VERDICT: {verdict.upper()} — {passed_cases}/{total_cases} cases passed, {failed_cases} failed\n\n"
+        f"VERDICT: {verdict.upper()} — {passed_cases}/{total_cases} cases passed, "
+        f"{failed_cases} failed, {insufficient_cases} insufficient\n\n"
         f"METRIC AVERAGES:\n{metrics_lines}\n\n"
         f"CASE BREAKDOWN:\n{cases_section}\n\n"
         f"EVALUATION FOCUS: {focus}\n\n"
@@ -135,6 +146,7 @@ class AnalysisClient:
         total_cases: int,
         passed_cases: int,
         failed_cases: int,
+        insufficient_cases: int,
         metric_averages: dict[str, float],
         cases: list[CaseDetail],
     ) -> str:
@@ -145,6 +157,7 @@ class AnalysisClient:
             total_cases=total_cases,
             passed_cases=passed_cases,
             failed_cases=failed_cases,
+            insufficient_cases=insufficient_cases,
             metric_averages=metric_averages,
             cases=cases,
         )

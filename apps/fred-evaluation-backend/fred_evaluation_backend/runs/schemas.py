@@ -99,6 +99,7 @@ class EvaluationRun(BaseModel):
     completed_cases: int
     passed_cases: int
     failed_cases: int
+    insufficient_cases: int
     execution_error_cases: int
     scoring_error_cases: int
     snapshot: RunSnapshot

@@ -33,11 +33,20 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import timedelta
+from typing import TYPE_CHECKING
 
 from temporalio import activity, workflow
 from temporalio.common import RetryPolicy
+
+if TYPE_CHECKING:
+    # Type-only: importing the ORM model for real here would pull SQLAlchemy
+    # into what Temporal's SandboxedWorkflowRunner treats as workflow code —
+    # `from __future__ import annotations` already defers all annotations to
+    # strings, so this import never has to happen at runtime.
+    from fred_evaluation_backend.runs.models import EvaluationCaseRow
 
 logger = logging.getLogger(__name__)
 
@@ -74,11 +83,12 @@ class CaseAggregates:
     completed: int
     passed: int
     failed: int
+    insufficient: int
     execution_errors: int
     scoring_errors: int
 
 
-def summarize_cases(cases) -> CaseAggregates:
+def summarize_cases(cases: Sequence["EvaluationCaseRow"]) -> CaseAggregates:
     """Tally one Run's case rows into the aggregate counters stored on the Run.
 
     Why this exists: both the per-case progress update (fired after every
@@ -91,6 +101,7 @@ def summarize_cases(cases) -> CaseAggregates:
         completed=len([c for c in cases if c.status in ("completed", "error")]),
         passed=len([c for c in cases if c.verdict == "passed"]),
         failed=len([c for c in cases if c.verdict == "failed"]),
+        insufficient=len([c for c in cases if c.verdict == "insufficient"]),
         execution_errors=len([c for c in cases if c.outcome == "execution_error"]),
         scoring_errors=len([c for c in cases if c.scoring_errors_json is not None]),
     )
@@ -238,6 +249,7 @@ async def run_case_for_run(payload: RunCaseInput) -> None:
         completed_cases=agg.completed,
         passed_cases=agg.passed,
         failed_cases=agg.failed,
+        insufficient_cases=agg.insufficient,
         execution_error_cases=agg.execution_errors,
         scoring_error_cases=agg.scoring_errors,
         verdict="pending",
@@ -290,6 +302,7 @@ async def finalize_run(run_id: str) -> None:
         completed_cases=agg.completed,
         passed_cases=agg.passed,
         failed_cases=agg.failed,
+        insufficient_cases=agg.insufficient,
         execution_error_cases=agg.execution_errors,
         scoring_error_cases=agg.scoring_errors,
         verdict=verdict,
@@ -322,6 +335,7 @@ async def mark_run_failed(run_id: str) -> None:
         completed_cases=agg.completed,
         passed_cases=agg.passed,
         failed_cases=agg.failed,
+        insufficient_cases=agg.insufficient,
         execution_error_cases=agg.execution_errors,
         scoring_error_cases=agg.scoring_errors,
         verdict="failed",

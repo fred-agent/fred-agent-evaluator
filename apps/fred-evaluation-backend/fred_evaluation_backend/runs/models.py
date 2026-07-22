@@ -78,6 +78,7 @@ class EvaluationRunRow(Base):
     completed_cases: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     passed_cases: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     failed_cases: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    insufficient_cases: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     execution_error_cases: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0
     )

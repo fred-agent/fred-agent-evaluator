@@ -177,6 +177,7 @@ async def test_run_aggregates_persist_metric_averages_and_analysis():
         completed_cases=2,
         passed_cases=2,
         failed_cases=0,
+        insufficient_cases=0,
         execution_error_cases=0,
         scoring_error_cases=0,
         verdict="passed",

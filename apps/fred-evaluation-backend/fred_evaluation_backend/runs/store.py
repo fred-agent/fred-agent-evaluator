@@ -372,6 +372,7 @@ class RunStore:
         completed_cases: int,
         passed_cases: int,
         failed_cases: int,
+        insufficient_cases: int,
         execution_error_cases: int,
         scoring_error_cases: int,
         verdict: str,
@@ -385,6 +386,7 @@ class RunStore:
                 row.completed_cases = completed_cases
                 row.passed_cases = passed_cases
                 row.failed_cases = failed_cases
+                row.insufficient_cases = insufficient_cases
                 row.execution_error_cases = execution_error_cases
                 row.scoring_error_cases = scoring_error_cases
                 row.verdict = verdict

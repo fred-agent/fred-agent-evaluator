@@ -16,6 +16,7 @@ from fred_evaluation_backend.execution.evaluator_errors import (
 )
 from fred_evaluation_backend.execution.outbound_auth import OutboundAuth
 from fred_evaluation_backend.execution.runtime_resolver import resolve_managed_instance
+from fred_evaluation_backend.runs.models import EvaluationRunRow
 from fred_evaluation_backend.runs.schemas import (
     CustomMetricSpecInput,
     EvaluationCaseListResponse,
@@ -125,7 +126,7 @@ async def start_run(
     )
 
 
-def _run_to_response(row) -> EvaluationRun:
+def _run_to_response(row: EvaluationRunRow) -> EvaluationRun:
     return EvaluationRun(
         run_id=row.run_id,
         evaluation_id=row.evaluation_id,
@@ -141,11 +142,17 @@ def _run_to_response(row) -> EvaluationRun:
             for m in json.loads(row.custom_metrics_json or "[]")
         ],
         operational_state=row.operational_state,
-        verdict=row.verdict,
+        # The column is a plain `str` (`Mapped[str]`) — every write site
+        # (`store.py`, `workflow.py`) only ever assigns one of these four
+        # values, but the DB layer can't express that statically.
+        verdict=cast(
+            Literal["pending", "passed", "failed", "inconclusive"], row.verdict
+        ),
         total_cases=row.total_cases,
         completed_cases=row.completed_cases,
         passed_cases=row.passed_cases,
         failed_cases=row.failed_cases,
+        insufficient_cases=row.insufficient_cases,
         execution_error_cases=row.execution_error_cases,
         scoring_error_cases=row.scoring_error_cases,
         snapshot=RunSnapshot.model_validate_json(row.snapshot_json),

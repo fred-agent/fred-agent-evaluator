@@ -403,6 +403,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
             total_cases=run.total_cases,
             passed_cases=run.passed_cases,
             failed_cases=run.failed_cases,
+            insufficient_cases=run.insufficient_cases,
             metric_averages=metric_averages,
             cases=cases,
         )

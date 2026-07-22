@@ -34,7 +34,9 @@ import asyncio
 import json
 import os
 import tempfile
+from dataclasses import dataclass
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -44,6 +46,7 @@ from fred_evaluation_backend.evaluations.store import EvaluationStore
 from fred_evaluation_backend.execution.outbound_auth import NoAuthentication
 from fred_evaluation_backend.runs import models as _run_models  # noqa: F401
 from fred_evaluation_backend.runs import service
+from fred_evaluation_backend.runs.models import EvaluationCaseRow
 from fred_evaluation_backend.runs.base import Base
 from fred_evaluation_backend.runs.schemas import ManagedInstanceTarget
 from fred_evaluation_backend.runs.store import RunStore
@@ -56,7 +59,22 @@ from fred_evaluation_backend.workers.workflow import (
     mark_run_failed,
     mark_run_started,
     run_case_for_run,
+    summarize_cases,
 )
+
+
+@dataclass
+class _FakeCase:
+    """Minimal stand-in for the four `EvaluationCaseRow` fields
+    `summarize_cases` reads — cheaper than constructing a real row through
+    the store. Cast to `EvaluationCaseRow` at the call site since it isn't
+    one (a real `Mapped[str]` field isn't structurally satisfied by a plain
+    `str` dataclass field under strict type-checking)."""
+
+    status: str
+    verdict: str
+    outcome: str | None
+    scoring_errors_json: str | None
 
 
 class _FakeControlPlaneOK:
@@ -187,6 +205,47 @@ async def test_mark_run_started_flips_pending_to_running_before_any_case_runs():
     assert row.completed_cases == 0
     assert row.started_at is not None  # the "Run information" panel showed
     # a permanent "—" for this — nothing ever wrote it before this fix
+
+
+def test_summarize_cases_counts_insufficient_separately_from_passed_and_failed():
+    """A case's verdict can be "passed", "insufficient", or "failed" (partial
+    metric coverage with no outright failure lands on "insufficient" — see
+    `activities.py`'s verdict decision), but the run-level aggregate only
+    ever tallied "passed" and "failed". A case landing on "insufficient" was
+    silently excluded from every run-level counter, so the run detail page's
+    stat tiles (and the top pass-rate badge) undercounted completed cases —
+    they looked "stuck" even as the run genuinely progressed.
+    """
+    cases = [
+        _FakeCase(
+            status="completed", verdict="passed", outcome="ok", scoring_errors_json=None
+        ),
+        _FakeCase(
+            status="completed",
+            verdict="insufficient",
+            outcome="ok",
+            scoring_errors_json=None,
+        ),
+        _FakeCase(
+            status="completed",
+            verdict="insufficient",
+            outcome="ok",
+            scoring_errors_json=None,
+        ),
+        _FakeCase(
+            status="completed", verdict="failed", outcome="ok", scoring_errors_json=None
+        ),
+    ]
+
+    agg = summarize_cases(cast(list[EvaluationCaseRow], cases))
+
+    assert agg.completed == 4
+    assert agg.passed == 1
+    assert agg.failed == 1
+    assert agg.insufficient == 2
+    # Every case must land in exactly one bucket — nothing should be able to
+    # complete and vanish from the breakdown.
+    assert agg.passed + agg.failed + agg.insufficient == agg.completed
 
 
 @pytest.mark.asyncio
