@@ -1,7 +1,7 @@
 api:
   image:
-    repository: fred-evaluation-api
-    tag: latest
+    repository: ghcr.io/fred-agent/fred-evaluation-api
+    tag: "v1.0.1"
     pullPolicy: IfNotPresent
   replicas: 1
   port: 8336
@@ -15,8 +15,8 @@ api:
 
 worker:
   image:
-    repository: fred-evaluation-worker
-    tag: latest
+    repository: ghcr.io/fred-agent/fred-evaluation-worker
+    tag: "v1.0.1"
     pullPolicy: IfNotPresent
   replicas: 1
   resources:

@@ -17,6 +17,12 @@ export ENV_FILE
 # installed. `test` comes from python-test.mk; add the eval extra as a prereq.
 test: eval-dev
 
+# core/{judge_factory,models,scorer}.py import deepeval/litellm directly, so
+# basedpyright needs the eval extra installed or it reports reportMissingImports
+# instead of the baselined Unknown-type warnings. `type-check` comes from
+# python-code-quality.mk; add the eval extra as a prereq.
+type-check: eval-dev
+
 .PHONY: cli
 cli: dev ## Run the external EvalTrace CLI
 	VIRTUAL_ENV= $(UV) run python -m fred_deepeval_cli.cli.main --help
