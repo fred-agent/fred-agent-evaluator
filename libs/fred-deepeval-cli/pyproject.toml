@@ -7,8 +7,8 @@ requires-python = ">=3.12,<3.13"
 license = { text = "Apache-2.0" }
 authors = []
 dependencies = [
-  "fred-sdk>=3.3.4",
-  "fred-runtime>=3.3.6",
+  "fred-sdk>=3.3.5",
+  "fred-runtime>=3.3.7",
 ]
 
 [project.optional-dependencies]
