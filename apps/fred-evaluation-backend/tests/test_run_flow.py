@@ -136,8 +136,12 @@ async def test_two_runs_of_the_same_evaluation_are_independent():
     )
 
     assert first.run_id != second.run_id
-    runs = await service.list_runs(evaluation_id, store=run_store)
-    assert len(runs) == 2
+    listed = await service.list_runs(evaluation_id, store=run_store)
+    # The list endpoint is paginated: a runs page plus the full count for the UI.
+    # (Both runs are created within the same second, so created_at is a tie and the
+    # newest-first order between these two is not asserted — only membership is.)
+    assert listed.total == 2
+    assert {r.run_id for r in listed.runs} == {first.run_id, second.run_id}
 
 
 @pytest.mark.asyncio
