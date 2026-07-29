@@ -131,6 +131,7 @@ def _run_to_response(row: EvaluationRunRow) -> EvaluationRun:
         run_id=row.run_id,
         evaluation_id=row.evaluation_id,
         task_id=row.task_id,
+        created_by=row.created_by,
         target=ManagedInstanceTarget(
             kind="managed_instance", agent_instance_id=row.target_instance_id
         ),

@@ -115,6 +115,8 @@ async def test_start_run_persists_config_snapshot_and_cases_on_run_id():
     # read side
     run_resp = await service.get_run(result.run_id, store=run_store)
     assert run_resp.snapshot.evaluation_name == "usage-arxivai"
+    # The launching identity must be echoed back so the UI can show the run's author.
+    assert run_resp.created_by == "alice"
     # The read response must echo the metric selection back — a rerun (or any other
     # caller) needs this to reproduce the same run without re-deriving it.
     assert run_resp.metrics == ["answer_relevancy"]
