@@ -167,6 +167,47 @@
               "type": "string",
               "title": "Evaluation Id"
             }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Sort as 'field:direction' (created_at, verdict, operational_state), e.g. 'created_at:desc'.",
+              "title": "Sort"
+            },
+            "description": "Sort as 'field:direction' (created_at, verdict, operational_state), e.g. 'created_at:desc'."
           }
         ],
         "responses": {
@@ -175,11 +216,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/EvaluationRun"
-                  },
-                  "title": "Response List Runs Evaluation V1 Evaluations  Evaluation Id  Runs Get"
+                  "$ref": "#/components/schemas/EvaluationRunListResponse"
                 }
               }
             }
@@ -394,6 +431,83 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/evaluation/v1/runs/{run_id}/report": {
+      "get": {
+        "tags": [
+          "Evaluations"
+        ],
+        "summary": "Get Run Report",
+        "operationId": "get_run_report_evaluation_v1_runs__run_id__report_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunReportResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluatorErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluatorErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluatorErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
           },
           "422": {
             "description": "Validation Error",
@@ -700,6 +814,65 @@
               "type": "string",
               "title": "Team Id"
             }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Sort as 'field:direction' (created_at, name, version), e.g. 'created_at:desc'.",
+              "title": "Sort"
+            },
+            "description": "Sort as 'field:direction' (created_at, name, version), e.g. 'created_at:desc'."
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Case-insensitive search on the evaluation name.",
+              "title": "Q"
+            },
+            "description": "Case-insensitive search on the evaluation name."
           }
         ],
         "responses": {
@@ -732,6 +905,86 @@
               }
             },
             "description": "Forbidden"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/evaluation/v1/evaluations/{evaluation_id}": {
+      "delete": {
+        "tags": [
+          "Evaluations"
+        ],
+        "summary": "Delete Evaluation",
+        "operationId": "delete_evaluation_evaluation_v1_evaluations__evaluation_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "evaluation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Evaluation Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluatorErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluatorErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluatorErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluatorErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
           },
           "422": {
             "description": "Validation Error",
@@ -1029,6 +1282,31 @@
             "minLength": 1,
             "title": "Name"
           },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
           "origin": {
             "type": "string",
             "enum": [
@@ -1058,6 +1336,7 @@
             "title": "Cases"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "team_id",
@@ -1065,7 +1344,8 @@
           "origin",
           "cases"
         ],
-        "title": "CreateEvaluationRequest"
+        "title": "CreateEvaluationRequest",
+        "description": "The evaluation document, as authored and uploaded.\n\nSelf-describing: it carries its own identity (`name`, optional `version`) and\nprovenance (`author`), so an archived file can be read without the request\nthat created it. `version` is the identity when declared \u2014 (team, name,\nversion) is unique \u2014 and is assigned by the server (`v1`, `v2`, \u2026) when left\nout. `author` is declarative and may be any label; the authenticated\nuploader is recorded separately as `created_by` and cannot be forged."
       },
       "CustomMetricSpecInput": {
         "properties": {
@@ -1205,6 +1485,7 @@
             "title": "Source Session Id"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "input"
@@ -1473,8 +1754,19 @@
             "title": "Version"
           },
           "author": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Author"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By"
           },
           "team_id": {
             "type": "string",
@@ -1515,6 +1807,7 @@
           "name",
           "version",
           "author",
+          "created_by",
           "team_id",
           "origin",
           "completeness",
@@ -1650,6 +1943,10 @@
             ],
             "title": "Task Id"
           },
+          "created_by": {
+            "type": "string",
+            "title": "Created By"
+          },
           "target": {
             "anyOf": [
               {
@@ -1713,6 +2010,10 @@
             "type": "integer",
             "title": "Failed Cases"
           },
+          "insufficient_cases": {
+            "type": "integer",
+            "title": "Insufficient Cases"
+          },
           "execution_error_cases": {
             "type": "integer",
             "title": "Execution Error Cases"
@@ -1759,6 +2060,7 @@
           "run_id",
           "evaluation_id",
           "task_id",
+          "created_by",
           "target",
           "profile",
           "judge_profile_id",
@@ -1770,6 +2072,7 @@
           "completed_cases",
           "passed_cases",
           "failed_cases",
+          "insufficient_cases",
           "execution_error_cases",
           "scoring_error_cases",
           "snapshot",
@@ -1778,6 +2081,27 @@
           "completed_at"
         ],
         "title": "EvaluationRun"
+      },
+      "EvaluationRunListResponse": {
+        "properties": {
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/EvaluationRun"
+            },
+            "type": "array",
+            "title": "Runs"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "runs",
+          "total"
+        ],
+        "title": "EvaluationRunListResponse"
       },
       "EvaluationSummaryResponse": {
         "properties": {
@@ -1794,8 +2118,19 @@
             "title": "Version"
           },
           "author": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Author"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By"
           },
           "team_id": {
             "type": "string",
@@ -1829,6 +2164,7 @@
           "name",
           "version",
           "author",
+          "created_by",
           "team_id",
           "origin",
           "completeness",
@@ -2330,6 +2666,140 @@
           "state"
         ],
         "title": "RunCreatedResponse"
+      },
+      "RunReportEvaluation": {
+        "properties": {
+          "evaluation_id": {
+            "type": "string",
+            "title": "Evaluation Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "team_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Name"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By"
+          },
+          "origin": {
+            "type": "string",
+            "title": "Origin"
+          },
+          "completeness": {
+            "type": "string",
+            "title": "Completeness"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "evaluation_id",
+          "name",
+          "version",
+          "team_id",
+          "author",
+          "created_by",
+          "origin",
+          "completeness",
+          "created_at"
+        ],
+        "title": "RunReportEvaluation",
+        "description": "The definition this run executed, denormalised into the report.\n\nCopied rather than referenced: a report is an archive, so it must stay\nreadable after the evaluation it came from is deleted."
+      },
+      "RunReportResponse": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1",
+            "title": "Schema Version",
+            "default": "1"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          },
+          "evaluation": {
+            "$ref": "#/components/schemas/RunReportEvaluation"
+          },
+          "run": {
+            "$ref": "#/components/schemas/EvaluationRun"
+          },
+          "metric_averages": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metric Averages"
+          },
+          "analysis": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunAnalysisResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cases": {
+            "items": {
+              "$ref": "#/components/schemas/EvaluationCaseResponse"
+            },
+            "type": "array",
+            "title": "Cases"
+          }
+        },
+        "type": "object",
+        "required": [
+          "generated_at",
+          "evaluation",
+          "run",
+          "cases"
+        ],
+        "title": "RunReportResponse",
+        "description": "Self-contained JSON record of one run \u2014 for archiving, or for an LLM judge.\n\nEverything needed to interpret the result without a second call: what was\nasked (`evaluation`), how it was executed (`run.snapshot` \u2014 target, profile,\njudge), what came out per case (`cases`, each with its metric scores and the\njudge's explanations), and the aggregate view (`run` counters,\n`metric_averages`, optional cached `analysis`)."
       },
       "RunSnapshot": {
         "properties": {
