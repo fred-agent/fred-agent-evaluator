@@ -42,8 +42,30 @@ class _InMemoryEvaluationStore:
     async def get_evaluation(self, evaluation_id: str):
         return self.rows.get(evaluation_id)
 
-    async def list_evaluations_by_team(self, team_id: str):
-        return [row for row in self.rows.values() if row.team_id == team_id]
+    def _team_evaluations(self, team_id: str, q: str | None):
+        rows = [row for row in self.rows.values() if row.team_id == team_id]
+        if q:
+            rows = [r for r in rows if q.lower() in r.name.lower()]
+        return rows
+
+    async def list_evaluations_by_team(
+        self,
+        team_id: str,
+        *,
+        offset: int = 0,
+        limit: int | None = None,
+        sort: str | None = None,
+        q: str | None = None,
+    ):
+        rows = sorted(
+            self._team_evaluations(team_id, q),
+            key=lambda r: r.created_at,
+            reverse=True,
+        )
+        return rows[offset:] if limit is None else rows[offset : offset + limit]
+
+    async def count_evaluations_by_team(self, team_id: str, *, q: str | None = None):
+        return len(self._team_evaluations(team_id, q))
 
     async def get_latest_version_number(self, team_id: str, name: str) -> int:
         numbers = []
@@ -144,6 +166,50 @@ async def test_evaluation_created_via_post_persists_independently_of_any_run() -
     ids = [d["evaluation_id"] for d in list_resp.json()["evaluations"]]
     assert evaluation_id in ids
     assert evaluation_id in store.rows  # persisted, not just echoed back
+
+
+@pytest.mark.asyncio
+async def test_list_evaluations_paginates_searches_and_totals() -> None:
+    """The list endpoint honours `q` (name search), `limit`/`offset`, and returns the
+    full filtered `total` — not the length of the returned page."""
+    store = _InMemoryEvaluationStore()
+    app = _build_app(cp_client=_MemberControlPlaneClient(), store=store)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        for name in ("alpha-set", "beta-set", "alpha-golden"):
+            resp = await client.post(
+                "/evaluations",
+                json={
+                    "team_id": "team-1",
+                    "name": name,
+                    "origin": "manual",
+                    "cases": [{"input": "q1", "expected_output": "a1"}],
+                },
+                headers={"Authorization": "Bearer alice-token"},
+            )
+            assert resp.status_code == 201
+
+        # Search narrows to the two "alpha*" names; total reflects the filtered set.
+        search = await client.get(
+            "/evaluations",
+            params={"team_id": "team-1", "q": "alpha"},
+            headers={"Authorization": "Bearer alice-token"},
+        )
+        assert search.status_code == 200
+        body = search.json()
+        assert body["total"] == 2
+        assert {e["name"] for e in body["evaluations"]} == {"alpha-set", "alpha-golden"}
+
+        # A page smaller than the result set returns the page but the full total.
+        page = await client.get(
+            "/evaluations",
+            params={"team_id": "team-1", "limit": 1},
+            headers={"Authorization": "Bearer alice-token"},
+        )
+        assert page.status_code == 200
+        page_body = page.json()
+        assert page_body["total"] == 3
+        assert len(page_body["evaluations"]) == 1
 
 
 @pytest.mark.asyncio

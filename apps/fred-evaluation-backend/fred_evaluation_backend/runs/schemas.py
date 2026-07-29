@@ -111,6 +111,13 @@ class EvaluationRun(BaseModel):
     completed_at: datetime | None
 
 
+class EvaluationRunListResponse(BaseModel):
+    # `total` is the full count of runs for the evaluation, not the length of this
+    # page — the frontend needs it to compute the number of pages.
+    runs: list[EvaluationRun]
+    total: int
+
+
 class EvaluationMetricResultResponse(BaseModel):
     name: str
     provider: str

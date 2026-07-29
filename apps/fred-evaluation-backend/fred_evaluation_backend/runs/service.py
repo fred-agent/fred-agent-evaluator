@@ -23,6 +23,7 @@ from fred_evaluation_backend.runs.schemas import (
     EvaluationCaseResponse,
     EvaluationMetricResultResponse,
     EvaluationRun,
+    EvaluationRunListResponse,
     ManagedInstanceTarget,
     RunCreatedResponse,
     RunReportEvaluation,
@@ -170,9 +171,21 @@ async def get_run(run_id: str, *, store: RunStore) -> EvaluationRun:
     return _run_to_response(row)
 
 
-async def list_runs(evaluation_id: str, *, store: RunStore) -> list[EvaluationRun]:
-    rows = await store.list_runs_by_evaluation(evaluation_id)
-    return [_run_to_response(row) for row in rows]
+async def list_runs(
+    evaluation_id: str,
+    *,
+    offset: int = 0,
+    limit: int = 50,
+    sort: str | None = None,
+    store: RunStore,
+) -> EvaluationRunListResponse:
+    rows = await store.list_runs_by_evaluation(
+        evaluation_id, offset=offset, limit=limit, sort=sort
+    )
+    total = await store.count_runs_by_evaluation(evaluation_id)
+    return EvaluationRunListResponse(
+        runs=[_run_to_response(row) for row in rows], total=total
+    )
 
 
 def _case_to_response(row, metrics) -> EvaluationCaseResponse:

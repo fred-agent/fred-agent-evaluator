@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone
 
 from fred_core.sql import make_session_factory, use_session
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from fred_evaluation_backend.evaluations.models import EvaluationRow
@@ -14,6 +14,31 @@ logger = logging.getLogger(__name__)
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(microsecond=0)
+
+
+# Columns an evaluation list may be sorted on. Whitelisted so a caller-supplied
+# `sort` string can never reach the SQL layer as an arbitrary column reference.
+_EVALUATION_SORT_COLUMNS = {
+    "created_at": EvaluationRow.created_at,
+    "name": EvaluationRow.name,
+    "version": EvaluationRow.version,
+}
+
+
+def _evaluation_order_by(sort: str | None):
+    """Ordering expression for a whitelisted `field:direction` sort, newest first by default."""
+    field, _, direction = (sort or "created_at:desc").partition(":")
+    column = _EVALUATION_SORT_COLUMNS.get(field, EvaluationRow.created_at)
+    return column.asc() if direction == "asc" else column.desc()
+
+
+def _team_evaluations_where(team_id: str, q: str | None) -> list[ColumnElement[bool]]:
+    """Shared WHERE clauses for team-scoped evaluation reads: team match + optional
+    case-insensitive name search, so list and count never diverge."""
+    clauses: list[ColumnElement[bool]] = [EvaluationRow.team_id == team_id]
+    if q:
+        clauses.append(EvaluationRow.name.ilike(f"%{q}%"))
+    return clauses
 
 
 class EvaluationStore:
@@ -125,21 +150,41 @@ class EvaluationStore:
     async def list_evaluations_by_team(
         self,
         team_id: str,
+        *,
+        offset: int = 0,
+        limit: int | None = None,
+        sort: str | None = None,
+        q: str | None = None,
         session: AsyncSession | None = None,
     ) -> list[EvaluationRow]:
+        # `limit=None` returns every evaluation for the team. The paginated read
+        # endpoint passes an explicit limit; other callers keep the full list.
         async with use_session(self._sessions, session) as s:
-            rows = (
-                (
-                    await s.execute(
-                        select(EvaluationRow)
-                        .where(EvaluationRow.team_id == team_id)
-                        .order_by(EvaluationRow.created_at.desc())
-                    )
-                )
-                .scalars()
-                .all()
+            stmt = (
+                select(EvaluationRow)
+                .where(*_team_evaluations_where(team_id, q))
+                .order_by(_evaluation_order_by(sort))
+                .offset(offset)
             )
+            if limit is not None:
+                stmt = stmt.limit(limit)
+            rows = (await s.execute(stmt)).scalars().all()
         return list(rows)
+
+    async def count_evaluations_by_team(
+        self,
+        team_id: str,
+        *,
+        q: str | None = None,
+        session: AsyncSession | None = None,
+    ) -> int:
+        async with use_session(self._sessions, session) as s:
+            stmt = (
+                select(func.count())
+                .select_from(EvaluationRow)
+                .where(*_team_evaluations_where(team_id, q))
+            )
+            return (await s.execute(stmt)).scalar_one()
 
     async def get_evaluations_by_ids(
         self,
