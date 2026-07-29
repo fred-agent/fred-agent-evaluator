@@ -28,6 +28,7 @@ from fred_evaluation_backend.runs.schemas import (
     EvaluationCaseResponse,
     EvaluationRun,
     EvaluationRunListResponse,
+    EvaluationRunSummaryResponse,
     RunAnalysisResponse,
     RunAnalysisResult,
     RunCreatedResponse,
@@ -181,6 +182,17 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         return await service.list_runs(
             evaluation_id, offset=offset, limit=limit, sort=sort, store=store
         )
+
+    @router.get(
+        "/evaluations/{evaluation_id}/runs/summary",
+        response_model=EvaluationRunSummaryResponse,
+    )
+    async def get_runs_summary(
+        evaluation_id: str,
+        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        store: Annotated[RunStore, Depends(_get_run_store)],
+    ) -> EvaluationRunSummaryResponse:
+        return await service.get_run_summary(evaluation_id, store=store)
 
     @router.get("/runs/{run_id}", response_model=EvaluationRun)
     async def get_run(

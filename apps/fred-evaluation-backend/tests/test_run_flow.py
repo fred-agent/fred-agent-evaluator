@@ -145,6 +145,59 @@ async def test_two_runs_of_the_same_evaluation_are_independent():
 
 
 @pytest.mark.asyncio
+async def test_run_summary_aggregates_across_every_run_not_just_one_page():
+    ds_store, run_store = await _make_stores()
+    evaluation_id = await _seed_evaluation(ds_store)
+
+    running = await _start(evaluation_id, ds_store, run_store, instance="inst-1")
+    completed = await _start(
+        evaluation_id, ds_store, run_store, instance="inst-2", by="bob"
+    )
+    succeeded = await _start(
+        evaluation_id, ds_store, run_store, instance="inst-3", by="carol"
+    )
+    await run_store.update_run_state(running.run_id, "running")
+    await run_store.update_run_aggregates(
+        completed.run_id,
+        completed_cases=2,
+        passed_cases=1,
+        failed_cases=0,
+        insufficient_cases=0,
+        execution_error_cases=1,
+        scoring_error_cases=0,
+        verdict="failed",
+        operational_state="completed",
+    )
+    await run_store.update_run_aggregates(
+        succeeded.run_id,
+        completed_cases=2,
+        passed_cases=2,
+        failed_cases=0,
+        insufficient_cases=0,
+        execution_error_cases=0,
+        scoring_error_cases=0,
+        verdict="passed",
+        operational_state="succeeded",
+    )
+
+    summary = await service.get_run_summary(evaluation_id, store=run_store)
+    assert summary.total_runs == 3
+    assert summary.running_count == 1
+    # "completed" and "succeeded" both count as terminal-success, matching the
+    # frontend's operationalToTaskState mapping.
+    assert summary.completed_count == 2
+    assert summary.total_cases_completed == 4
+    assert summary.critical_error_cases == 1
+
+    # A one-row page must not change the evaluation-wide aggregate — the summary
+    # is exactly what pagination cannot express on its own.
+    one_page = await service.list_runs(evaluation_id, limit=1, store=run_store)
+    assert len(one_page.runs) == 1
+    resummarized = await service.get_run_summary(evaluation_id, store=run_store)
+    assert resummarized == summary
+
+
+@pytest.mark.asyncio
 async def test_run_operations_case_detail_cancel_delete():
     ds_store, run_store = await _make_stores()
     evaluation_id = await _seed_evaluation(ds_store)

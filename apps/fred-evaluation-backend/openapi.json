@@ -234,6 +234,53 @@
         }
       }
     },
+    "/evaluation/v1/evaluations/{evaluation_id}/runs/summary": {
+      "get": {
+        "tags": [
+          "Evaluations"
+        ],
+        "summary": "Get Runs Summary",
+        "operationId": "get_runs_summary_evaluation_v1_evaluations__evaluation_id__runs_summary_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "evaluation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Evaluation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationRunSummaryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/evaluation/v1/runs/{run_id}": {
       "get": {
         "tags": [
@@ -2102,6 +2149,40 @@
           "total"
         ],
         "title": "EvaluationRunListResponse"
+      },
+      "EvaluationRunSummaryResponse": {
+        "properties": {
+          "total_runs": {
+            "type": "integer",
+            "title": "Total Runs"
+          },
+          "running_count": {
+            "type": "integer",
+            "title": "Running Count"
+          },
+          "completed_count": {
+            "type": "integer",
+            "title": "Completed Count"
+          },
+          "total_cases_completed": {
+            "type": "integer",
+            "title": "Total Cases Completed"
+          },
+          "critical_error_cases": {
+            "type": "integer",
+            "title": "Critical Error Cases"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_runs",
+          "running_count",
+          "completed_count",
+          "total_cases_completed",
+          "critical_error_cases"
+        ],
+        "title": "EvaluationRunSummaryResponse",
+        "description": "Evaluation-wide run aggregates \u2014 for dashboard KPIs that must reflect every\nrun, not just the current page of `GET /evaluations/{id}/runs`."
       },
       "EvaluationSummaryResponse": {
         "properties": {

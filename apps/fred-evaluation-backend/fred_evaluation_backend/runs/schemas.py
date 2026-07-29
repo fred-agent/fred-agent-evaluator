@@ -118,6 +118,17 @@ class EvaluationRunListResponse(BaseModel):
     total: int
 
 
+class EvaluationRunSummaryResponse(BaseModel):
+    """Evaluation-wide run aggregates — for dashboard KPIs that must reflect every
+    run, not just the current page of `GET /evaluations/{id}/runs`."""
+
+    total_runs: int
+    running_count: int
+    completed_count: int
+    total_cases_completed: int
+    critical_error_cases: int
+
+
 class EvaluationMetricResultResponse(BaseModel):
     name: str
     provider: str

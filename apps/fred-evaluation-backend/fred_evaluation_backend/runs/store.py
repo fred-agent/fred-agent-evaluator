@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from fred_core.sql import make_session_factory, use_session
-from sqlalchemy import delete, func, select
+from sqlalchemy import case, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from fred_evaluation_backend.runs.models import (
@@ -16,6 +17,17 @@ from fred_evaluation_backend.runs.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class RunSummaryAggregate:
+    """Evaluation-wide run counters — independent of any list page's offset/limit."""
+
+    total_runs: int
+    running_count: int
+    completed_count: int
+    total_cases_completed: int
+    critical_error_cases: int
 
 
 def _utcnow() -> datetime:
@@ -302,6 +314,52 @@ class RunStore:
                     .where(EvaluationRunRow.evaluation_id == evaluation_id)
                 )
             ).scalar_one()
+
+    async def get_run_summary_by_evaluation(
+        self,
+        evaluation_id: str,
+        session: AsyncSession | None = None,
+    ) -> RunSummaryAggregate:
+        # One aggregate query over every run of the evaluation — independent of
+        # the paginated list's offset/limit, which is exactly what the frontend's
+        # dashboard KPIs need (they must reflect the whole evaluation, not one page).
+        # "completed" mirrors the frontend's `operationalToTaskState` mapping, which
+        # treats "completed" and "succeeded" as the same terminal-success state.
+        running_case = case(
+            (EvaluationRunRow.operational_state == "running", 1), else_=0
+        )
+        completed_case = case(
+            (EvaluationRunRow.operational_state.in_(("completed", "succeeded")), 1),
+            else_=0,
+        )
+        async with use_session(self._sessions, session) as s:
+            row = (
+                await s.execute(
+                    select(
+                        func.count(),
+                        func.coalesce(func.sum(running_case), 0),
+                        func.coalesce(func.sum(completed_case), 0),
+                        func.coalesce(func.sum(EvaluationRunRow.completed_cases), 0),
+                        func.coalesce(
+                            func.sum(EvaluationRunRow.execution_error_cases), 0
+                        ),
+                    ).where(EvaluationRunRow.evaluation_id == evaluation_id)
+                )
+            ).one()
+        (
+            total_runs,
+            running_count,
+            completed_count,
+            total_cases_completed,
+            critical_error_cases,
+        ) = row
+        return RunSummaryAggregate(
+            total_runs=total_runs,
+            running_count=running_count,
+            completed_count=completed_count,
+            total_cases_completed=total_cases_completed,
+            critical_error_cases=critical_error_cases,
+        )
 
     async def list_runs_by_state(
         self,

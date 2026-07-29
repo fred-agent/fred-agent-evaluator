@@ -24,6 +24,7 @@ from fred_evaluation_backend.runs.schemas import (
     EvaluationMetricResultResponse,
     EvaluationRun,
     EvaluationRunListResponse,
+    EvaluationRunSummaryResponse,
     ManagedInstanceTarget,
     RunCreatedResponse,
     RunReportEvaluation,
@@ -185,6 +186,19 @@ async def list_runs(
     total = await store.count_runs_by_evaluation(evaluation_id)
     return EvaluationRunListResponse(
         runs=[_run_to_response(row) for row in rows], total=total
+    )
+
+
+async def get_run_summary(
+    evaluation_id: str, *, store: RunStore
+) -> EvaluationRunSummaryResponse:
+    aggregate = await store.get_run_summary_by_evaluation(evaluation_id)
+    return EvaluationRunSummaryResponse(
+        total_runs=aggregate.total_runs,
+        running_count=aggregate.running_count,
+        completed_count=aggregate.completed_count,
+        total_cases_completed=aggregate.total_cases_completed,
+        critical_error_cases=aggregate.critical_error_cases,
     )
 
 

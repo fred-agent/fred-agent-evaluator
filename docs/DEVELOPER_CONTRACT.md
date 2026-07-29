@@ -91,7 +91,8 @@ ligne à la création d'un run — les cas viennent toujours de l'evaluation.
 | DELETE | `/evaluations/{id}` | 204 | Supprimer une evaluation **et tous ses runs** (cas, métriques, events). Refusé en 409 si un run est en cours. |
 | GET | `/evaluations` | 200 | Lister (param: `team_id`) — id, nom, version, auteur, origin, complétude, nombre de cas, `created_at` |
 | POST | `/evaluations/{id}/runs` | 202 | Démarrer un run — `{team_id, target, metrics, custom_metrics}` (`extra: forbid`). Cible **`managed_instance` uniquement** (`runtime_agent` retiré de la création, conservé en lecture pour l'historique). `metrics` (obligatoire, non vide) est la sélection manuelle des métriques DeepEval à calculer ; `custom_metrics` (optionnel) porte les critères GEval. Judge et concurrence restent fixés côté serveur et figés dans un `RunSnapshot`. |
-| GET | `/evaluations/{id}/runs` | 200 | Lister les runs d'une evaluation |
+| GET | `/evaluations/{id}/runs` | 200 | Lister les runs d'une evaluation (paginé, `offset`/`limit`/`sort`) |
+| GET | `/evaluations/{id}/runs/summary` | 200 | Agrégats sur *tous* les runs de l'evaluation (running/completed/cases/erreurs critiques) — indépendant de la pagination, pour les KPI du dashboard |
 | GET | `/runs/{run_id}` | 200 | Détail d'un run + agrégats |
 | GET | `/runs/{run_id}/cases` | 200 | Cas paginés |
 | GET | `/runs/{run_id}/cases/{case_id}` | 200 | Détail d'un cas |
