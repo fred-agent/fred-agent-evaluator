@@ -115,6 +115,8 @@ async def test_start_run_persists_config_snapshot_and_cases_on_run_id():
     # read side
     run_resp = await service.get_run(result.run_id, store=run_store)
     assert run_resp.snapshot.evaluation_name == "usage-arxivai"
+    # The launching identity must be echoed back so the UI can show the run's author.
+    assert run_resp.created_by == "alice"
     # The read response must echo the metric selection back — a rerun (or any other
     # caller) needs this to reproduce the same run without re-deriving it.
     assert run_resp.metrics == ["answer_relevancy"]
@@ -134,8 +136,65 @@ async def test_two_runs_of_the_same_evaluation_are_independent():
     )
 
     assert first.run_id != second.run_id
-    runs = await service.list_runs(evaluation_id, store=run_store)
-    assert len(runs) == 2
+    listed = await service.list_runs(evaluation_id, store=run_store)
+    # The list endpoint is paginated: a runs page plus the full count for the UI.
+    # (Both runs are created within the same second, so created_at is a tie and the
+    # newest-first order between these two is not asserted — only membership is.)
+    assert listed.total == 2
+    assert {r.run_id for r in listed.runs} == {first.run_id, second.run_id}
+
+
+@pytest.mark.asyncio
+async def test_run_summary_aggregates_across_every_run_not_just_one_page():
+    ds_store, run_store = await _make_stores()
+    evaluation_id = await _seed_evaluation(ds_store)
+
+    running = await _start(evaluation_id, ds_store, run_store, instance="inst-1")
+    completed = await _start(
+        evaluation_id, ds_store, run_store, instance="inst-2", by="bob"
+    )
+    succeeded = await _start(
+        evaluation_id, ds_store, run_store, instance="inst-3", by="carol"
+    )
+    await run_store.update_run_state(running.run_id, "running")
+    await run_store.update_run_aggregates(
+        completed.run_id,
+        completed_cases=2,
+        passed_cases=1,
+        failed_cases=0,
+        insufficient_cases=0,
+        execution_error_cases=1,
+        scoring_error_cases=0,
+        verdict="failed",
+        operational_state="completed",
+    )
+    await run_store.update_run_aggregates(
+        succeeded.run_id,
+        completed_cases=2,
+        passed_cases=2,
+        failed_cases=0,
+        insufficient_cases=0,
+        execution_error_cases=0,
+        scoring_error_cases=0,
+        verdict="passed",
+        operational_state="succeeded",
+    )
+
+    summary = await service.get_run_summary(evaluation_id, store=run_store)
+    assert summary.total_runs == 3
+    assert summary.running_count == 1
+    # "completed" and "succeeded" both count as terminal-success, matching the
+    # frontend's operationalToTaskState mapping.
+    assert summary.completed_count == 2
+    assert summary.total_cases_completed == 4
+    assert summary.critical_error_cases == 1
+
+    # A one-row page must not change the evaluation-wide aggregate — the summary
+    # is exactly what pagination cannot express on its own.
+    one_page = await service.list_runs(evaluation_id, limit=1, store=run_store)
+    assert len(one_page.runs) == 1
+    resummarized = await service.get_run_summary(evaluation_id, store=run_store)
+    assert resummarized == summary
 
 
 @pytest.mark.asyncio

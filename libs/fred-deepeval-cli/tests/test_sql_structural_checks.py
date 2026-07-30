@@ -69,18 +69,39 @@ def test_sql_no_execution_error_returns_false_for_global_error() -> None:
     assert check.passed is False
 
 
-def test_sql_query_executed_returns_true_when_list_tabular_datasets_succeeds() -> None:
+def test_sql_query_executed_returns_true_when_list_tabular_documents_succeeds() -> None:
     trace = {
         "steps": [
             {
                 "kind": "tool_call",
-                "tool_name": "list_tabular_datasets",
+                "tool_name": "list_tabular_documents",
                 "arguments": {},
             },
             {
                 "kind": "tool_result",
-                "tool_name": "list_tabular_datasets",
+                "tool_name": "list_tabular_documents",
                 "content": '["commandes"]',
+                "is_error": False,
+            },
+        ]
+    }
+    checks = build_structural_checks(trace, profile="sql")
+    check = next(c for c in checks if c.name == "sql_query_executed")
+    assert check.passed is True
+
+
+def test_sql_query_executed_returns_true_when_search_tabular_values_succeeds() -> None:
+    trace = {
+        "steps": [
+            {
+                "kind": "tool_call",
+                "tool_name": "search_tabular_values",
+                "arguments": {"keyword": "Turbine-01"},
+            },
+            {
+                "kind": "tool_result",
+                "tool_name": "search_tabular_values",
+                "content": '{"matches": [{"table": "Interventions", "rows": [...]}]}',
                 "is_error": False,
             },
         ]

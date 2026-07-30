@@ -27,6 +27,8 @@ from fred_evaluation_backend.runs.schemas import (
     EvaluationCaseListResponse,
     EvaluationCaseResponse,
     EvaluationRun,
+    EvaluationRunListResponse,
+    EvaluationRunSummaryResponse,
     RunAnalysisResponse,
     RunAnalysisResult,
     RunCreatedResponse,
@@ -162,13 +164,35 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
 
         return result
 
-    @router.get("/evaluations/{evaluation_id}/runs", response_model=list[EvaluationRun])
+    @router.get(
+        "/evaluations/{evaluation_id}/runs",
+        response_model=EvaluationRunListResponse,
+    )
     async def list_runs(
         evaluation_id: str,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[RunStore, Depends(_get_run_store)],
-    ) -> list[EvaluationRun]:
-        return await service.list_runs(evaluation_id, store=store)
+        offset: int = Query(default=0, ge=0),
+        limit: int = Query(default=50, ge=1, le=200),
+        sort: str | None = Query(
+            default=None,
+            description="Sort as 'field:direction' (created_at, verdict, operational_state), e.g. 'created_at:desc'.",
+        ),
+    ) -> EvaluationRunListResponse:
+        return await service.list_runs(
+            evaluation_id, offset=offset, limit=limit, sort=sort, store=store
+        )
+
+    @router.get(
+        "/evaluations/{evaluation_id}/runs/summary",
+        response_model=EvaluationRunSummaryResponse,
+    )
+    async def get_runs_summary(
+        evaluation_id: str,
+        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        store: Annotated[RunStore, Depends(_get_run_store)],
+    ) -> EvaluationRunSummaryResponse:
+        return await service.get_run_summary(evaluation_id, store=store)
 
     @router.get("/runs/{run_id}", response_model=EvaluationRun)
     async def get_run(

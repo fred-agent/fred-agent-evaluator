@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from fred_core.sql import make_session_factory, use_session
-from sqlalchemy import delete, select
+from sqlalchemy import case, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from fred_evaluation_backend.runs.models import (
@@ -18,8 +19,35 @@ from fred_evaluation_backend.runs.models import (
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class RunSummaryAggregate:
+    """Evaluation-wide run counters — independent of any list page's offset/limit."""
+
+    total_runs: int
+    running_count: int
+    completed_count: int
+    total_cases_completed: int
+    critical_error_cases: int
+
+
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(microsecond=0)
+
+
+# Columns a run list may be sorted on. Whitelisted so a caller-supplied `sort`
+# string can never reach the SQL layer as an arbitrary column reference.
+_RUN_SORT_COLUMNS = {
+    "created_at": EvaluationRunRow.created_at,
+    "verdict": EvaluationRunRow.verdict,
+    "operational_state": EvaluationRunRow.operational_state,
+}
+
+
+def _run_order_by(sort: str | None):
+    """Ordering expression for a whitelisted `field:direction` sort, newest first by default."""
+    field, _, direction = (sort or "created_at:desc").partition(":")
+    column = _RUN_SORT_COLUMNS.get(field, EvaluationRunRow.created_at)
+    return column.asc() if direction == "asc" else column.desc()
 
 
 class RunStore:
@@ -253,21 +281,85 @@ class RunStore:
     async def list_runs_by_evaluation(
         self,
         evaluation_id: str,
+        *,
+        offset: int = 0,
+        limit: int | None = None,
+        sort: str | None = None,
         session: AsyncSession | None = None,
     ) -> list[EvaluationRunRow]:
+        # `limit=None` returns every run — the delete cascade relies on this to
+        # reach all of them. The paginated read endpoint passes an explicit limit.
         async with use_session(self._sessions, session) as s:
-            rows = (
-                (
-                    await s.execute(
-                        select(EvaluationRunRow)
-                        .where(EvaluationRunRow.evaluation_id == evaluation_id)
-                        .order_by(EvaluationRunRow.created_at.desc())
-                    )
-                )
-                .scalars()
-                .all()
+            stmt = (
+                select(EvaluationRunRow)
+                .where(EvaluationRunRow.evaluation_id == evaluation_id)
+                .order_by(_run_order_by(sort))
+                .offset(offset)
             )
+            if limit is not None:
+                stmt = stmt.limit(limit)
+            rows = (await s.execute(stmt)).scalars().all()
         return list(rows)
+
+    async def count_runs_by_evaluation(
+        self,
+        evaluation_id: str,
+        session: AsyncSession | None = None,
+    ) -> int:
+        async with use_session(self._sessions, session) as s:
+            return (
+                await s.execute(
+                    select(func.count())
+                    .select_from(EvaluationRunRow)
+                    .where(EvaluationRunRow.evaluation_id == evaluation_id)
+                )
+            ).scalar_one()
+
+    async def get_run_summary_by_evaluation(
+        self,
+        evaluation_id: str,
+        session: AsyncSession | None = None,
+    ) -> RunSummaryAggregate:
+        # One aggregate query over every run of the evaluation — independent of
+        # the paginated list's offset/limit, which is exactly what the frontend's
+        # dashboard KPIs need (they must reflect the whole evaluation, not one page).
+        # "completed" mirrors the frontend's `operationalToTaskState` mapping, which
+        # treats "completed" and "succeeded" as the same terminal-success state.
+        running_case = case(
+            (EvaluationRunRow.operational_state == "running", 1), else_=0
+        )
+        completed_case = case(
+            (EvaluationRunRow.operational_state.in_(("completed", "succeeded")), 1),
+            else_=0,
+        )
+        async with use_session(self._sessions, session) as s:
+            row = (
+                await s.execute(
+                    select(
+                        func.count(),
+                        func.coalesce(func.sum(running_case), 0),
+                        func.coalesce(func.sum(completed_case), 0),
+                        func.coalesce(func.sum(EvaluationRunRow.completed_cases), 0),
+                        func.coalesce(
+                            func.sum(EvaluationRunRow.execution_error_cases), 0
+                        ),
+                    ).where(EvaluationRunRow.evaluation_id == evaluation_id)
+                )
+            ).one()
+        (
+            total_runs,
+            running_count,
+            completed_count,
+            total_cases_completed,
+            critical_error_cases,
+        ) = row
+        return RunSummaryAggregate(
+            total_runs=total_runs,
+            running_count=running_count,
+            completed_count=completed_count,
+            total_cases_completed=total_cases_completed,
+            critical_error_cases=critical_error_cases,
+        )
 
     async def list_runs_by_state(
         self,

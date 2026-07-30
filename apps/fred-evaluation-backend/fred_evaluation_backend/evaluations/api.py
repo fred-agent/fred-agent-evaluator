@@ -82,6 +82,15 @@ def build_evaluation_catalog_router(prefix: str = "") -> APIRouter:
         store: Annotated[EvaluationStore, Depends(_get_evaluation_catalog_store)],
         cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
         team_id: str = Query(...),
+        offset: int = Query(default=0, ge=0),
+        limit: int = Query(default=50, ge=1, le=200),
+        sort: str | None = Query(
+            default=None,
+            description="Sort as 'field:direction' (created_at, name, version), e.g. 'created_at:desc'.",
+        ),
+        q: str | None = Query(
+            default=None, description="Case-insensitive search on the evaluation name."
+        ),
     ) -> EvaluationListResponse:
         configuration = request.app.dependency_overrides.get(get_config, get_config)()
         auth = resolve_interactive_auth(
@@ -89,6 +98,10 @@ def build_evaluation_catalog_router(prefix: str = "") -> APIRouter:
         )
         return await service.list_evaluations(
             team_id,
+            offset=offset,
+            limit=limit,
+            sort=sort,
+            q=q,
             store=store,
             control_plane_client=cp_client,
             auth=auth,

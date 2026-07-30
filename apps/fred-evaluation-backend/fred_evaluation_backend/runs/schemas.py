@@ -86,6 +86,9 @@ class EvaluationRun(BaseModel):
     run_id: str
     evaluation_id: str
     task_id: str | None
+    # The authenticated identity that launched the run — surfaced in the frontend's
+    # "Run information" panel as its author.
+    created_by: str
     target: EvaluationTarget
     profile: str
     judge_profile_id: str
@@ -106,6 +109,24 @@ class EvaluationRun(BaseModel):
     created_at: datetime
     started_at: datetime | None
     completed_at: datetime | None
+
+
+class EvaluationRunListResponse(BaseModel):
+    # `total` is the full count of runs for the evaluation, not the length of this
+    # page — the frontend needs it to compute the number of pages.
+    runs: list[EvaluationRun]
+    total: int
+
+
+class EvaluationRunSummaryResponse(BaseModel):
+    """Evaluation-wide run aggregates — for dashboard KPIs that must reflect every
+    run, not just the current page of `GET /evaluations/{id}/runs`."""
+
+    total_runs: int
+    running_count: int
+    completed_count: int
+    total_cases_completed: int
+    critical_error_cases: int
 
 
 class EvaluationMetricResultResponse(BaseModel):

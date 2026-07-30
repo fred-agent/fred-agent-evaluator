@@ -23,6 +23,8 @@ from fred_evaluation_backend.runs.schemas import (
     EvaluationCaseResponse,
     EvaluationMetricResultResponse,
     EvaluationRun,
+    EvaluationRunListResponse,
+    EvaluationRunSummaryResponse,
     ManagedInstanceTarget,
     RunCreatedResponse,
     RunReportEvaluation,
@@ -131,6 +133,7 @@ def _run_to_response(row: EvaluationRunRow) -> EvaluationRun:
         run_id=row.run_id,
         evaluation_id=row.evaluation_id,
         task_id=row.task_id,
+        created_by=row.created_by,
         target=ManagedInstanceTarget(
             kind="managed_instance", agent_instance_id=row.target_instance_id
         ),
@@ -169,9 +172,34 @@ async def get_run(run_id: str, *, store: RunStore) -> EvaluationRun:
     return _run_to_response(row)
 
 
-async def list_runs(evaluation_id: str, *, store: RunStore) -> list[EvaluationRun]:
-    rows = await store.list_runs_by_evaluation(evaluation_id)
-    return [_run_to_response(row) for row in rows]
+async def list_runs(
+    evaluation_id: str,
+    *,
+    offset: int = 0,
+    limit: int = 50,
+    sort: str | None = None,
+    store: RunStore,
+) -> EvaluationRunListResponse:
+    rows = await store.list_runs_by_evaluation(
+        evaluation_id, offset=offset, limit=limit, sort=sort
+    )
+    total = await store.count_runs_by_evaluation(evaluation_id)
+    return EvaluationRunListResponse(
+        runs=[_run_to_response(row) for row in rows], total=total
+    )
+
+
+async def get_run_summary(
+    evaluation_id: str, *, store: RunStore
+) -> EvaluationRunSummaryResponse:
+    aggregate = await store.get_run_summary_by_evaluation(evaluation_id)
+    return EvaluationRunSummaryResponse(
+        total_runs=aggregate.total_runs,
+        running_count=aggregate.running_count,
+        completed_count=aggregate.completed_count,
+        total_cases_completed=aggregate.total_cases_completed,
+        critical_error_cases=aggregate.critical_error_cases,
+    )
 
 
 def _case_to_response(row, metrics) -> EvaluationCaseResponse:

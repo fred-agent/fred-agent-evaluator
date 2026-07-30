@@ -26,7 +26,12 @@ def _has_successful_tool_result(trace: dict, tool_name: str) -> bool:
     return False
 
 
-_SQL_DATA_TOOLS = {"read_query", "list_tabular_datasets", "get_tabular_dataset_schema"}
+_SQL_DATA_TOOLS = {
+    "read_query",
+    "list_tabular_documents",
+    "get_tabular_documents_schemas",
+    "search_tabular_values",
+}
 
 
 def build_structural_checks(

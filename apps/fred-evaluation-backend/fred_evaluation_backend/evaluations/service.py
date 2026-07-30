@@ -117,6 +117,10 @@ async def _resolve_version(
 async def list_evaluations(
     team_id: str,
     *,
+    offset: int = 0,
+    limit: int = 50,
+    sort: str | None = None,
+    q: str | None = None,
     store: EvaluationStore,
     control_plane_client: ControlPlaneClient,
     auth: OutboundAuth,
@@ -126,9 +130,14 @@ async def list_evaluations(
         control_plane_client=control_plane_client,
         auth=auth,
     )
-    rows = await store.list_evaluations_by_team(team_id)
+    rows = await store.list_evaluations_by_team(
+        team_id, offset=offset, limit=limit, sort=sort, q=q
+    )
+    # Count with the same search filter so `total` reflects the filtered set, not
+    # the whole team — otherwise the frontend's page count is wrong under search.
+    total = await store.count_evaluations_by_team(team_id, q=q)
     evaluations = [_row_to_summary(row) for row in rows]
-    return EvaluationListResponse(evaluations=evaluations, total=len(evaluations))
+    return EvaluationListResponse(evaluations=evaluations, total=total)
 
 
 def _row_to_summary(row) -> EvaluationSummaryResponse:
