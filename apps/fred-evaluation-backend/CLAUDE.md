@@ -3,8 +3,8 @@
 When this folder is opened as the workspace root, apply repository-wide instructions from:
 
 - [`../../CLAUDE.md`](../../CLAUDE.md)
-- [`../../docs/swift/platform/DEVELOPER_CONTRACT.md`](../../docs/swift/platform/DEVELOPER_CONTRACT.md)
-- [`../../docs/swift/platform/PLATFORM_RUNTIME_MAP.md`](../../docs/swift/platform/PLATFORM_RUNTIME_MAP.md)
+- [`../../docs/DEVELOPER_CONTRACT.md`](../../docs/DEVELOPER_CONTRACT.md)
+- [`../../docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md)
 
 ---
 
@@ -46,7 +46,7 @@ config/        — YAML config loader, PostgresStoreConfig (SQLite in dev)
 
 ## Port
 
-`8333`
+`8336`
 
 ---
 
@@ -67,6 +67,11 @@ uv sync
 CONFIG_FILE=./config/configuration.yaml uv run alembic upgrade head
 make run
 ```
+
+For a real observability session (security on, against `fred-deployment-factory` infra) rather
+than the quick no-auth start above, use the `.claude/skills/live-observability-session` skill at
+the repo root — it covers the `configuration.yaml` vs `configuration_prod.yaml` split explicitly,
+since `config/.env.template` defaults `CONFIG_FILE` to the standalone profile (commented out).
 
 ---
 

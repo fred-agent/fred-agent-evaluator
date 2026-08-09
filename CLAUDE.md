@@ -43,11 +43,16 @@ make test
 # Run API locally
 cd apps/fred-evaluation-backend
 uv sync
-make run          # :8333
+make run          # :8336 (SQLite, no auth — see config/.env.template)
 
 # Run worker locally
 make run-worker
 ```
+
+For a real observability session (security on, against the shared `fred-deployment-factory`
+infra) rather than the quick no-auth start above, use the
+`.claude/skills/live-observability-session` skill in this repo — it covers the
+`configuration.yaml` vs `configuration_prod.yaml` split and the exact ports/preconditions.
 
 ---
 

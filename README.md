@@ -6,7 +6,7 @@ Monorepo for the Fred agent evaluation platform.
 
 ```
 apps/
-  fred-evaluation-backend/   # Evaluation API (FastAPI :8333) + Worker
+  fred-evaluation-backend/   # Evaluation API (FastAPI :8336) + Worker
 libs/
   fred-deepeval-cli/         # Scoring library (PyPI: fred-deepeval-cli)
 deploy/
@@ -23,7 +23,7 @@ docs/
 
 | Image | Rôle | Port |
 |---|---|---|
-| `fred-evaluation-api` | API REST + SSE | 8333 |
+| `fred-evaluation-api` | API REST + SSE | 8336 |
 | `fred-evaluation-worker` | Worker Temporal (scoring) | — |
 
 ## Quick start (local)

@@ -3,7 +3,7 @@
 Evaluation platform for Fred agents: a FastAPI API and a worker that run test
 campaigns against a target agent and report quality metrics.
 
-- **API** (`fred_evaluation_backend.main:create_app`, port `8333`) — accepts
+- **API** (`fred_evaluation_backend.main:create_app`, port `8336`) — accepts
   evaluation campaigns and exposes results/SSE.
 - **Worker** (`python -m fred_evaluation_backend.main_worker`) — polls pending
   campaigns, asks the Control Plane to prepare execution, calls the target
