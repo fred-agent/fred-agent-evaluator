@@ -1,0 +1,285 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "All Services",
+      "detail": "API + worker, standalone profile (SQLite, no auth)",
+      "dependsOn": [
+        "install-deps",
+        "_services"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": [],
+      "icon": {
+        "id": "rocket",
+        "color": "terminal.ansiRed"
+      }
+    },
+    {
+      "label": "All Services PROD",
+      "detail": "API + worker against fred-deployment-factory (Postgres, Keycloak, Temporal)",
+      "dependsOn": [
+        "install-deps",
+        "_services-prod"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": [],
+      "icon": {
+        "id": "flame",
+        "color": "terminal.ansiRed"
+      }
+    },
+    {
+      "label": "_services",
+      "detail": "Internal: starts API + worker in parallel once install-deps has finished",
+      "dependsOn": [
+        "evaluation-api",
+        "evaluation-worker"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": [],
+      "hide": true,
+      "icon": {
+        "id": "rocket",
+        "color": "terminal.ansiRed"
+      }
+    },
+    {
+      "label": "_services-prod",
+      "detail": "Internal: starts API + worker (prod profile) in parallel once install-deps has finished",
+      "dependsOn": [
+        "evaluation-api-prod",
+        "evaluation-worker-prod"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": [],
+      "hide": true,
+      "icon": {
+        "id": "flame",
+        "color": "terminal.ansiRed"
+      }
+    },
+    {
+      "label": "install-deps",
+      "detail": "make dev-scoring \u2014 sync the shared .venv with dev+scoring+worker+otel extras (must run before starting API and worker together)",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "make dev-scoring"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/apps/fred-evaluation-backend"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always",
+        "close": true
+      },
+      "icon": {
+        "id": "package",
+        "color": "terminal.ansiWhite"
+      }
+    },
+    {
+      "label": "evaluation-api",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "set -m; _cleanup(){ kill -- -$$ 2>/dev/null; }; trap _cleanup EXIT INT TERM; pids=$(lsof -tiTCP:8336 -sTCP:LISTEN 2>/dev/null); [ -n \"$pids\" ] && kill $pids; make run PORT=8336"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/apps/fred-evaluation-backend"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "new",
+        "reveal": "always"
+      },
+      "icon": {
+        "id": "graph",
+        "color": "terminal.ansiMagenta"
+      }
+    },
+    {
+      "label": "evaluation-api-prod",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "set -m; _cleanup(){ kill -- -$$ 2>/dev/null; }; trap _cleanup EXIT INT TERM; pids=$(lsof -tiTCP:8336 -sTCP:LISTEN 2>/dev/null); [ -n \"$pids\" ] && kill $pids; make rrun-prod PORT=8336"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/apps/fred-evaluation-backend"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "new",
+        "reveal": "always"
+      },
+      "icon": {
+        "id": "graph",
+        "color": "terminal.ansiMagenta"
+      }
+    },
+    {
+      "label": "evaluation-worker",
+      "detail": "Temporal worker \u2014 no HTTP port, accesses the DB directly",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "set -m; _cleanup(){ kill -- -$$ 2>/dev/null; }; trap _cleanup EXIT INT TERM; make run-worker"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/apps/fred-evaluation-backend"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "new",
+        "reveal": "always"
+      },
+      "icon": {
+        "id": "server-process",
+        "color": "terminal.ansiBlue"
+      }
+    },
+    {
+      "label": "evaluation-worker-prod",
+      "detail": "Temporal worker with M2M enabled (configuration_prod.yaml)",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "set -m; _cleanup(){ kill -- -$$ 2>/dev/null; }; trap _cleanup EXIT INT TERM; make run-worker-prod"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/apps/fred-evaluation-backend"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "new",
+        "reveal": "always"
+      },
+      "icon": {
+        "id": "server-process",
+        "color": "terminal.ansiBlue"
+      }
+    },
+    {
+      "label": "test",
+      "detail": "make test \u2014 offline suites of both submodules",
+      "type": "shell",
+      "command": "make",
+      "args": [
+        "test"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      },
+      "icon": {
+        "id": "beaker",
+        "color": "terminal.ansiGreen"
+      }
+    },
+    {
+      "label": "code-quality",
+      "detail": "make code-quality \u2014 ruff, bandit, detect-secrets, basedpyright",
+      "type": "shell",
+      "command": "make",
+      "args": [
+        "code-quality"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      },
+      "icon": {
+        "id": "checklist",
+        "color": "terminal.ansiYellow"
+      }
+    },
+    {
+      "label": "code-quality-fix",
+      "detail": "make code-quality-fix \u2014 auto-fix lint, imports, formatting",
+      "type": "shell",
+      "command": "make",
+      "args": [
+        "code-quality-fix"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      },
+      "icon": {
+        "id": "wand",
+        "color": "terminal.ansiYellow"
+      }
+    },
+    {
+      "label": "db-upgrade",
+      "detail": "alembic upgrade head",
+      "type": "shell",
+      "command": "make",
+      "args": [
+        "db-upgrade"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/apps/fred-evaluation-backend"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      },
+      "icon": {
+        "id": "database",
+        "color": "terminal.ansiCyan"
+      }
+    },
+    {
+      "label": "generate-openapi",
+      "detail": "Regenerate openapi.json without starting the server",
+      "type": "shell",
+      "command": "make",
+      "args": [
+        "generate-openapi"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/apps/fred-evaluation-backend"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      },
+      "icon": {
+        "id": "file-code",
+        "color": "terminal.ansiCyan"
+      }
+    }
+  ]
+}
