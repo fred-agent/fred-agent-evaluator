@@ -81,11 +81,17 @@ class _FakeControlPlaneOK:
     m2m_token_provider = None
 
     async def prepare_managed_instance_execution(
-        self, *, team_id, agent_instance_id, auth
+        self,
+        *,
+        team_id,
+        agent_instance_id,
+        auth,
+        agent_model_override: str | None = None,
     ):
         return SimpleNamespace(
             agent_instance_id=agent_instance_id,
             evaluate_url="http://agent/evaluate",
+            agent_profile_overrides=None,
         )
 
 
@@ -95,7 +101,12 @@ class _FakeControlPlaneAlwaysForbidden:
     m2m_token_provider = None
 
     async def prepare_managed_instance_execution(
-        self, *, team_id, agent_instance_id, auth
+        self,
+        *,
+        team_id,
+        agent_instance_id,
+        auth,
+        agent_model_override: str | None = None,
     ):
         raise PermissionError("403 Forbidden: service token rejected")
 
@@ -111,6 +122,7 @@ class _FakeAgentClient:
         session_id,
         input,
         token_provider=None,
+        agent_profile_overrides: dict[str, str] | None = None,
     ):
         from fred_sdk.contracts.eval import EvalTrace
 
@@ -167,6 +179,7 @@ async def _start_run(
         auth=NoAuthentication(),
         profile="auto",
         judge_profile_id="mistral-small",
+        agent_model_override=None,
         max_concurrency=1,
         metrics=["answer_relevancy"],
         custom_metrics=[],

@@ -141,6 +141,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
             judge_profile_id=service.default_judge_profile_id(
                 configuration.worker.judge_profiles
             ),
+            agent_model_override=body.agent_model_override,
             max_concurrency=max_concurrency,
             metrics=body.metrics,
             custom_metrics=body.custom_metrics,

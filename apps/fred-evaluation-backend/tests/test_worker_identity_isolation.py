@@ -132,6 +132,7 @@ class _FakeStore:
             team_id="team-1",
             target_instance_id="inst-1",
             judge_profile_id="none-configured",
+            agent_model_override=None,
             custom_metrics_json=None,
             metrics_json=None,
             created_by="alice",

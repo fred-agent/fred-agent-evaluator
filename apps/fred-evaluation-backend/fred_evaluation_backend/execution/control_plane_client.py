@@ -47,6 +47,10 @@ class ManagedInstanceExecutionPreparation(BaseModel):
     runtime_id: str
     team_id: str
     evaluate_url: str
+    # Client-forwarded to the pod as-is (fred_sdk.contracts.context.RuntimeContext
+    # .agent_profile_overrides) — the pod never re-fetches routing policy itself.
+    # None when the Control Plane response omits it (no team policy, no override).
+    agent_profile_overrides: dict[str, str] | None = None
 
 
 class TeamMembership(BaseModel):
@@ -120,13 +124,16 @@ class ControlPlaneClient:
         *,
         headers: dict[str, str],
         http_auth: httpx.Auth | None,
+        params: dict[str, str] | None = None,
     ) -> httpx.Response:
         # httpx's `post()` convenience method doesn't accept `auth=None` (only its
         # lower-level `request()` does) — omit the kwarg instead, which is
         # equivalent here since these clients never carry a default auth.
         if http_auth is not None:
-            return await client.post(url, headers=headers, auth=http_auth)
-        return await client.post(url, headers=headers)
+            return await client.post(
+                url, headers=headers, auth=http_auth, params=params
+            )
+        return await client.post(url, headers=headers, params=params)
 
     @staticmethod
     async def _get(
@@ -184,6 +191,7 @@ class ControlPlaneClient:
         team_id: str,
         agent_instance_id: str,
         auth: OutboundAuth,
+        agent_model_override: str | None = None,
     ) -> ManagedInstanceExecutionPreparation:
         url = (
             f"{self._base_url}/teams/{team_id}"
@@ -195,9 +203,14 @@ class ControlPlaneClient:
             team_id,
             agent_instance_id,
         )
+        params = (
+            {"agent_model_override": agent_model_override}
+            if agent_model_override is not None
+            else None
+        )
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await self._post(
-                client, url, headers=headers, http_auth=http_auth
+                client, url, headers=headers, http_auth=http_auth, params=params
             )
             response.raise_for_status()
             try:
@@ -213,6 +226,7 @@ class ControlPlaneClient:
                     runtime_id=data["runtime_id"],
                     team_id=str(data["team_id"]),
                     evaluate_url=evaluate_url,
+                    agent_profile_overrides=data.get("agent_profile_overrides"),
                 )
             except (KeyError, TypeError, ValueError, AttributeError) as exc:
                 raise ControlPlaneInvalidResponseError(

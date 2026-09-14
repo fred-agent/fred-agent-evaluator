@@ -34,6 +34,8 @@ class RunSnapshot(BaseModel):
     resolved_target_config: dict[str, str] | None = None
     profile: str
     judge_profile_id: str
+    # Run-scoped only — never written back to the team's persisted routing policy.
+    agent_model_override: str | None = None
     execution: dict[str, int] | None = None
 
 
@@ -63,6 +65,10 @@ class StartRunRequest(BaseModel):
     target: ManagedInstanceTarget
     metrics: list[str] = Field(min_length=1)
     custom_metrics: list[CustomMetricSpecInput] = Field(default_factory=list)
+    # Forces the target agent's chat model for this run only — never written to
+    # the team's persisted routing policy. Must be one of the team's
+    # `can_use`-enabled profiles; the Control Plane rejects anything else.
+    agent_model_override: str | None = None
 
     @field_validator("metrics")
     @classmethod
@@ -92,6 +98,7 @@ class EvaluationRun(BaseModel):
     target: EvaluationTarget
     profile: str
     judge_profile_id: str
+    agent_model_override: str | None
     # The metric selection this run was started with — read back so a caller (e.g. the
     # frontend's one-click rerun) can reuse the same choice instead of guessing a default.
     metrics: list[str]
@@ -155,6 +162,10 @@ class EvaluationCaseResponse(BaseModel):
     expected_output: str | None
     actual_output: str | None
     profile: str | None
+    # Ground truth from the LLM provider's own response metadata — may differ
+    # from the run's `agent_model_override` if a higher-precedence Control
+    # Plane policy silently won.
+    actual_model_name: str | None
     latency_ms: int | None
     execution_error: str | None
     scoring_errors: list[str]

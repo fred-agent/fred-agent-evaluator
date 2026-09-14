@@ -34,7 +34,12 @@ from fred_evaluation_backend.runs.store import RunStore
 
 class _FakeControlPlane:
     async def prepare_managed_instance_execution(
-        self, *, team_id, agent_instance_id, auth
+        self,
+        *,
+        team_id,
+        agent_instance_id,
+        auth,
+        agent_model_override: str | None = None,
     ):
         return SimpleNamespace(
             agent_instance_id=agent_instance_id,
@@ -83,6 +88,7 @@ async def _start(evaluation_id, evaluation_store, run_store, *, instance, by="al
         auth=NoAuthentication(),
         profile="auto",
         judge_profile_id="mistral-small",
+        agent_model_override=None,
         max_concurrency=1,
         metrics=["answer_relevancy"],
         custom_metrics=[],

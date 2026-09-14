@@ -90,7 +90,7 @@ ligne à la création d'un run — les cas viennent toujours de l'evaluation.
 | POST | `/evaluations` | 201 | Créer une evaluation immuable — `{team_id, name, cases}` requis, `{version, author, source_filename}` optionnels (`origin: upload \| manual`, 1 à 200 cas). Version déclarée = identité (409 si doublon) ; sinon assignée par le serveur. 409 aussi si `(team, name, version)` existe déjà. |
 | DELETE | `/evaluations/{id}` | 204 | Supprimer une evaluation **et tous ses runs** (cas, métriques, events). Refusé en 409 si un run est en cours. |
 | GET | `/evaluations` | 200 | Lister (param: `team_id`) — id, nom, version, auteur, origin, complétude, nombre de cas, `created_at` |
-| POST | `/evaluations/{id}/runs` | 202 | Démarrer un run — `{team_id, target, metrics, custom_metrics}` (`extra: forbid`). Cible **`managed_instance` uniquement** (`runtime_agent` retiré de la création, conservé en lecture pour l'historique). `metrics` (obligatoire, non vide) est la sélection manuelle des métriques DeepEval à calculer ; `custom_metrics` (optionnel) porte les critères GEval. Judge et concurrence restent fixés côté serveur et figés dans un `RunSnapshot`. |
+| POST | `/evaluations/{id}/runs` | 202 | Démarrer un run — `{team_id, target, metrics, custom_metrics, agent_model_override}` (`extra: forbid`). Cible **`managed_instance` uniquement** (`runtime_agent` retiré de la création, conservé en lecture pour l'historique). `metrics` (obligatoire, non vide) est la sélection manuelle des métriques DeepEval à calculer ; `custom_metrics` (optionnel) porte les critères GEval. `agent_model_override` (optionnel) force le modèle de chat de l'agent cible pour ce run uniquement — jamais persisté côté Control Plane, jamais l'équivalent de la politique de routage d'équipe. Judge et concurrence restent fixés côté serveur et figés dans un `RunSnapshot`. |
 | GET | `/evaluations/{id}/runs` | 200 | Lister les runs d'une evaluation (paginé, `offset`/`limit`/`sort`) |
 | GET | `/evaluations/{id}/runs/summary` | 200 | Agrégats sur *tous* les runs de l'evaluation (running/completed/cases/erreurs critiques) — indépendant de la pagination, pour les KPI du dashboard |
 | GET | `/runs/{run_id}` | 200 | Détail d'un run + agrégats |
@@ -126,6 +126,40 @@ live in `runs/metrics_catalog.py` (API layer, zero `deepeval` dependency):
 `contextual_precision`, `contextual_recall`. `contextual_precision` /
 `contextual_recall` selected on a case with no `expected_output` are reported
 with verdict `"skipped"` rather than erroring.
+
+## Agent model override + traceability (run-scoped, no operation dimension)
+
+`StartRunRequest.agent_model_override: str | None` forces the target agent's
+chat model for this run only. It is threaded, unvalidated on this side, to the
+Control Plane's `prepare-execution` as a query param — the Control Plane is
+the sole authority on whether the profile is `can_use`-enabled for the team,
+and rejects (422) if not. Never persisted by the Control Plane, never visible
+in the team's routing policy. No per-operation variant — see `fred`'s own
+model-routing simplification (2026-08-17) for why that dimension was dropped
+there first.
+
+**Not validated eagerly at run creation.** `start_run`'s `resolve_managed_instance`
+call authenticates as the interactive caller (`resolve_interactive_auth`), but
+the Control Plane only honors `agent_model_override` for the worker's service
+identity (`ServiceAuthentication`) — forwarding it on that call would 403
+every override unconditionally, before the run even starts (found live,
+2026-09-14). The override is validated for real only at case execution time,
+by the worker (`workers/workflow.py` / `workers/runner.py`, both
+service-authenticated); an invalid override surfaces as that case's execution
+error, not a run-creation failure.
+
+Both execution engines read `EvaluationRunRow.agent_model_override` directly
+and forward it to `prepare_managed_instance_execution` — `workers/workflow.py`
+(Temporal) and `workers/runner.py` (polling). Keep them in sync; nothing
+enforces it structurally.
+
+`EvaluationCaseResponse.actual_model_name` is ground truth, not an echo of the
+request: it is `EvalTrace.model_name`, read from the LLM provider's own
+response metadata by the runtime pod. It can differ from
+`EvaluationRun.agent_model_override` if a higher-precedence Control Plane
+policy (platform binding, pod static override) silently won — compare the two
+rather than trusting the override was honored. `GET /runs/{run_id}/report`
+surfaces both.
 
 `StartRunRequest.custom_metrics: list[CustomMetricSpecInput]` carries
 GEval-scored, user-authored criteria (`name`, `criteria`, `parameters`,

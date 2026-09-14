@@ -57,6 +57,7 @@ async def start_run(
     auth: OutboundAuth,
     profile: str,
     judge_profile_id: str,
+    agent_model_override: str | None,
     max_concurrency: int,
     metrics: list[str],
     custom_metrics: list[CustomMetricSpecInput],
@@ -69,6 +70,13 @@ async def start_run(
         for c in json.loads(evaluation.cases_json or "[]")
     ]
 
+    # NOT validated eagerly with agent_model_override: this call authenticates
+    # as the interactive caller (resolve_interactive_auth), but the Control
+    # Plane only honors agent_model_override for the worker's service identity
+    # (ServiceAuthentication) — passing it here would 403 every override
+    # unconditionally, before the run even starts. The override is validated
+    # for real at case execution time instead (workflow.py / runner.py, which
+    # do use ServiceAuthentication), surfacing as a per-case execution error.
     await resolve_managed_instance(
         team_id=team_id,
         agent_instance_id=target.agent_instance_id,
@@ -88,6 +96,7 @@ async def start_run(
         target=target,
         profile=profile,
         judge_profile_id=judge_profile_id,
+        agent_model_override=agent_model_override,
         execution={"max_concurrency": max_concurrency},
     )
 
@@ -103,6 +112,7 @@ async def start_run(
         target_instance_id=target.agent_instance_id,
         profile=profile,
         judge_profile_id=judge_profile_id,
+        agent_model_override=agent_model_override,
         total_cases=len(cases),
         metrics_json=json.dumps(metrics),
         custom_metrics_json=json.dumps([m.model_dump() for m in custom_metrics])
@@ -139,6 +149,7 @@ def _run_to_response(row: EvaluationRunRow) -> EvaluationRun:
         ),
         profile=row.profile,
         judge_profile_id=row.judge_profile_id,
+        agent_model_override=row.agent_model_override,
         metrics=json.loads(row.metrics_json or "[]"),
         custom_metrics=[
             CustomMetricSpecInput.model_validate(m)
@@ -214,6 +225,7 @@ def _case_to_response(row, metrics) -> EvaluationCaseResponse:
         expected_output=row.expected_output,
         actual_output=row.actual_output,
         profile=row.profile,
+        actual_model_name=row.actual_model_name,
         latency_ms=row.latency_ms,
         execution_error=row.execution_error,
         scoring_errors=[]

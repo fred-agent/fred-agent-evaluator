@@ -188,6 +188,7 @@ async def run_case_for_run(payload: RunCaseInput) -> None:
             team_id=run.team_id,
             agent_instance_id=run.target_instance_id,
             auth=ServiceAuthentication(),
+            agent_model_override=run.agent_model_override,
         )
 
         judge_profile = config.worker.judge_profiles.get(run.judge_profile_id)
@@ -217,6 +218,7 @@ async def run_case_for_run(payload: RunCaseInput) -> None:
             metrics=metrics,
             store=store,
             agent_client=agent_client,
+            agent_profile_overrides=prep.agent_profile_overrides,
         )
     except Exception as exc:
         logger.error(
@@ -235,6 +237,7 @@ async def run_case_for_run(payload: RunCaseInput) -> None:
             execution_error=str(exc),
             scoring_errors_json=None,
             structural_checks_json=None,
+            actual_model_name=None,
         )
         await emit_run_event(payload.run_id, payload.case_id, "case_error", store)
 

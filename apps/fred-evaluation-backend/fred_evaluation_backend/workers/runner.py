@@ -98,6 +98,7 @@ class RunRunner:
                 team_id=run.team_id,
                 agent_instance_id=run.target_instance_id,
                 auth=ServiceAuthentication(),
+                agent_model_override=run.agent_model_override,
             )
             evaluate_url = prep.evaluate_url
         except Exception as exc:
@@ -156,6 +157,7 @@ class RunRunner:
                         metrics=metrics,
                         store=self._store,
                         agent_client=self._agent_client,
+                        agent_profile_overrides=prep.agent_profile_overrides,
                     )
                 except Exception as exc:
                     logger.error(
@@ -171,6 +173,7 @@ class RunRunner:
                         execution_error=str(exc),
                         scoring_errors_json=None,
                         structural_checks_json=None,
+                        actual_model_name=None,
                     )
 
         results = await asyncio.gather(

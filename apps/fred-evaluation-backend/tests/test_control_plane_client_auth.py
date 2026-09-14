@@ -154,6 +154,47 @@ async def test_service_authentication_without_m2m_provider_fails_fast_not_silent
 
 
 @pytest.mark.asyncio
+async def test_agent_model_override_is_sent_as_a_query_param_when_set(monkeypatch):
+    seen_params: list[str | None] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen_params.append(request.url.params.get("agent_model_override"))
+        return httpx.Response(200, json=_managed_instance_response())
+
+    _patch_transport(monkeypatch, handler)
+    client = ControlPlaneClient(base_url="http://cp.test")
+
+    await client.prepare_managed_instance_execution(
+        team_id="team-1",
+        agent_instance_id="inst-1",
+        auth=NoAuthentication(),
+        agent_model_override="chat.mistral.medium",
+    )
+
+    assert seen_params == ["chat.mistral.medium"]
+
+
+@pytest.mark.asyncio
+async def test_agent_model_override_is_omitted_when_not_set(monkeypatch):
+    seen_queries: list[bytes] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen_queries.append(request.url.query)
+        return httpx.Response(200, json=_managed_instance_response())
+
+    _patch_transport(monkeypatch, handler)
+    client = ControlPlaneClient(base_url="http://cp.test")
+
+    await client.prepare_managed_instance_execution(
+        team_id="team-1",
+        agent_instance_id="inst-1",
+        auth=NoAuthentication(),
+    )
+
+    assert seen_queries == [b""]
+
+
+@pytest.mark.asyncio
 async def test_sequential_requests_with_different_tokens_do_not_leak(monkeypatch):
     seen_auth_headers: list[str | None] = []
 
