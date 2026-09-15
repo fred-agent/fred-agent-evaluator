@@ -1644,6 +1644,17 @@
             ],
             "title": "Profile"
           },
+          "actual_model_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual Model Name"
+          },
           "latency_ms": {
             "anyOf": [
               {
@@ -1724,6 +1735,7 @@
           "expected_output",
           "actual_output",
           "profile",
+          "actual_model_name",
           "latency_ms",
           "execution_error",
           "scoring_errors",
@@ -2013,6 +2025,17 @@
             "type": "string",
             "title": "Judge Profile Id"
           },
+          "agent_model_override": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Model Override"
+          },
           "metrics": {
             "items": {
               "type": "string"
@@ -2111,6 +2134,7 @@
           "target",
           "profile",
           "judge_profile_id",
+          "agent_model_override",
           "metrics",
           "custom_metrics",
           "operational_state",
@@ -2931,6 +2955,17 @@
             "type": "string",
             "title": "Judge Profile Id"
           },
+          "agent_model_override": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Model Override"
+          },
           "execution": {
             "anyOf": [
               {
@@ -3004,6 +3039,17 @@
             },
             "type": "array",
             "title": "Custom Metrics"
+          },
+          "agent_model_override": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Model Override"
           }
         },
         "additionalProperties": false,

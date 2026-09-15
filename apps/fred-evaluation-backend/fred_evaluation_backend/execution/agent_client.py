@@ -23,6 +23,7 @@ class AgentClient:
         session_id: str,
         input: str,
         token_provider: M2MTokenProvider | None = None,
+        agent_profile_overrides: dict[str, str] | None = None,
     ) -> EvalTrace:
         # RUNTIME-07 rev.2: no signed grant. The runtime authorizes via the caller's
         # JWT (the worker's M2M token) + pod-side OpenFGA, scoped to runtime_context.team_id.
@@ -32,10 +33,16 @@ class AgentClient:
         auth = M2MBearerAuth(token_provider) if token_provider else None
         if auth is None:
             headers["Authorization"] = "Bearer dev"
+        runtime_context: dict[str, object] = {"team_id": team_id}
+        # Client-forwarded, same channel real chat turns use (fred_sdk.contracts.context
+        # .RuntimeContext.agent_profile_overrides): the pod never re-fetches routing
+        # policy itself, it only reads what this request carries.
+        if agent_profile_overrides:
+            runtime_context["agent_profile_overrides"] = agent_profile_overrides
         body: dict = {
             "session_id": session_id,
             "input": input,
-            "runtime_context": {"team_id": team_id},
+            "runtime_context": runtime_context,
         }
         if agent_instance_id:
             body["agent_instance_id"] = agent_instance_id

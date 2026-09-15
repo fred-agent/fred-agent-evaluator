@@ -43,6 +43,10 @@ class EvaluationCaseRow(Base):
     scoring_errors_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     raw_trace_ref: Mapped[str | None] = mapped_column(String, nullable=True)
     telemetry_trace_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Ground truth from the LLM provider's own response metadata
+    # (`EvalTrace.model_name`), not the run's requested `agent_model_override` —
+    # the two can differ if a higher-precedence Control Plane policy silently won.
+    actual_model_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -67,6 +71,8 @@ class EvaluationRunRow(Base):
     target_instance_id: Mapped[str] = mapped_column(String, nullable=False)
     profile: Mapped[str] = mapped_column(String(64), nullable=False)
     judge_profile_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Run-scoped only — never written back to the team's persisted routing policy.
+    agent_model_override: Mapped[str | None] = mapped_column(String(255), nullable=True)
     metrics_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     custom_metrics_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     snapshot_json: Mapped[str] = mapped_column(Text, nullable=False)

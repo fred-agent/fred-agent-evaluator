@@ -167,6 +167,7 @@ class RunStore:
         execution_error: str | None,
         scoring_errors_json: str | None,
         structural_checks_json: str | None,
+        actual_model_name: str | None,
         session: AsyncSession | None = None,
     ) -> None:
         async with use_session(self._sessions, session) as s:
@@ -180,6 +181,7 @@ class RunStore:
                 row.execution_error = execution_error
                 row.scoring_errors_json = scoring_errors_json
                 row.structural_checks_json = structural_checks_json
+                row.actual_model_name = actual_model_name
 
     async def create_run_event(
         self,
@@ -240,6 +242,7 @@ class RunStore:
         target_instance_id: str | None,
         profile: str,
         judge_profile_id: str,
+        agent_model_override: str | None,
         total_cases: int,
         metrics_json: str | None,
         custom_metrics_json: str | None,
@@ -258,6 +261,7 @@ class RunStore:
             target_instance_id=target_instance_id,
             profile=profile,
             judge_profile_id=judge_profile_id,
+            agent_model_override=agent_model_override,
             metrics_json=metrics_json,
             custom_metrics_json=custom_metrics_json,
             snapshot_json=snapshot_json,

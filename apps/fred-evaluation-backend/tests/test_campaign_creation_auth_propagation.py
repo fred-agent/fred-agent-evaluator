@@ -82,7 +82,12 @@ class _RecordingControlPlaneClient:
         self.received_auths: list[object] = []
 
     async def prepare_managed_instance_execution(
-        self, *, team_id, agent_instance_id, auth
+        self,
+        *,
+        team_id,
+        agent_instance_id,
+        auth,
+        agent_model_override: str | None = None,
     ):
         self.received_auths.append(auth)
         return SimpleNamespace(
@@ -113,7 +118,12 @@ class _ForbiddenControlPlaneClient:
     """
 
     async def prepare_managed_instance_execution(
-        self, *, team_id, agent_instance_id, auth
+        self,
+        *,
+        team_id,
+        agent_instance_id,
+        auth,
+        agent_model_override: str | None = None,
     ):
         request = httpx.Request("POST", "http://cp.test/prepare-execution")
         response = httpx.Response(403, request=request, json={"detail": "forbidden"})

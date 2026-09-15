@@ -37,6 +37,11 @@ async def resolve_managed_instance(
     """
     Resolve a managed_instance target into an execution preparation.
 
+    Never called with an `agent_model_override`: this is the interactive-auth
+    path (`start_run`'s eager validation), and the Control Plane only honors
+    that field for the worker's service identity. See the real, service-authenticated
+    call in `workers/workflow.py` / `workers/runner.py` for where it's actually used.
+
     Only known Control Plane boundary failures are classified (never a blanket
     422) — see `evaluator_errors.map_control_plane_error`. Anything else
     propagates as a real server error.

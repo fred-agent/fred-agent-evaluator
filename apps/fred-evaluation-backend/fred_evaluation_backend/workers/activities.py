@@ -39,6 +39,7 @@ async def execute_and_score_case(
     store: RunStore,
     agent_client: AgentClient,
     run_id: str,
+    agent_profile_overrides: dict[str, str] | None = None,
 ) -> None:
     tracer = get_tracer()
     with tracer.start_as_current_span("eval.case") as span:
@@ -68,6 +69,7 @@ async def execute_and_score_case(
             metrics=metrics,
             store=store,
             agent_client=agent_client,
+            agent_profile_overrides=agent_profile_overrides,
         )
 
 
@@ -91,6 +93,7 @@ async def _execute_and_score_case_inner(
     metrics: list[str] | None = None,
     store: RunStore,
     agent_client: AgentClient,
+    agent_profile_overrides: dict[str, str] | None = None,
 ) -> None:
     from fred_deepeval_cli.core.evaluator import classify_outcome
     from fred_deepeval_cli.core.profiles import resolve_profile
@@ -107,6 +110,7 @@ async def _execute_and_score_case_inner(
         execution_error=None,
         scoring_errors_json=None,
         structural_checks_json=None,
+        actual_model_name=None,
     )
 
     logger.debug("[ACTIVITY] calling agent case=%s", case_id)
@@ -119,6 +123,7 @@ async def _execute_and_score_case_inner(
             session_id=session_id,
             input=input,
             token_provider=token_provider,
+            agent_profile_overrides=agent_profile_overrides,
         )
     except Exception as exc:
         logger.error("[ACTIVITY] agent call failed case=%s: %s", case_id, exc)
@@ -135,6 +140,7 @@ async def _execute_and_score_case_inner(
             execution_error=str(exc),
             scoring_errors_json=None,
             structural_checks_json=None,
+            actual_model_name=None,
         )
         await emit_run_event(run_id, case_id, "case_error", store)
         return
@@ -180,6 +186,7 @@ async def _execute_and_score_case_inner(
             execution_error=str(exc),
             scoring_errors_json=None,
             structural_checks_json=None,
+            actual_model_name=eval_trace.model_name,
         )
         await emit_run_event(run_id, case_id, "case_error", store)
         return
@@ -246,6 +253,7 @@ async def _execute_and_score_case_inner(
         execution_error=eval_trace.error,
         scoring_errors_json=json.dumps(scoring_errors) if scoring_errors else None,
         structural_checks_json=json.dumps([c.model_dump() for c in structural_checks]),
+        actual_model_name=eval_trace.model_name,
     )
 
     # This activity is retryable, so scoring a case must be repeatable: drop any
