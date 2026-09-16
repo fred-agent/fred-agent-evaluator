@@ -43,3 +43,11 @@ include = ["fred_deepeval_cli*"]
 minversion = "8.0"
 addopts = "-ra"
 testpaths = ["tests"]
+
+[tool.uv.sources]
+# Local path override for development against the monorepo's own fred-core /
+# fred-sdk / fred-runtime, sibling to this repo under ~/Fred. Keeps `uv run` /
+# `uv sync` from silently reverting to the PyPI versions. Comment out to force
+# PyPI resolution.
+fred-sdk = { path = "../../../fred/libs/fred-sdk", editable = true }
+fred-runtime = { path = "../../../fred/libs/fred-runtime", editable = true }

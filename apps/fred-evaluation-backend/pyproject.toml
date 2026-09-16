@@ -57,6 +57,12 @@ asyncio_default_fixture_loop_scope = "function"
 cache_dir = "/tmp/.pytest"
 
 [tool.uv.sources]
+# Local path override for development against the monorepo's own fred-core /
+# fred-sdk / fred-runtime, sibling to this repo under ~/Fred. Keeps `uv run` /
+# `uv sync` from silently reverting to the PyPI versions. Comment out to force
+# PyPI resolution.
+fred-core = { path = "../../../fred/libs/fred-core", editable = true }
+fred-sdk = { path = "../../../fred/libs/fred-sdk", editable = true }
 fred-deepeval-cli = { path = "../../libs/fred-deepeval-cli", editable = true }
 
 
