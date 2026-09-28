@@ -11,7 +11,7 @@ apps/fred-evaluation-backend/   # FastAPI API + Temporal worker
 libs/fred-deepeval-cli/         # Scoring library (published to PyPI)
 deploy/
   charts/fred-evaluator/        # Helm chart (2 deployments: api + worker)
-  docker-compose/               # Local stack
+  docker-compose/               # API + worker images against fred-deployment-factory
 docs/
   ARCHITECTURE.md               # Component diagram + end-to-end flow
   DEVELOPER_CONTRACT.md         # API contract + key rules
@@ -22,7 +22,10 @@ docs/
 
 ## Key rules
 
-1. **`fred-core` and `fred-sdk` come from PyPI** — never add local path overrides for them.
+1. **`fred-*` libraries (`fred-core`, `fred-sdk`, `fred-runtime`) are published on PyPI** — `pyproject.toml`
+   holds the version floors. In development, `[tool.uv.sources]` resolves them from the sibling
+   `~/Fred/fred` checkout; the Docker images ignore those entries (`UV_NO_SOURCES_PACKAGE`) and take
+   PyPI. Never make an image or CI depend on the sibling checkout.
 2. **`fred-deepeval-cli` is the only local dependency** — editable install from `libs/`.
 3. **Never add DeepEval/LiteLLM to API image deps** — scoring deps belong in `[scoring]` optional group only.
 4. **Never expose worker via HTTP** — worker accesses DB directly.

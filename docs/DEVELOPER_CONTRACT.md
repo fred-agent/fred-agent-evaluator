@@ -6,7 +6,7 @@
 2. **L'API ne score jamais** — DeepEval est une dépendance du worker uniquement (`[scoring]`).
 3. **Le worker n'expose pas d'HTTP** — il accède directement à la DB.
 4. **Chaque cas est persisté indépendamment** — un crash du worker ne doit pas effacer les résultats déjà calculés.
-5. **`fred-deepeval-cli` est la seule dépendance locale** — `fred-core` et `fred-sdk` viennent de PyPI.
+5. **`fred-deepeval-cli` est la seule dépendance locale au repo** — `fred-core`, `fred-sdk` et `fred-runtime` sont publiées sur PyPI (planchers dans `pyproject.toml`). En développement elles sont résolues depuis le checkout voisin `~/Fred/fred` ; les images les prennent sur PyPI.
 6. **L'API et le worker n'utilisent jamais la même identité sortante** (RFC `EVAL-AUTH`, issue #33) — voir §Identity below.
 
 ## Identity: API-user vs worker-service (RFC `EVAL-AUTH`)
@@ -235,6 +235,6 @@ make test
 
 # Local dev
 cd apps/fred-evaluation-backend
-make run          # API sur :8333
+make run          # API sur :8336
 make run-worker   # Worker
 ```

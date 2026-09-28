@@ -109,5 +109,7 @@ make docker-build-api      # API image
 make docker-build-worker   # worker image (installs scoring/worker/otel extras)
 ```
 
-`fred-core` / `fred-sdk` come from PyPI; `fred-deepeval-cli` is the only local
-path dependency (worker-only, via the `scoring` extra).
+The images take `fred-core` / `fred-sdk` / `fred-runtime` from PyPI, bounded by the
+`pyproject.toml` floors, even though development resolves them from the sibling
+`~/Fred/fred` checkout. `fred-deepeval-cli` is the only in-repo path dependency
+(worker-only, via the `scoring` extra).

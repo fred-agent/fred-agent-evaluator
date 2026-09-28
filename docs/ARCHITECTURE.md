@@ -32,7 +32,7 @@ LLM juge (Mistral / GPT-4 / etc.)
 
 Deux processus distincts dans le même package Python :
 
-**API** (`main.py`) — FastAPI sur le port 8333
+**API** (`main.py`) — FastAPI sur le port 8336
 - Reçoit les requêtes du frontend
 - Valide et persiste les evaluations et leurs runs
 - Expose les résultats via REST et SSE
@@ -56,8 +56,8 @@ Librairie Python publiée sur PyPI.
 
 | Package | Source | Rôle |
 |---|---|---|
-| `fred-core` | PyPI | Config, DB, Keycloak |
-| `fred-sdk` | PyPI | EvalTrace, ExecutionGrant |
+| `fred-core` | PyPI (dev : checkout voisin `~/Fred/fred`) | Config, DB, Keycloak |
+| `fred-sdk` | PyPI (dev : checkout voisin `~/Fred/fred`) | EvalTrace, ExecutionGrant |
 | `fred-deepeval-cli` | Local editable | Scoring |
 | `deepeval` | PyPI (transitif) | Métriques |
 | `litellm` | PyPI (transitif) | Routeur LLM |

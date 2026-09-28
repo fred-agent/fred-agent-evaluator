@@ -11,7 +11,7 @@ libs/
   fred-deepeval-cli/         # Scoring library (PyPI: fred-deepeval-cli)
 deploy/
   charts/fred-evaluator/     # Helm chart — 2 deployments: api + worker
-  docker-compose/            # Local stack
+  docker-compose/            # API + worker images against fred-deployment-factory
 scripts/
   makefiles/                 # Shared Makefile includes
 docs/
@@ -43,6 +43,9 @@ make run-worker
 
 - `fred-core` — PyPI (config, storage, Keycloak helpers)
 - `fred-sdk` — PyPI (EvalTrace, ExecutionGrant contracts)
+
+In development both resolve from the sibling `~/Fred/fred` checkout
+(`[tool.uv.sources]`); the Docker images take the published versions.
 - `fred-deepeval-cli` — local editable (`libs/fred-deepeval-cli`)
 
 ## Documentation

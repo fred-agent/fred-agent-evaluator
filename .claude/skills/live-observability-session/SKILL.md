@@ -56,7 +56,7 @@ not be needed — ask rather than assuming the full stack is required.
 
 | App | Command | Port | Notes |
 |---|---|---|---|
-| `apps/fred-evaluation-backend` (API) | `make run` (from `apps/fred-evaluation-backend`) | 8336 | Base path `/evaluation/v1`. (Some docs/READMEs in this repo still say `:8333` — stale; the real port, confirmed in both `configuration.yaml` and `configuration_prod.yaml`, is `8336`.) |
+| `apps/fred-evaluation-backend` (API) | `make run` (from `apps/fred-evaluation-backend`) | 8336 | Base path `/evaluation/v1`. |
 | `apps/fred-evaluation-backend` (worker) | `make run-worker-prod` | — (no HTTP) | Never expose the worker via HTTP — it accesses the DB directly, per this repo's `CLAUDE.md` rule #4. Runs scoring via `fred-deepeval-cli`; the API itself never runs scoring (rule #5) — if you're chasing a "score didn't compute" report, the worker's stdout is where that happens, not the API's. |
 
 Launch both in parallel — independent Bash calls in one message, each `run_in_background: true` —
@@ -121,7 +121,7 @@ This app depends on published `fred-core`, which ships the same `StoreEmitHandle
   behavior, or false alarm).
 - Fix the root cause, not a patch over the symptom, and respect this repo's `CLAUDE.md` boundary
   rules while doing so (never blur the API/worker split, never add scoring deps to the API image,
-  `fred-core`/`fred-sdk` come from PyPI — no local path overrides).
+  images take `fred-*` from PyPI — never make them depend on the sibling `~/Fred/fred` checkout).
 
 ## Ending the session
 

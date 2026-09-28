@@ -21,11 +21,14 @@ those belong to the Control Plane.
 ## Architecture
 
 ```
-campaigns/     — campaign API, models, store, service, schemas
-execution/     — Control Plane client, runtime resolver (Phase 3)
-scoring/       — ScorerPort, DeepEval adapter (Phase 4)
-workers/       — campaign runner, Temporal workflow (Phase 5)
-telemetry/     — OTel exporter (Phase 7)
+evaluations/   — immutable, versioned evaluations (API, store, schemas)
+runs/          — runs, cases, reports, SSE events, LLM analysis
+tasks/         — platform-canonical task API (list, SSE, cancel)
+execution/     — Control Plane client, runtime resolution, outbound auth
+scoring/       — ScorerPort, DeepEval adapter
+workers/       — Temporal workflow and activities
+model/         — judge / analysis model factory
+telemetry/     — OTel / Langfuse export
 migrations/    — Alembic, version table: alembic_version_evaluation
 config/        — YAML config loader, PostgresStoreConfig (SQLite in dev)
 ```
@@ -33,8 +36,8 @@ config/        — YAML config loader, PostgresStoreConfig (SQLite in dev)
 ## Key design decisions
 
 - **Separate app** — not inside Control Plane. Each layer owns its domain.
-- **`run_id`** — every campaign creates a `run_id`. Re-running a campaign creates a new run without overwriting previous results.
-- **SSE** — `GET /campaigns/{id}/events` streams progress events in real time. Reconnectable via `seq`.
+- **`run_id`** — every run of an evaluation gets a `run_id`. Re-running creates a new run without overwriting previous results.
+- **SSE** — `GET /runs/{run_id}/events` streams progress events in real time. Reconnectable via `seq`.
 - **ScorerPort** — universal interface between the worker and any scorer (DeepEval today, replaceable tomorrow).
 - **`PostgresStoreConfig`** — fred-core handles both SQLite (dev) and PostgreSQL (prod) via the same config model.
 
@@ -63,8 +66,7 @@ make code-quality # ruff + format check
 ## First-time setup
 
 ```bash
-uv sync
-CONFIG_FILE=./config/configuration.yaml uv run alembic upgrade head
+make db-upgrade
 make run
 ```
 
@@ -79,21 +81,10 @@ since `config/.env.template` defaults `CONFIG_FILE` to the standalone profile (c
 
 | Table | Description |
 |---|---|
-| `evaluation_campaign` | Campaign definition and aggregated verdict |
-| `evaluation_run` | One execution of a campaign |
+| `evaluation` | Immutable, versioned evaluation (name + cases) |
+| `question_set` | Reusable question sets |
+| `evaluation_run` | One execution of an evaluation |
 | `evaluation_case` | Individual test case with input/output/verdict |
 | `evaluation_metric_result` | Per-metric scorer result |
 | `evaluation_event` | SSE progress events emitted by the worker |
 | `evaluation_export_delivery` | OTel/MLflow/Langfuse export delivery tracking |
-
----
-
-## TODO (upcoming phases)
-
-- Phase 3 — Control Plane client (runtime resolution)
-- Phase 4 — ScorerPort + DeepEval adapter
-- Phase 5 — Worker execution (Temporal)
-- Phase 6 — Frontend pages
-- Phase 7 — OTel export
-- Schema rename: `public` → `evaluation` in PostgreSQL
-- OpenAPI generation + frontend generated client
