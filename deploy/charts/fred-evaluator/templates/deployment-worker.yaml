@@ -2,37 +2,30 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ .Release.Name }}-worker
+  namespace: {{ .Release.Namespace }}
   labels:
-    app: {{ .Release.Name }}-worker
+    {{- include "fred-evaluator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
 spec:
   replicas: {{ .Values.worker.replicas }}
   selector:
     matchLabels:
-      app: {{ .Release.Name }}-worker
+      {{- include "fred-evaluator.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: worker
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}-worker
+        {{- include "fred-evaluator.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: worker
+      annotations:
+        {{- include "fred-evaluator.podAnnotations" . | nindent 8 }}
     spec:
+      {{- include "fred-evaluator.podSpec" . | nindent 6 }}
       containers:
+        # The image entrypoint runs the Temporal worker; no Service, no port.
         - name: worker
-          image: "{{ .Values.worker.image.repository }}:{{ .Values.worker.image.tag }}"
+          image: {{ include "fred-evaluator.image" (dict "image" .Values.worker.image "root" $) | quote }}
           imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
-          env:
-            - name: CONFIG_FILE
-              value: {{ .Values.config.configFile }}
-            - name: CONTROL_PLANE_SERVICE_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.controlPlane.serviceTokenSecretName }}
-                  key: CONTROL_PLANE_SERVICE_TOKEN
-          volumeMounts:
-            - name: config
-              mountPath: /config
-              readOnly: true
+          {{- include "fred-evaluator.env" . | nindent 10 }}
           resources:
             {{- toYaml .Values.worker.resources | nindent 12 }}
-      volumes:
-        - name: config
-          configMap:
-            name: {{ .Release.Name }}-config

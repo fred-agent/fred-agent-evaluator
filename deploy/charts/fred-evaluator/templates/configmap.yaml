@@ -3,21 +3,9 @@ kind: ConfigMap
 metadata:
   name: {{ .Release.Name }}-config
   namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "fred-evaluator.labels" . | nindent 4 }}
 data:
+  empty.env: ""
   configuration.yaml: |
-    database:
-      host: {{ .Values.db.host }}
-      port: {{ .Values.db.port }}
-      name: {{ .Values.db.name }}
-      schema: {{ .Values.db.schema }}
-
-    security:
-      user:
-        enabled: true
-        realm_url: {{ .Values.keycloak.url }}/realms/{{ .Values.keycloak.realm }}
-        client_id: {{ .Values.keycloak.clientId }}
-
-    control_plane:
-      base_url: {{ .Values.controlPlane.baseUrl }}
-      runtime_base_url: {{ .Values.controlPlane.runtimeBaseUrl }}
-      service_token_env: CONTROL_PLANE_SERVICE_TOKEN
+    {{- toYaml .Values.configuration | nindent 4 }}

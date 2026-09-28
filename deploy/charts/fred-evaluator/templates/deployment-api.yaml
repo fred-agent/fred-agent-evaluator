@@ -1,35 +1,61 @@
+{{- $basePath := .Values.configuration.app.base_url | default "/evaluation/v1" -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ .Release.Name }}-api
+  namespace: {{ .Release.Namespace }}
   labels:
-    app: {{ .Release.Name }}-api
+    {{- include "fred-evaluator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
 spec:
   replicas: {{ .Values.api.replicas }}
   selector:
     matchLabels:
-      app: {{ .Release.Name }}-api
+      {{- include "fred-evaluator.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}-api
+        {{- include "fred-evaluator.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: api
+      annotations:
+        {{- include "fred-evaluator.podAnnotations" . | nindent 8 }}
     spec:
+      {{- include "fred-evaluator.podSpec" . | nindent 6 }}
+      # The API only serves a database whose schema exists. Creating it is the
+      # first thing a pod does; on an up-to-date database this is a no-op.
+      initContainers:
+        - name: schema
+          image: {{ include "fred-evaluator.image" (dict "image" .Values.api.image "root" $) | quote }}
+          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          command: ["alembic", "upgrade", "head"]
+          {{- include "fred-evaluator.env" . | nindent 10 }}
       containers:
         - name: api
-          image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
+          image: {{ include "fred-evaluator.image" (dict "image" .Values.api.image "root" $) | quote }}
           imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          args: ["--port", "{{ .Values.api.port }}", "--host", "0.0.0.0", "--log-level", "info", "--loop", "asyncio"]
+          {{- include "fred-evaluator.env" . | nindent 10 }}
           ports:
-            - containerPort: {{ .Values.api.port }}
-          env:
-            - name: CONFIG_FILE
-              value: {{ .Values.config.configFile }}
-          volumeMounts:
-            - name: config
-              mountPath: /config
-              readOnly: true
+            - name: http
+              containerPort: {{ .Values.api.port }}
+          startupProbe:
+            httpGet:
+              path: {{ printf "%s/healthz" $basePath }}
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
+          livenessProbe:
+            httpGet:
+              path: {{ printf "%s/healthz" $basePath }}
+              port: http
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: {{ printf "%s/ready" $basePath }}
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
           resources:
             {{- toYaml .Values.api.resources | nindent 12 }}
-      volumes:
-        - name: config
-          configMap:
-            name: {{ .Release.Name }}-config

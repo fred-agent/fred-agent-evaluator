@@ -1,7 +1,15 @@
+# fred-evaluator — API + Temporal worker of the Fred agent evaluation backend.
+#
+# The API is internal: Fred reaches it in-cluster, there is no Ingress. The
+# worker has no Service at all; it drains the Temporal task queue and talks to
+# the database directly.
+
+# Image tags default to the chart appVersion, which the release workflow sets to
+# the `v<version>` tag the image workflow published.
 api:
   image:
     repository: ghcr.io/fred-agent/fred-evaluation-api
-    tag: "v1.0.1"
+    tag: ""
     pullPolicy: IfNotPresent
   replicas: 1
   port: 8336
@@ -10,13 +18,12 @@ api:
       cpu: 100m
       memory: 256Mi
     limits:
-      cpu: 500m
       memory: 512Mi
 
 worker:
   image:
     repository: ghcr.io/fred-agent/fred-evaluation-worker
-    tag: "v1.0.1"
+    tag: ""
     pullPolicy: IfNotPresent
   replicas: 1
   resources:
@@ -24,32 +31,95 @@ worker:
       cpu: 200m
       memory: 512Mi
     limits:
-      cpu: 1000m
       memory: 1Gi
 
-db:
-  host: postgres
-  port: 5432
-  name: evaluation
-  schema: evaluation
-  secretName: fred-evaluator-db-secret  # must contain: POSTGRES_USER, POSTGRES_PASSWORD
+imagePullSecrets: []
 
-keycloak:
-  url: ""
-  realm: app
-  clientId: app
+# Secret values reach both processes as environment variables, through a
+# Secret mounted with envFrom. The keys the shipped configuration reads:
+#   FRED_POSTGRES_PASSWORD              database password (storage.postgres)
+#   KEYCLOAK_EVAL_WORKER_CLIENT_SECRET  worker's M2M client (security.m2m)
+#   MISTRAL_API_KEY                     judge and analysis models
+#   LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY   only with tracer: langfuse
+# Point `existingSecret` at a Secret you manage, or set `create: true` to have
+# the chart render `data` (convenient locally, not for real credentials).
+secret:
+  existingSecret: ""
+  create: false
+  data: {}
 
-controlPlane:
-  baseUrl: ""
-  runtimeBaseUrl: ""
-  serviceTokenSecretName: fred-evaluator-service-token  # must contain: CONTROL_PLANE_SERVICE_TOKEN
+# Rendered verbatim as configuration.yaml for both processes. Hosts below are
+# the service names of a default Fred install; override what differs.
+configuration:
+  app:
+    name: Fred Evaluation Backend
+    base_url: /evaluation/v1
+    address: 0.0.0.0
+    port: 8336
+    log_level: info
 
-config:
-  configFile: /config/configuration.yaml
+  storage:
+    postgres:
+      host: postgres
+      port: 5432
+      database: evaluation
+      username: evaluation
+      # password: FRED_POSTGRES_PASSWORD from the secret
 
-# Secrets injected as .env file (override in production with real values)
-dotenv:
-  CONTROL_PLANE_SERVICE_TOKEN: ""
-  POSTGRES_USER: evaluation
-  POSTGRES_PASSWORD: ""
-  MISTRAL_API_KEY: ""
+  security:
+    # The API validates the caller's token and propagates it to the Control
+    # Plane; it never uses the worker's identity.
+    user:
+      enabled: true
+      realm_url: http://keycloak/realms/app
+      client_id: app
+    # The worker's own `fred-evaluation-worker` service identity.
+    m2m:
+      enabled: true
+      realm_url: http://keycloak/realms/app
+      client_id: fred-evaluation-worker
+      secret_env_var: KEYCLOAK_EVAL_WORKER_CLIENT_SECRET # pragma: allowlist secret
+    authorized_origins: []
+
+  observability:
+    tracer: logging # null | logging | langfuse
+    kpi:
+      log:
+        enabled: true
+      prometheus:
+        enabled: false
+      opensearch:
+        enabled: false
+
+  control_plane:
+    base_url: http://control-plane-backend:8222/control-plane/v1
+    runtime_base_url: http://fred-agents
+
+  worker:
+    # Each replica runs this many cases at once; each case is a live agent turn
+    # plus judge calls, so raise it deliberately.
+    max_concurrent_cases: 1
+    poll_interval_seconds: 5
+    judge_profiles:
+      mistral-small:
+        provider: litellm
+        name: mistral/mistral-small-latest
+        settings:
+          api_key_env: MISTRAL_API_KEY # pragma: allowlist secret
+      mistral-medium:
+        provider: litellm
+        name: mistral/mistral-medium-latest
+        settings:
+          api_key_env: MISTRAL_API_KEY # pragma: allowlist secret
+
+  scheduler:
+    backend: temporal
+    temporal:
+      host: temporal:7233
+      task_queue: evaluation
+
+  analysis:
+    provider: litellm
+    name: mistral/mistral-small-latest
+    settings:
+      api_key_env: MISTRAL_API_KEY # pragma: allowlist secret
