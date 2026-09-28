@@ -21,10 +21,15 @@ COPY apps/fred-evaluation-backend/pyproject.toml apps/fred-evaluation-backend/uv
 COPY apps/fred-evaluation-backend/README.md ./
 COPY apps/fred-evaluation-backend/fred_evaluation_backend ./fred_evaluation_backend
 COPY scripts/makefiles /workspace/scripts/makefiles
-# fred-core / fred-sdk / fred-runtime come from PyPI; only fred-deepeval-cli is a
-# local editable path dependency (pulled in by the `scoring` extra).
+# fred-deepeval-cli is an in-repo editable path dependency (pulled in by the
+# `scoring` extra).
 COPY libs/fred-deepeval-cli /workspace/libs/fred-deepeval-cli
 
+# [tool.uv.sources] points fred-* at a sibling monorepo checkout that is not in
+# this build context. Take them from PyPI instead, bounded by the pyproject
+# floors: uv.lock records those local paths, so it is re-resolved here rather
+# than honoured. fred-deepeval-cli keeps its in-repo source.
+ENV UV_NO_SOURCES_PACKAGE="fred-core fred-sdk fred-runtime fred-pod"
 # dev-scoring installs dev + scoring + worker + otel extras (the worker needs
 # deepeval/litellm + temporalio + opentelemetry). `make dev` only installs --extra dev.
 RUN make dev-scoring VENV=/app/venv TARGET=/app/target

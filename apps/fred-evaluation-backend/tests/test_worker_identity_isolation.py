@@ -57,6 +57,13 @@ class _SpyM2MProvider(M2MTokenProvider):
         self.calls += 1
         return "worker-m2m-token"
 
+    async def get_token_lease(self):  # pyright: ignore[reportIncompatibleMethodOverride]
+        # fred-pod >= 4.2 authenticates through a lease rather than get_token();
+        # imported here because 4.1 has no TokenLease and never calls this.
+        from fred_pod.security.backend_to_backend_auth import TokenLease
+
+        return TokenLease(await self.get_token(), 0)
+
 
 def _patch_transport(monkeypatch: MonkeyPatch, handler: Handler) -> None:
     transport = httpx.MockTransport(handler)

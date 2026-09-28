@@ -21,12 +21,16 @@ COPY apps/fred-evaluation-backend/pyproject.toml apps/fred-evaluation-backend/uv
 COPY apps/fred-evaluation-backend/README.md ./
 COPY apps/fred-evaluation-backend/fred_evaluation_backend ./fred_evaluation_backend
 COPY scripts/makefiles /workspace/scripts/makefiles
-# fred-core/fred-sdk come from PyPI. fred-deepeval-cli is an editable path member
-# of uv.lock, so its source must be present for `uv sync` to resolve the lock —
-# even though the API (no `scoring` extra) never installs it. Copied in the
-# builder only; it is NOT carried into the final image.
+# fred-deepeval-cli is an in-repo path source, so its source must be present for
+# `uv sync` to resolve — even though the API (no `scoring` extra) never installs
+# it. Copied in the builder only; it is NOT carried into the final image.
 COPY libs/fred-deepeval-cli /workspace/libs/fred-deepeval-cli
 
+# [tool.uv.sources] points fred-* at a sibling monorepo checkout that is not in
+# this build context. Take them from PyPI instead, bounded by the pyproject
+# floors: uv.lock records those local paths, so it is re-resolved here rather
+# than honoured.
+ENV UV_NO_SOURCES_PACKAGE="fred-core fred-sdk fred-runtime fred-pod"
 RUN make dev VENV=/app/venv TARGET=/app/target
 
 # -----------------------------------------------------------------------------

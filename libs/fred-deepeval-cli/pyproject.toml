@@ -7,8 +7,8 @@ requires-python = ">=3.12,<3.13"
 license = { text = "Apache-2.0" }
 authors = []
 dependencies = [
-  "fred-sdk>=3.3.5",
-  "fred-runtime>=3.3.7",
+  "fred-sdk>=4.1.0",
+  "fred-runtime>=4.1.0",
 ]
 
 [project.optional-dependencies]
@@ -45,9 +45,14 @@ addopts = "-ra"
 testpaths = ["tests"]
 
 [tool.uv.sources]
-# Local path override for development against the monorepo's own fred-core /
-# fred-sdk / fred-runtime, sibling to this repo under ~/Fred. Keeps `uv run` /
-# `uv sync` from silently reverting to the PyPI versions. Comment out to force
-# PyPI resolution.
+# Local path override for development against the monorepo's own fred-sdk /
+# fred-runtime, sibling to this repo under ~/Fred. Keeps `uv run` / `uv sync`
+# from silently reverting to the PyPI versions. The evaluator's worker image
+# ignores these entries and resolves from PyPI, bounded by the floors above.
 fred-sdk = { path = "../../../fred/libs/fred-sdk", editable = true }
 fred-runtime = { path = "../../../fred/libs/fred-runtime", editable = true }
+
+[tool.uv]
+# Path-style editable installs (a .pth entry, not an import-hook finder) so
+# basedpyright resolves the sibling fred-* sources, as in the backend.
+config-settings = { editable_mode = "compat" }

@@ -13,8 +13,8 @@ dependencies = [
   "PyYAML==6.0.1",
   "python-dotenv>=1.0.1,<2.0.0",
   "pydantic>=2.10.0,<3.0.0",
-  "fred-core>=3.4.7",
-  "fred-sdk>=3.3.5",
+  "fred-core>=4.1.0",
+  "fred-sdk>=4.1.0",
   "alembic>=1.18.4",
   "greenlet>=3.4.0",
   "httpx>=0.27.0",
@@ -59,8 +59,9 @@ cache_dir = "/tmp/.pytest"
 [tool.uv.sources]
 # Local path override for development against the monorepo's own fred-core /
 # fred-sdk / fred-runtime, sibling to this repo under ~/Fred. Keeps `uv run` /
-# `uv sync` from silently reverting to the PyPI versions. Comment out to force
-# PyPI resolution.
+# `uv sync` from silently reverting to the PyPI versions. The Docker images
+# ignore the fred-* entries (UV_NO_SOURCES_PACKAGE) and resolve them from PyPI,
+# bounded by the floors above; fred-deepeval-cli stays local.
 fred-core = { path = "../../../fred/libs/fred-core", editable = true }
 fred-sdk = { path = "../../../fred/libs/fred-sdk", editable = true }
 fred-deepeval-cli = { path = "../../libs/fred-deepeval-cli", editable = true }

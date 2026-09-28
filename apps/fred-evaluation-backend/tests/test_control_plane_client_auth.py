@@ -51,6 +51,13 @@ class _SpyM2MProvider(M2MTokenProvider):
         self.calls += 1
         return self.token
 
+    async def get_token_lease(self):  # pyright: ignore[reportIncompatibleMethodOverride]
+        # fred-pod >= 4.2 authenticates through a lease rather than get_token();
+        # imported here because 4.1 has no TokenLease and never calls this.
+        from fred_pod.security.backend_to_backend_auth import TokenLease
+
+        return TokenLease(await self.get_token(), 0)
+
 
 def _managed_instance_response() -> dict[str, str]:
     return {"execute_url": "/agents/execute", "runtime_id": "rt-1", "team_id": "team-1"}
