@@ -16,11 +16,12 @@ from __future__ import annotations
 import dataclasses
 from collections.abc import Coroutine
 from types import SimpleNamespace
-from typing import Callable, cast
+from typing import Callable, cast, override
 
 import httpx
 import pytest
 from fred_core import M2MAuthConfig, M2MTokenProvider
+from fred_pod.security.backend_to_backend_auth import TokenLease
 from pytest import MonkeyPatch
 
 from fred_evaluation_backend.config.models import EvaluationConfig
@@ -57,11 +58,9 @@ class _SpyM2MProvider(M2MTokenProvider):
         self.calls += 1
         return "worker-m2m-token"
 
-    async def get_token_lease(self):  # pyright: ignore[reportIncompatibleMethodOverride]
-        # fred-pod >= 4.2 authenticates through a lease rather than get_token();
-        # imported here because 4.1 has no TokenLease and never calls this.
-        from fred_pod.security.backend_to_backend_auth import TokenLease
-
+    @override
+    async def get_token_lease(self) -> TokenLease:
+        # M2MBearerAuth authenticates through a lease, not get_token().
         return TokenLease(await self.get_token(), 0)
 
 
