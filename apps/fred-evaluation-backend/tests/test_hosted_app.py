@@ -34,6 +34,8 @@ from fred_evaluation_backend.evaluations.store import EvaluationStore
 from fred_evaluation_backend.execution.control_plane_client import (
     ControlPlaneClient,
     ControlPlaneInvalidResponseError,
+    TeamAgentInstance,
+    TeamModelProfile,
 )
 from fred_evaluation_backend.execution.evaluator_errors import (
     normalize_unstructured_auth_error,
@@ -66,6 +68,8 @@ class _FakeControlPlane:
         self.grants = grants if grants is not None else {"team-1": {"evaluation"}}
         self.failure = failure
         self.entitlement_auth: list[object] = []
+        self.choices_auth: list[object] = []
+        self.choices_failure: Exception | None = None
 
     async def list_team_application_ids(self, *, team_id: str, auth):
         self.entitlement_auth.append(auth)
@@ -75,6 +79,20 @@ class _FakeControlPlane:
 
     async def get_team(self, *, team_id: str, auth):
         return SimpleNamespace(team_id=team_id, is_member=True, name=team_id)
+
+    async def list_team_agent_instances(self, *, team_id: str, auth):
+        self.choices_auth.append(auth)
+        if self.choices_failure is not None:
+            raise self.choices_failure
+        return [
+            TeamAgentInstance(
+                agent_instance_id="i-1", display_name="Support", role="Answers"
+            )
+        ]
+
+    async def list_team_model_profiles(self, *, team_id: str, auth):
+        self.choices_auth.append(auth)
+        return [TeamModelProfile(profile_id="mistral-small", name="models.small")]
 
     async def prepare_managed_instance_execution(
         self, *, team_id, agent_instance_id, auth, agent_model_override=None
@@ -408,6 +426,93 @@ async def test_both_surfaces_refuse_to_analyze_a_run_still_in_progress():
         existing = await client.post(f"/runs/{run_id}/analyze")
     for response in (hosted, existing):
         assert response.status_code == 409, response.text
+
+
+@pytest.mark.asyncio
+async def test_the_choices_for_starting_a_run_come_from_the_control_plane():
+    engine, _, _ = await _stores()
+    cp = _FakeControlPlane()
+    async with _client(_app(engine, cp)) as client:
+        agents = await client.get("/teams/team-1/agent-instances")
+        models = await client.get("/teams/team-1/model-profiles")
+        metrics = await client.get("/teams/team-1/metrics")
+    assert agents.json() == [
+        {"agent_instance_id": "i-1", "display_name": "Support", "role": "Answers"}
+    ]
+    assert models.json() == [{"profile_id": "mistral-small", "name": "models.small"}]
+    by_id = {m["metric_id"]: m["requires_expected_output"] for m in metrics.json()}
+    assert by_id == {
+        "answer_relevancy": False,
+        "contextual_precision": True,
+        "contextual_recall": True,
+        "contextual_relevancy": False,
+        "faithfulness": False,
+    }
+    assert cp.choices_auth == [UserAuthentication(authorization_header=BEARER)] * 2
+
+
+@pytest.mark.asyncio
+async def test_a_control_plane_refusal_on_a_choice_is_passed_on():
+    engine, _, _ = await _stores()
+    cp = _FakeControlPlane()
+    cp.choices_failure = _status_error(403)
+    async with _client(_app(engine, cp)) as client:
+        response = await client.get("/teams/team-1/agent-instances")
+    assert response.status_code == 403
+    assert _code(response) == "target_forbidden"
+
+
+@pytest.mark.asyncio
+async def test_control_plane_client_reads_agent_instances_and_model_profiles(
+    monkeypatch,
+):
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.url.path.endswith("/agent-instances"):
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "agent_instance_id": "i-1",
+                        "team_id": "team-1",
+                        "template_id": "t",
+                        "display_name": "Support",
+                        "role": "Answers",
+                    }
+                ],
+            )
+        return httpx.Response(
+            200,
+            json={
+                "profiles": [
+                    {"profile_id": "p", "capability_id": "c", "name": "models.p"}
+                ]
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    real_async_client = httpx.AsyncClient
+    monkeypatch.setattr(
+        httpx, "AsyncClient", lambda **kw: real_async_client(transport=transport, **kw)
+    )
+    client = ControlPlaneClient(base_url="http://cp.test/control-plane/v1")
+    auth = UserAuthentication(authorization_header=BEARER)
+    agents = await client.list_team_agent_instances(team_id="team 1", auth=auth)
+    models = await client.list_team_model_profiles(team_id="team 1", auth=auth)
+
+    assert agents == [
+        TeamAgentInstance(
+            agent_instance_id="i-1", display_name="Support", role="Answers"
+        )
+    ]
+    assert models == [TeamModelProfile(profile_id="p", name="models.p")]
+    assert [r.url.raw_path for r in seen] == [
+        b"/control-plane/v1/teams/team%201/agent-instances",
+        b"/control-plane/v1/teams/team%201/routing-policy/available-models",
+    ]
+    assert all(r.headers["authorization"] == BEARER for r in seen)
 
 
 @pytest.mark.asyncio

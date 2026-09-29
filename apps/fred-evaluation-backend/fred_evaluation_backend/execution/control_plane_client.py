@@ -68,6 +68,25 @@ class TeamMembership(BaseModel):
     name: str | None = None
 
 
+class TeamAgentInstance(BaseModel):
+    """One managed agent instance a team can evaluate (Control Plane projection)."""
+
+    agent_instance_id: str
+    display_name: str
+    role: str | None = None
+
+
+class TeamModelProfile(BaseModel):
+    """One chat model profile the team is `can_use`-enabled for.
+
+    `name` is an i18n key of Fred's own frontend, which this application cannot
+    translate; `profile_id` is what a run's `agent_model_override` names.
+    """
+
+    profile_id: str
+    name: str
+
+
 class ControlPlaneClient:
     """Control Plane HTTP client.
 
@@ -292,4 +311,61 @@ class ControlPlaneClient:
             except (KeyError, TypeError, ValueError, AttributeError) as exc:
                 raise ControlPlaneInvalidResponseError(
                     f"Malformed list_team_applications response: {type(exc).__name__}"
+                ) from exc
+
+    async def list_team_agent_instances(
+        self,
+        *,
+        team_id: str,
+        auth: OutboundAuth,
+    ) -> list[TeamAgentInstance]:
+        """The team's managed agent instances, as the caller sees them."""
+        url = f"{self._base_url}/teams/{quote(team_id, safe='')}/agent-instances"
+        headers, http_auth = self._build_request(auth)
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await self._get(
+                client, url, headers=headers, http_auth=http_auth
+            )
+            response.raise_for_status()
+            try:
+                return [
+                    TeamAgentInstance(
+                        agent_instance_id=str(item["agent_instance_id"]),
+                        display_name=str(item["display_name"]),
+                        role=str(item["role"]) if item.get("role") else None,
+                    )
+                    for item in response.json()
+                ]
+            except (KeyError, TypeError, ValueError, AttributeError) as exc:
+                raise ControlPlaneInvalidResponseError(
+                    f"Malformed list_team_agent_instances response: {type(exc).__name__}"
+                ) from exc
+
+    async def list_team_model_profiles(
+        self,
+        *,
+        team_id: str,
+        auth: OutboundAuth,
+    ) -> list[TeamModelProfile]:
+        """Chat model profiles the team may use, e.g. for `agent_model_override`."""
+        url = (
+            f"{self._base_url}/teams/{quote(team_id, safe='')}"
+            "/routing-policy/available-models"
+        )
+        headers, http_auth = self._build_request(auth)
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await self._get(
+                client, url, headers=headers, http_auth=http_auth
+            )
+            response.raise_for_status()
+            try:
+                return [
+                    TeamModelProfile(
+                        profile_id=str(item["profile_id"]), name=str(item["name"])
+                    )
+                    for item in response.json()["profiles"]
+                ]
+            except (KeyError, TypeError, ValueError, AttributeError) as exc:
+                raise ControlPlaneInvalidResponseError(
+                    f"Malformed list_team_model_profiles response: {type(exc).__name__}"
                 ) from exc

@@ -12,6 +12,10 @@ Two gates apply on every route, and neither implies the other:
   Without it, being entitled in one team would open every other team's runs by
   id; a resource of another team answers 404, exactly like a missing one.
 
+The choice routes (agent instances, model profiles, metrics) read what the
+UI offers when starting a run; the frame cannot call the Control Plane itself,
+so this service does, with the caller's own token.
+
 The routes are thin: the team comes from the path, never from the body
 (`EvaluationDocument`, `RunSpec`), and everything else is the same service code
 the existing surface runs. No SSE here — the host's request bridge buffers
@@ -20,10 +24,12 @@ responses, so the UI polls `GET /runs/{run_id}` instead.
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from collections.abc import Awaitable
+from typing import Annotated, Any, TypeVar
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from fred_core import KeycloakUser, get_current_user
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from fred_evaluation_backend.evaluations import service as evaluation_service
@@ -34,19 +40,29 @@ from fred_evaluation_backend.evaluations.schemas import (
     EvaluationListResponse,
 )
 from fred_evaluation_backend.evaluations.store import EvaluationStore
-from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
+from fred_evaluation_backend.execution.control_plane_client import (
+    ControlPlaneClient,
+    TeamAgentInstance,
+    TeamModelProfile,
+)
 from fred_evaluation_backend.execution.evaluator_errors import (
     EvaluatorErrorResponse,
     evaluation_not_found_error,
+    map_control_plane_error,
     run_not_found_error,
 )
 from fred_evaluation_backend.execution.outbound_auth import OutboundAuth
 from fred_evaluation_backend.hosted.entitlement import (
+    CONTROL_PLANE_FAILURES,
     get_control_plane_client,
     require_entitled,
 )
 from fred_evaluation_backend.runs import service as run_service
 from fred_evaluation_backend.runs.api import launch_run, write_run_analysis
+from fred_evaluation_backend.runs.metrics_catalog import (
+    BUILTIN_METRIC_IDS,
+    EXPECTED_OUTPUT_METRIC_IDS,
+)
 from fred_evaluation_backend.runs.schemas import (
     EvaluationCaseListResponse,
     EvaluationCaseResponse,
@@ -98,6 +114,28 @@ async def _require_team_run(run_id: str, team_id: str, store: RunStore) -> None:
     row = await store.get_run(run_id)
     if row is None or row.team_id != team_id:
         raise run_not_found_error()
+
+
+class MetricChoice(BaseModel):
+    """A built-in metric a run can be scored against."""
+
+    metric_id: str
+    # Scored against `expected_output`: skipped on cases without one.
+    requires_expected_output: bool
+
+
+_T = TypeVar("_T")
+
+
+async def _from_control_plane(
+    call: Awaitable[_T], *, operation: str, team_id: str
+) -> _T:
+    try:
+        return await call
+    except CONTROL_PLANE_FAILURES as exc:
+        raise map_control_plane_error(
+            exc, operation=operation, team_id=team_id, target=f"team={team_id}"
+        ) from exc
 
 
 def build_hosted_router() -> APIRouter:
@@ -331,5 +369,39 @@ def build_hosted_router() -> APIRouter:
     ) -> RunAnalysisResponse:
         await _require_team_run(run_id, team_id, store)
         return await write_run_analysis(request, run_id, store=store)
+
+    @router.get(
+        "/agent-instances", response_model=list[TeamAgentInstance], responses=_GATED
+    )
+    async def list_agent_instances(
+        team_id: str, auth: Entitled, cp_client: ControlPlane
+    ) -> list[TeamAgentInstance]:
+        return await _from_control_plane(
+            cp_client.list_team_agent_instances(team_id=team_id, auth=auth),
+            operation="list_team_agent_instances",
+            team_id=team_id,
+        )
+
+    @router.get(
+        "/model-profiles", response_model=list[TeamModelProfile], responses=_GATED
+    )
+    async def list_model_profiles(
+        team_id: str, auth: Entitled, cp_client: ControlPlane
+    ) -> list[TeamModelProfile]:
+        return await _from_control_plane(
+            cp_client.list_team_model_profiles(team_id=team_id, auth=auth),
+            operation="list_team_model_profiles",
+            team_id=team_id,
+        )
+
+    @router.get("/metrics", response_model=list[MetricChoice], responses=_GATED)
+    async def list_metrics(team_id: str, auth: Entitled) -> list[MetricChoice]:
+        return [
+            MetricChoice(
+                metric_id=metric_id,
+                requires_expected_output=metric_id in EXPECTED_OUTPUT_METRIC_IDS,
+            )
+            for metric_id in sorted(BUILTIN_METRIC_IDS)
+        ]
 
     return router

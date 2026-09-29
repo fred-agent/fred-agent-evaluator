@@ -146,6 +146,9 @@ reçoit donc `/teams/{team_id}/...` **sans** `/evaluation/v1` : ces routes
 | GET, DELETE | `/teams/{team_id}/runs/{run_id}` | `/runs/{run_id}` |
 | GET | `/teams/{team_id}/runs/{run_id}/cases`, `…/cases/{case_id}`, `…/report` | idem |
 | POST | `/teams/{team_id}/runs/{run_id}/cancel`, `…/analyze` | idem |
+| GET | `/teams/{team_id}/agent-instances` | — (agents de l'équipe, lus au Control Plane avec le jeton de l'appelant) |
+| GET | `/teams/{team_id}/model-profiles` | — (modèles `can_use` de l'équipe, pour `agent_model_override`) |
+| GET | `/teams/{team_id}/metrics` | — (métriques intégrées ; `requires_expected_output`) |
 
 Règles :
 

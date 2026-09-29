@@ -35,7 +35,9 @@ logger = logging.getLogger(__name__)
 
 APP_ID = "evaluation"
 
-_BOUNDARY_FAILURES = (
+# The Control Plane boundary failures a hosted route reclassifies (403 target_forbidden,
+# 503 control_plane_unavailable, 502 control_plane_invalid_response, ...).
+CONTROL_PLANE_FAILURES = (
     httpx.HTTPStatusError,
     httpx.TimeoutException,
     httpx.TransportError,
@@ -74,7 +76,7 @@ async def require_entitled(
     )
     try:
         granted = await cp_client.list_team_application_ids(team_id=team_id, auth=auth)
-    except _BOUNDARY_FAILURES as exc:
+    except CONTROL_PLANE_FAILURES as exc:
         raise map_control_plane_error(
             exc,
             operation="require_entitled",

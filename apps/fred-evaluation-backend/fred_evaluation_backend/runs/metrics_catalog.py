@@ -17,3 +17,9 @@ BUILTIN_METRIC_IDS: frozenset[str] = frozenset(
         "contextual_recall",
     }
 )
+
+# Scored against `expected_output`: on a case without one they are reported
+# `skipped`, so they only make sense on a `complete` evaluation.
+EXPECTED_OUTPUT_METRIC_IDS: frozenset[str] = frozenset(
+    {"contextual_precision", "contextual_recall"}
+)
