@@ -140,6 +140,7 @@ reçoit donc `/teams/{team_id}/...` **sans** `/evaluation/v1` : ces routes
 | Méthode | Route | Équivalent `/evaluation/v1` |
 |---|---|---|
 | GET, POST | `/teams/{team_id}/evaluations` | `/evaluations` (`team_id` en query / body) |
+| GET | `/teams/{team_id}/evaluations/{id}` | — (détail avec les cas ; propre à la surface de l'application) |
 | DELETE | `/teams/{team_id}/evaluations/{id}` | `/evaluations/{id}` |
 | GET, POST | `/teams/{team_id}/evaluations/{id}/runs` | `/evaluations/{id}/runs` |
 | GET | `/teams/{team_id}/evaluations/{id}/runs/summary` | idem |

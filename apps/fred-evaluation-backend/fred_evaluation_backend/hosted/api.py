@@ -190,6 +190,17 @@ def build_hosted_router() -> APIRouter:
             auth=auth,
         )
 
+    @router.get(
+        "/evaluations/{evaluation_id}",
+        response_model=EvaluationDetailResponse,
+        responses=_GATED,
+    )
+    async def get_evaluation(
+        team_id: str, evaluation_id: str, auth: Entitled, store: Evaluations
+    ) -> EvaluationDetailResponse:
+        await _require_team_evaluation(evaluation_id, team_id, store)
+        return await evaluation_service.get_evaluation(evaluation_id, store=store)
+
     @router.delete(
         "/evaluations/{evaluation_id}",
         status_code=204,

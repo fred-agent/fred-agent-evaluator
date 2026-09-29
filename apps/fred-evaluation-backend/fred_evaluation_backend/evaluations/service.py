@@ -10,6 +10,7 @@ from fastapi import HTTPException
 
 from fred_evaluation_backend.evaluations.schemas import (
     CreateEvaluationRequest,
+    EvaluationCase,
     Evaluation,
     EvaluationDetailResponse,
     EvaluationListResponse,
@@ -17,6 +18,9 @@ from fred_evaluation_backend.evaluations.schemas import (
 )
 from fred_evaluation_backend.evaluations.store import EvaluationStore
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
+from fred_evaluation_backend.execution.evaluator_errors import (
+    evaluation_not_found_error,
+)
 from fred_evaluation_backend.execution.outbound_auth import OutboundAuth
 from fred_evaluation_backend.execution.team_resolver import resolve_team_membership
 
@@ -138,6 +142,20 @@ async def list_evaluations(
     total = await store.count_evaluations_by_team(team_id, q=q)
     evaluations = [_row_to_summary(row) for row in rows]
     return EvaluationListResponse(evaluations=evaluations, total=total)
+
+
+async def get_evaluation(
+    evaluation_id: str, *, store: EvaluationStore
+) -> EvaluationDetailResponse:
+    """One evaluation with its cases. Team scoping is the caller's."""
+    row = await store.get_evaluation(evaluation_id)
+    if row is None:
+        raise evaluation_not_found_error()
+    cases = [
+        EvaluationCase.model_validate(case)
+        for case in json.loads(row.cases_json or "[]")
+    ]
+    return EvaluationDetailResponse(**_row_to_summary(row).model_dump(), cases=cases)
 
 
 def _row_to_summary(row) -> EvaluationSummaryResponse:

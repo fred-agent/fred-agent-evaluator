@@ -215,6 +215,7 @@ async def test_an_entitled_team_works_its_evaluations_end_to_end():
         assert started.status_code == 202, started.text
         run_id = started.json()["run_id"]
 
+        detail = await client.get(f"/teams/team-1/evaluations/{evaluation_id}")
         run = await client.get(f"/teams/team-1/runs/{run_id}")
         runs = await client.get(f"/teams/team-1/evaluations/{evaluation_id}/runs")
         summary = await client.get(
@@ -223,6 +224,16 @@ async def test_an_entitled_team_works_its_evaluations_end_to_end():
         cases = await client.get(f"/teams/team-1/runs/{run_id}/cases")
         report = await client.get(f"/teams/team-1/runs/{run_id}/report")
 
+    assert detail.json()["cases"] == [
+        {
+            "external_id": None,
+            "input": "q1",
+            "expected_output": "a1",
+            "tags": [],
+            "source_candidate_id": None,
+            "source_session_id": None,
+        }
+    ]
     assert run.status_code == 200 and run.json()["run_id"] == run_id
     assert [r["run_id"] for r in runs.json()["runs"]] == [run_id]
     assert summary.status_code == 200
@@ -397,7 +408,7 @@ async def test_no_hosted_route_reaches_another_teams_resource():
                 checked.append(f"{method} {route.path}")
                 assert response.status_code == 404, (method, route.path, response.text)
                 assert _code(response) in ("run_not_found", "evaluation_not_found")
-    assert len(checked) == 11
+    assert len(checked) == 12
     after = await run_store.get_run(run_id)
     assert after is not None and before is not None
     assert after.operational_state == before.operational_state
