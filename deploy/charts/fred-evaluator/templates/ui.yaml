@@ -1,0 +1,101 @@
+{{- $hostOrigin := required "ui.hostOrigin is required: the exact origin users open Fred at, e.g. https://fred.example.com" .Values.ui.hostOrigin }}
+{{- if or (not (regexMatch "^https?://[^/?#@]+$" $hostOrigin)) (hasSuffix "/" $hostOrigin) }}
+{{- fail (printf "ui.hostOrigin must be an origin (scheme://host[:port], no path), got %q" $hostOrigin) }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-ui-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "fred-evaluator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ui
+data:
+  config.json: |
+    {{- dict "hostOrigin" $hostOrigin | toJson | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-ui
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "fred-evaluator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ui
+spec:
+  replicas: {{ .Values.ui.replicas }}
+  selector:
+    matchLabels:
+      {{- include "fred-evaluator.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: ui
+  template:
+    metadata:
+      labels:
+        {{- include "fred-evaluator.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: ui
+      annotations:
+        checksum/ui-config: {{ $hostOrigin | sha256sum }}
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      securityContext:
+        runAsUser: 101
+        runAsGroup: 101
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: ui
+          image: {{ include "fred-evaluator.image" (dict "image" .Values.ui.image "root" $) | quote }}
+          imagePullPolicy: {{ .Values.ui.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: config
+              mountPath: /usr/share/nginx/html/apps/evaluation/config.json
+              subPath: config.json
+              readOnly: true
+          resources:
+            {{- toYaml .Values.ui.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ .Release.Name }}-ui-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-ui
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "fred-evaluator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ui
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ .Values.ui.port }}
+      targetPort: http
+  selector:
+    {{- include "fred-evaluator.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: ui

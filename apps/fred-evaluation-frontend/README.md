@@ -28,6 +28,14 @@ It is a standalone React app. It talks to Fred only through the published
 - **Tables**: `@fred-oss/ui` has no table yet; the list uses a plain `<table>`
   styled with design tokens, pending a shared component.
 
+## Deploy on Kubernetes
+
+The `fred-evaluator` chart deploys this UI with the API and the worker, and
+`helm install` prints the exact Fred registration: see
+`docs/DEPLOYMENT_GUIDE.md` (deploy, register, enable — the same for every Fred
+application). The image is `make docker-build`; its `config.json` is mounted
+at run time.
+
 ## Run it inside Fred, locally
 
 Prerequisites: the backend API (`make run-prod`, :8336), Fred's Control Plane
@@ -69,8 +77,9 @@ Register the application on the Fred side (configuration, no code):
      enabled: true
    ```
 
-3. Grant the application to a collaborative team through Fred's
-   administration; personal spaces get no applications.
+3. Enable it: Admin > Features, filter "app", enable `evaluation` for a
+   collaborative team (this writes the `app:evaluation` grant). Personal
+   spaces get no applications.
 
 Restart the Fred frontend and the Control Plane to reload both halves. The
 `app_id` must match exactly in both places; nothing cross-checks them.

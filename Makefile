@@ -44,9 +44,10 @@ clean: ## Clean all submodules
 ##@ Docker
 
 .PHONY: docker-build
-docker-build: ## Build all Docker images (api + worker)
+docker-build: ## Build all Docker images (api + worker + ui)
 	$(MAKE) -C apps/fred-evaluation-backend docker-build-api
 	$(MAKE) -C apps/fred-evaluation-backend docker-build-worker
+	$(MAKE) -C apps/fred-evaluation-frontend docker-build
 
 ##@ Help
 

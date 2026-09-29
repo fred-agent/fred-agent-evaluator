@@ -28,6 +28,11 @@ jobs:
             context: .
             dockerfile: ./apps/fred-evaluation-backend/dockerfiles/Dockerfile-worker
             image: fred-evaluation-worker
+          # The application's UI; its own directory is the build context.
+          - name: fred-evaluation-ui
+            context: ./apps/fred-evaluation-frontend
+            dockerfile: ./apps/fred-evaluation-frontend/Dockerfile
+            image: fred-evaluation-ui
 
     steps:
       - name: Check out the repo

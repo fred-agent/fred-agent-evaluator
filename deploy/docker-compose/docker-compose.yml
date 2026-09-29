@@ -1,8 +1,8 @@
-# The evaluator's API and worker as containers, against the infrastructure
+# The evaluator's API, worker and UI as containers, against the infrastructure
 # fred-deployment-factory already runs (PostgreSQL with its `evaluation`
 # database, Keycloak, Temporal) and a Control Plane started on the host.
 #
-# Both containers share the host network, so they read the same
+# The API and worker share the host network, so they read the same
 # config/configuration_prod.yaml and config/.env as `make run-prod` /
 # `make run-worker-prod`: this is that setup, from the images. Linux only
 # (network_mode: host).
@@ -44,3 +44,15 @@ services:
     depends_on:
       schema:
         condition: service_completed_successfully
+
+  # The application's UI, which Fred's frontend (:5173) shows at
+  # /apps/evaluation/ once registered with ui_upstream http://127.0.0.1:5181.
+  # Bridge network: nginx listens on 8080, which Keycloak holds on the host.
+  ui:
+    build:
+      context: ../../apps/fred-evaluation-frontend
+    image: fred-evaluation-ui:local
+    ports:
+      - "127.0.0.1:5181:8080"
+    volumes:
+      - ../../apps/fred-evaluation-frontend/config.example.json:/usr/share/nginx/html/apps/evaluation/config.json:ro

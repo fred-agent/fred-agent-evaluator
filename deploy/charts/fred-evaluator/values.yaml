@@ -1,8 +1,10 @@
-# fred-evaluator — API + Temporal worker of the Fred agent evaluation backend.
+# fred-evaluator — the `evaluation` Fred application: its UI, its API and the
+# Temporal worker that runs evaluations.
 #
-# The API is internal: Fred reaches it in-cluster, there is no Ingress. The
-# worker has no Service at all; it drains the Temporal task queue and talks to
-# the database directly.
+# Nothing here is exposed: Fred reaches the UI and the API in-cluster, through
+# its application gateway, so there is no Ingress. The worker has no Service at
+# all; it drains the Temporal task queue and talks to the database directly.
+# Deploy in any namespace; `helm install` prints the Fred-side registration.
 
 # Image tags default to the chart appVersion, which the release workflow sets to
 # the `v<version>` tag the image workflow published.
@@ -19,6 +21,26 @@ api:
       memory: 256Mi
     limits:
       memory: 512Mi
+
+# The application's UI, a static bundle Fred shows in an iframe at
+# /apps/evaluation/.
+ui:
+  image:
+    repository: ghcr.io/fred-agent/fred-evaluation-ui
+    tag: ""
+    pullPolicy: IfNotPresent
+  replicas: 1
+  port: 8080
+  # Required: the exact origin users open Fred at (scheme, host, non-default
+  # port, no path), e.g. https://fred.example.com. The UI ignores messages from
+  # any other origin.
+  hostOrigin: ""
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 64Mi
 
 worker:
   image:

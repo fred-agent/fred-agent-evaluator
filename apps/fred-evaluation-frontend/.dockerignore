@@ -1,0 +1,6 @@
+node_modules
+dist
+coverage
+public
+config.example.json
+README.md

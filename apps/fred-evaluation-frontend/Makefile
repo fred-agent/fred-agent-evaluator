@@ -4,7 +4,14 @@ PORT ?= 5181
 OPENAPI := ../fred-evaluation-backend/openapi.json
 API_TYPES := src/shared/api/openapi.d.ts
 
-.PHONY: dev run build code-quality code-quality-fix check-api generate-api test clean help
+.PHONY: dev run build code-quality code-quality-fix check-api generate-api test clean help docker-build docker-run
+
+REGISTRY_URL ?= ghcr.io
+REGISTRY_NAMESPACE ?= fred-agent
+IMAGE_NAME ?= fred-evaluation-ui
+IMAGE_TAG ?= local
+IMAGE_FULL ?= $(REGISTRY_URL)/$(REGISTRY_NAMESPACE)/$(IMAGE_NAME):$(IMAGE_TAG)
+CONFIG_FILE ?= config.example.json
 
 node_modules: package.json package-lock.json
 	npm ci --no-audit --no-fund
@@ -45,6 +52,14 @@ code-quality-fix: node_modules ## Format and apply lint fixes
 
 test: node_modules ## Run the unit tests
 	npm test
+
+docker-build: ## Build the UI image (IMAGE_FULL)
+	docker build -t $(IMAGE_FULL) .
+
+docker-run: ## Serve the UI image on PORT with CONFIG_FILE as its config.json
+	docker run --rm --name fred-evaluation-ui -p 127.0.0.1:$(PORT):8080 \
+		-v "$(abspath $(CONFIG_FILE)):/usr/share/nginx/html/apps/evaluation/config.json:ro" \
+		$(IMAGE_FULL)
 
 clean: ## Remove build output
 	rm -rf dist coverage
