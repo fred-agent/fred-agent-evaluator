@@ -16,6 +16,7 @@ from typing import Annotated
 import httpx
 from fastapi import Depends, Request
 from fred_core import KeycloakUser, get_config, get_current_user
+from fred_core.common.team_id import PERSONAL_TEAM_ALIAS
 
 from fred_evaluation_backend.execution.control_plane_client import (
     ControlPlaneClient,
@@ -60,6 +61,13 @@ async def require_entitled(
     listed. An unreachable or incoherent Control Plane is a refusal too, never
     an admission. Returns the caller's outbound identity for the route to reuse.
     """
+    # The Control Plane resolves `personal` to the caller's own `personal-<uid>`
+    # before authorizing, but rows here are keyed by the path value as given:
+    # admitting the alias would file every user's personal evaluations under
+    # the same shared "personal" key. The host always names a real team.
+    if team_id == PERSONAL_TEAM_ALIAS:
+        raise application_not_granted_error()
+
     configuration = request.app.dependency_overrides.get(get_config, get_config)()
     auth = resolve_interactive_auth(
         request, user_security_enabled=configuration.security.user.enabled

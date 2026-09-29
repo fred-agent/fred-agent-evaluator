@@ -24,6 +24,8 @@ from typing import cast
 import httpx
 import pytest
 from fastapi import FastAPI, HTTPException
+from fastapi.dependencies.models import Dependant
+from fastapi.routing import APIRoute
 from fred_core import KeycloakUser, get_config, get_current_user
 from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -41,6 +43,7 @@ from fred_evaluation_backend.execution.outbound_auth import (
     UserAuthentication,
 )
 from fred_evaluation_backend.hosted.api import build_hosted_router
+from fred_evaluation_backend.hosted.entitlement import require_entitled
 from fred_evaluation_backend.runs import models as _run_models  # noqa: F401
 from fred_evaluation_backend.runs import service
 from fred_evaluation_backend.runs.api import build_evaluations_router
@@ -328,6 +331,74 @@ async def test_another_teams_evaluation_is_not_found_and_left_untouched():
     ] == [run_id]
 
 
+def _hosted_routes() -> list[APIRoute]:
+    return [r for r in build_hosted_router().routes if isinstance(r, APIRoute)]
+
+
+def _depends_on(dependant: Dependant, call: object) -> bool:
+    return any(d.call is call or _depends_on(d, call) for d in dependant.dependencies)
+
+
+def test_every_hosted_route_is_gated_by_entitlement():
+    """A route added later without the gate fails here, not in production."""
+    routes = _hosted_routes()
+    assert routes
+    ungated = [r.path for r in routes if not _depends_on(r.dependant, require_entitled)]
+    assert ungated == []
+
+
+_RUN_SPEC = {
+    "target": {"kind": "managed_instance", "agent_instance_id": "i-1"},
+    "metrics": ["answer_relevancy"],
+}
+
+
+@pytest.mark.asyncio
+async def test_no_hosted_route_reaches_another_teams_resource():
+    """Every route naming an evaluation or a run, current and future, answers 404
+    for another team's resource and leaves it as it was."""
+    engine, evaluation_store, run_store = await _stores()
+    evaluation_id, run_id = await _seed(evaluation_store, run_store, "team-2")
+    before = await run_store.get_run(run_id)
+    checked: list[str] = []
+    async with _client(_app(engine, _FakeControlPlane())) as client:
+        for route in _hosted_routes():
+            if "{run_id}" not in route.path and "{evaluation_id}" not in route.path:
+                continue
+            path = route.path.format(
+                team_id="team-1",
+                evaluation_id=evaluation_id,
+                run_id=run_id,
+                case_id="any",
+            )
+            for method in sorted(route.methods or ()):
+                body = (
+                    _RUN_SPEC if path.endswith("/runs") and method == "POST" else None
+                )
+                response = await client.request(method, path, json=body)
+                checked.append(f"{method} {route.path}")
+                assert response.status_code == 404, (method, route.path, response.text)
+                assert _code(response) in ("run_not_found", "evaluation_not_found")
+    assert len(checked) == 11
+    after = await run_store.get_run(run_id)
+    assert after is not None and before is not None
+    assert after.operational_state == before.operational_state
+    assert await evaluation_store.get_evaluation(evaluation_id) is not None
+
+
+@pytest.mark.asyncio
+async def test_the_personal_alias_is_refused_before_asking_the_control_plane():
+    """`personal` means a different team for every caller at the Control Plane,
+    but one shared key here; it must never be admitted."""
+    engine, _, _ = await _stores()
+    cp = _FakeControlPlane(grants={"personal": {"evaluation"}})
+    async with _client(_app(engine, cp)) as client:
+        response = await client.get("/teams/personal/evaluations")
+    assert response.status_code == 403
+    assert _code(response) == "application_not_granted"
+    assert cp.entitlement_auth == []
+
+
 @pytest.mark.asyncio
 async def test_both_surfaces_refuse_to_analyze_a_run_still_in_progress():
     engine, evaluation_store, run_store = await _stores()
@@ -368,6 +439,13 @@ async def test_control_plane_client_lists_the_teams_application_ids(monkeypatch)
         str(seen[0].url) == "http://cp.test/control-plane/v1/teams/team-1/applications"
     )
     assert seen[0].headers["authorization"] == BEARER
+
+    _ = await client.list_team_application_ids(
+        team_id="a/../b?x#y", auth=NoAuthentication()
+    )
+    assert seen[1].url.raw_path == (
+        b"/control-plane/v1/teams/a%2F..%2Fb%3Fx%23y/applications"
+    )
 
 
 @pytest.mark.asyncio

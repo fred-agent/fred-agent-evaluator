@@ -151,6 +151,12 @@ Règles :
   (`control_plane_invalid_response`).
 - **Appartenance** : une evaluation ou un run d'une autre équipe répond 404,
   comme une ressource absente, et n'est jamais modifié.
+- **Pas d'alias `personal`** : le Control Plane le résout en `personal-<uid>`,
+  différent pour chaque appelant, alors que les lignes sont rangées sous la
+  valeur du chemin ; il est refusé (`application_not_granted`) avant tout appel.
+- Ces règles sont vérifiées structurellement par `tests/test_hosted_app.py` :
+  toute route ajoutée sans le contrôle d'accès, ou qui atteindrait la
+  ressource d'une autre équipe, fait échouer la suite.
 - **Pas de SSE** : le pont de requêtes de l'hôte ne transmet que des réponses
   complètes ; l'UI interroge `GET /teams/{team_id}/runs/{run_id}`.
 

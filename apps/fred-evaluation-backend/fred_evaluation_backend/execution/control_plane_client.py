@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from urllib.parse import quote
 
 import httpx
 from fred_core import M2MBearerAuth, M2MTokenProvider
@@ -277,7 +278,9 @@ class ControlPlaneClient:
         Plane refuses a non-member (403) and lists only applications granted to
         the team.
         """
-        url = f"{self._base_url}/teams/{team_id}/applications"
+        # Encoded: the id comes from a request path, and must name one team
+        # segment, never reshape the Control Plane URL.
+        url = f"{self._base_url}/teams/{quote(team_id, safe='')}/applications"
         headers, http_auth = self._build_request(auth)
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await self._get(
