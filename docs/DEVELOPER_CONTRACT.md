@@ -107,6 +107,15 @@ ligne à la création d'un run — les cas viennent toujours de l'evaluation.
 | GET | `/telemetry` | 200 | Config Langfuse (activé/désactivé) |
 | GET | `/telemetry/session/{run_id}` | 200 | Lien de session Langfuse si disponible |
 
+**Autorisation par équipe.** Les identifiants de run, de tâche et d'evaluation
+sont globaux : toute route qui en nomme un charge d'abord la ressource, puis
+demande au Control Plane (`GET /teams/{team_id}`, jeton de l'appelant) si
+l'appelant appartient à l'équipe **de la ressource** — jamais à une équipe
+qu'il désigne lui-même (`runs/access.py`). Non-membre : 403 `target_forbidden`,
+ressource intacte. `GET /tasks?scope=team&team_id=…` vérifie de même
+l'équipe demandée ; `scope=user` ne renvoie que les runs de l'appelant.
+`tests/test_run_access.py` parcourt toutes ces routes automatiquement.
+
 Le suivi de tâche asynchrone est exposé séparément : `GET /tasks`,
 `GET /tasks/{id}`, `GET /tasks/{id}/latest`, `GET /tasks/{id}/events` (SSE) et
 `POST /tasks/{id}/cancel`.

@@ -26,6 +26,7 @@ from fred_evaluation_backend.execution.outbound_auth import (
     resolve_interactive_auth,
 )
 from fred_evaluation_backend.runs import service
+from fred_evaluation_backend.runs.access import authorize_evaluation, authorize_run
 from fred_evaluation_backend.runs.schemas import (
     EvaluationCaseListResponse,
     EvaluationCaseResponse,
@@ -295,8 +296,13 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     )
     async def list_runs(
         evaluation_id: str,
+        request: Request,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[RunStore, Depends(_get_run_store)],
+        evaluation_store: Annotated[
+            EvaluationStore, Depends(_get_evaluation_catalog_store)
+        ],
+        cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
         offset: int = Query(default=0, ge=0),
         limit: int = Query(default=50, ge=1, le=200),
         sort: str | None = Query(
@@ -304,6 +310,12 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
             description="Sort as 'field:direction' (created_at, verdict, operational_state), e.g. 'created_at:desc'.",
         ),
     ) -> EvaluationRunListResponse:
+        _ = await authorize_evaluation(
+            request,
+            evaluation_id,
+            evaluation_store=evaluation_store,
+            cp_client=cp_client,
+        )
         return await service.list_runs(
             evaluation_id, offset=offset, limit=limit, sort=sort, store=store
         )
@@ -314,27 +326,44 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     )
     async def get_runs_summary(
         evaluation_id: str,
+        request: Request,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[RunStore, Depends(_get_run_store)],
+        evaluation_store: Annotated[
+            EvaluationStore, Depends(_get_evaluation_catalog_store)
+        ],
+        cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> EvaluationRunSummaryResponse:
+        _ = await authorize_evaluation(
+            request,
+            evaluation_id,
+            evaluation_store=evaluation_store,
+            cp_client=cp_client,
+        )
         return await service.get_run_summary(evaluation_id, store=store)
 
     @router.get("/runs/{run_id}", response_model=EvaluationRun)
     async def get_run(
         run_id: str,
+        request: Request,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[RunStore, Depends(_get_run_store)],
+        cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> EvaluationRun:
+        _ = await authorize_run(request, run_id, store=store, cp_client=cp_client)
         return await service.get_run(run_id, store=store)
 
     @router.get("/runs/{run_id}/cases", response_model=EvaluationCaseListResponse)
     async def list_run_cases(
         run_id: str,
+        request: Request,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[RunStore, Depends(_get_run_store)],
+        cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
         offset: int = Query(default=0, ge=0),
         limit: int = Query(default=50, ge=1, le=200),
     ) -> EvaluationCaseListResponse:
+        _ = await authorize_run(request, run_id, store=store, cp_client=cp_client)
         return await service.list_run_cases(
             run_id, offset=offset, limit=limit, store=store
         )
@@ -343,9 +372,12 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     async def get_run_case(
         run_id: str,
         case_id: str,
+        request: Request,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[RunStore, Depends(_get_run_store)],
+        cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> EvaluationCaseResponse:
+        _ = await authorize_run(request, run_id, store=store, cp_client=cp_client)
         return await service.get_run_case(run_id, case_id, store=store)
 
     @router.get(
@@ -367,6 +399,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         ],
         cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> RunReportResponse:
+        _ = await authorize_run(request, run_id, store=store, cp_client=cp_client)
         configuration = request.app.dependency_overrides.get(get_config, get_config)()
         auth = resolve_interactive_auth(
             request, user_security_enabled=configuration.security.user.enabled
@@ -382,11 +415,12 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     @router.get("/runs/{run_id}/events")
     async def stream_run_events(
         run_id: str,
+        request: Request,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[RunStore, Depends(_get_run_store)],
+        cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> StreamingResponse:
-        if await store.get_run(run_id) is None:
-            raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found.")
+        _ = await authorize_run(request, run_id, store=store, cp_client=cp_client)
 
         async def event_generator() -> AsyncGenerator[str, None]:
             last_seq = -1
@@ -418,18 +452,24 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     @router.post("/runs/{run_id}/cancel", status_code=202)
     async def cancel_run(
         run_id: str,
+        request: Request,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[RunStore, Depends(_get_run_store)],
+        cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> dict:
+        _ = await authorize_run(request, run_id, store=store, cp_client=cp_client)
         await service.cancel_run(run_id, store=store)
         return {"run_id": run_id, "state": "cancelled"}
 
     @router.delete("/runs/{run_id}", status_code=204, response_class=Response)
     async def delete_run(
         run_id: str,
+        request: Request,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[RunStore, Depends(_get_run_store)],
+        cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> Response:
+        _ = await authorize_run(request, run_id, store=store, cp_client=cp_client)
         await service.delete_run(run_id, store=store)
         return Response(status_code=204)
 
@@ -439,9 +479,9 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         request: Request,
         store: Annotated[RunStore, Depends(_get_run_store)],
         user: Annotated[KeycloakUser, Depends(get_current_user)],
+        cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> TelemetrySessionResponse:
-        if await store.get_run(run_id) is None:
-            raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found.")
+        _ = await authorize_run(request, run_id, store=store, cp_client=cp_client)
 
         config = request.app.dependency_overrides.get(get_config, get_config)()
         obs = config.observability
@@ -492,7 +532,9 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         request: Request,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[RunStore, Depends(_get_run_store)],
+        cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> RunAnalysisResponse:
+        _ = await authorize_run(request, run_id, store=store, cp_client=cp_client)
         return await write_run_analysis(request, run_id, store=store)
 
     return router

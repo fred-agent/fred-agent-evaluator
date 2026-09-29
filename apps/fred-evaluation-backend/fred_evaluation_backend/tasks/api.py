@@ -3,12 +3,14 @@ from __future__ import annotations
 import asyncio
 from typing import Annotated, AsyncGenerator, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from fred_core import KeycloakUser, get_current_user
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
 from fred_evaluation_backend.runs import service
+from fred_evaluation_backend.runs.access import authorize_task, require_team_member
 from fred_evaluation_backend.runs.store import RunStore
 from fred_evaluation_backend.tasks.models import (
     EvaluationTaskEvent,
@@ -26,6 +28,10 @@ def _get_evaluation_store(request: Request) -> RunStore:
     return RunStore(engine)
 
 
+def _get_control_plane_client(request: Request) -> ControlPlaneClient:
+    return request.app.state.control_plane_client
+
+
 def build_tasks_router(prefix: str = "") -> APIRouter:
     """Canonical task-event surface over evaluation runs.
 
@@ -37,8 +43,10 @@ def build_tasks_router(prefix: str = "") -> APIRouter:
 
     @router.get("/tasks", response_model=TaskListResponse)
     async def list_tasks(
+        request: Request,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[RunStore, Depends(_get_evaluation_store)],
+        cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
         scope: Literal["user", "team"] = Query("team"),
         team_id: str | None = Query(default=None),
         exclude_terminal: bool = Query(default=False),
@@ -46,6 +54,7 @@ def build_tasks_router(prefix: str = "") -> APIRouter:
         if scope == "user":
             rows = await store.list_runs_by_creator(user.uid)
         elif team_id:
+            await require_team_member(request, team_id, cp_client=cp_client)
             rows = await store.list_runs_by_team(team_id)
         else:
             rows = []
@@ -57,34 +66,34 @@ def build_tasks_router(prefix: str = "") -> APIRouter:
     @router.get("/tasks/{task_id}", response_model=TaskSummary)
     async def get_task(
         task_id: str,
+        request: Request,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[RunStore, Depends(_get_evaluation_store)],
+        cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> TaskSummary:
-        row = await store.get_run_by_task_id(task_id)
-        if row is None:
-            raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
+        row = await authorize_task(request, task_id, store=store, cp_client=cp_client)
         return run_to_summary(row)
 
     @router.get("/tasks/{task_id}/latest", response_model=EvaluationTaskEvent)
     async def get_latest_event(
         task_id: str,
+        request: Request,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[RunStore, Depends(_get_evaluation_store)],
+        cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> EvaluationTaskEvent:
-        row = await store.get_run_by_task_id(task_id)
-        if row is None:
-            raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
+        row = await authorize_task(request, task_id, store=store, cp_client=cp_client)
         return run_to_event(row, seq=0)
 
     @router.get("/tasks/{task_id}/events")
     async def stream_task_events(
         task_id: str,
+        request: Request,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[RunStore, Depends(_get_evaluation_store)],
+        cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> StreamingResponse:
-        row = await store.get_run_by_task_id(task_id)
-        if row is None:
-            raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
+        _ = await authorize_task(request, task_id, store=store, cp_client=cp_client)
 
         async def event_generator() -> AsyncGenerator[str, None]:
             seq = 0
@@ -108,12 +117,12 @@ def build_tasks_router(prefix: str = "") -> APIRouter:
     @router.post("/tasks/{task_id}/cancel", status_code=202)
     async def cancel_task(
         task_id: str,
+        request: Request,
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[RunStore, Depends(_get_evaluation_store)],
+        cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> dict[str, str]:
-        row = await store.get_run_by_task_id(task_id)
-        if row is None:
-            raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
+        row = await authorize_task(request, task_id, store=store, cp_client=cp_client)
         await service.cancel_run(row.run_id, store=store)
         return {"task_id": task_id, "state": "cancelling"}
 
