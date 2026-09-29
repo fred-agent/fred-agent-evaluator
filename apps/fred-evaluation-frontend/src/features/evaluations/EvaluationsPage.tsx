@@ -1,23 +1,11 @@
-import { useMemo } from "react";
+import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Button, Chip, Spinner } from "@fred-oss/ui";
-import { useFredApplication } from "../../app/providers/FredApplicationProvider";
-import {
-  ApplicationHttpError,
-  createApplicationService,
-} from "../../shared/api/applicationService";
+import { useAppNavigate } from "../../app/router";
+import { useLoad } from "../../shared/api/useLoad";
 import type { EvaluationSummary } from "../../shared/api/schemas";
-import { useEvaluations } from "./useEvaluations";
-
-function errorMessage(error: unknown, t: (key: string) => string): string {
-  if (
-    error instanceof ApplicationHttpError &&
-    error.code === "application_not_granted"
-  ) {
-    return t("evaluations.notGranted");
-  }
-  return t("evaluations.loadFailed");
-}
+import { describeError, formatDate } from "./presentation";
+import { useEvaluationApi } from "./useEvaluationApi";
 
 function EvaluationsTable({
   evaluations,
@@ -25,7 +13,7 @@ function EvaluationsTable({
   evaluations: EvaluationSummary[];
 }) {
   const { t, i18n } = useTranslation();
-  const dates = new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium" });
+  const go = useAppNavigate();
   return (
     <div className="evaluation-table-wrap">
       <table>
@@ -43,14 +31,22 @@ function EvaluationsTable({
         <tbody>
           {evaluations.map((evaluation) => (
             <tr key={evaluation.evaluation_id}>
-              <th scope="row">{evaluation.name}</th>
+              <th scope="row">
+                <button
+                  type="button"
+                  className="evaluation-link"
+                  onClick={() => go(`evaluations/${evaluation.evaluation_id}`)}
+                >
+                  {evaluation.name}
+                </button>
+              </th>
               <td>{evaluation.version}</td>
               <td>{evaluation.case_count}</td>
               <td>
                 <Chip label={t(`evaluations.${evaluation.completeness}`)} />
               </td>
               <td>{evaluation.author ?? evaluation.created_by}</td>
-              <td>{dates.format(new Date(evaluation.created_at))}</td>
+              <td>{formatDate(evaluation.created_at, i18n.language)}</td>
             </tr>
           ))}
         </tbody>
@@ -62,27 +58,35 @@ function EvaluationsTable({
 /** The team's evaluations — the application's entry screen. */
 export function EvaluationsPage() {
   const { t } = useTranslation();
-  const { request } = useFredApplication();
-  const service = useMemo(
-    () => createApplicationService({ request }),
-    [request],
-  );
-  const { state, retry } = useEvaluations(service);
+  const api = useEvaluationApi();
+  const go = useAppNavigate();
+  const load = useCallback(() => api.listEvaluations(), [api]);
+  const { state, retry } = useLoad(load);
 
   return (
     <section aria-labelledby="evaluations-title">
       <header className="evaluation-toolbar">
-        <h1 id="evaluations-title">{t("evaluations.title")}</h1>
-        {state.status === "ready" && (
-          <span>{t("evaluations.count", { count: state.list.total })}</span>
-        )}
+        <div>
+          <h1 id="evaluations-title">{t("evaluations.title")}</h1>
+          {state.status === "ready" && (
+            <span>{t("evaluations.count", { count: state.data.total })}</span>
+          )}
+        </div>
+        <Button
+          color="primary"
+          variant="filled"
+          size="small"
+          onClick={() => go("evaluations/new")}
+        >
+          {t("evaluations.new")}
+        </Button>
       </header>
       {state.status === "loading" && (
         <Spinner statusText={t("evaluations.loading")} />
       )}
       {state.status === "error" && (
         <div role="alert" className="evaluation-error">
-          <p>{errorMessage(state.error, t)}</p>
+          <p>{describeError(state.error, t)}</p>
           <Button
             color="primary"
             variant="outlined"
@@ -94,10 +98,10 @@ export function EvaluationsPage() {
         </div>
       )}
       {state.status === "ready" &&
-        (state.list.evaluations.length === 0 ? (
+        (state.data.evaluations.length === 0 ? (
           <p>{t("evaluations.empty")}</p>
         ) : (
-          <EvaluationsTable evaluations={state.list.evaluations} />
+          <EvaluationsTable evaluations={state.data.evaluations} />
         ))}
     </section>
   );

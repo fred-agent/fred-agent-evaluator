@@ -78,6 +78,175 @@ body,
   font: var(--font-body-medium-emphasized);
 }
 
+.fred-ui .evaluation-toolbar > div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.fred-ui .evaluation-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.fred-ui .evaluation-muted {
+  color: var(--on-surface-retreat);
+  font: var(--font-body-medium);
+}
+
+.fred-ui h2 {
+  margin: 0.5rem 0 0;
+  font: var(--font-title-large);
+}
+
+.fred-ui h3 {
+  margin: 0;
+  font: var(--font-title-small);
+}
+
+/* A table row's main cell: navigates, reads as a link. */
+.fred-ui .evaluation-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--primary, var(--on-surface));
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.fred-ui .evaluation-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.fred-ui .evaluation-kpis > div {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-m);
+  background: var(--surface-container-low);
+}
+
+.fred-ui .evaluation-kpis dt {
+  font: var(--font-label-medium);
+  color: var(--on-surface-retreat);
+}
+
+.fred-ui .evaluation-kpis dd {
+  margin: 0.25rem 0 0;
+  font: var(--font-headline-small);
+}
+
+.fred-ui .evaluation-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.fred-ui .evaluation-progress progress {
+  flex: 1;
+  max-width: 32rem;
+  accent-color: var(--primary, currentColor);
+}
+
+.fred-ui .evaluation-panel,
+.fred-ui .evaluation-details {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-radius: var(--radius-m);
+  background: var(--surface-container-low);
+}
+
+.fred-ui .evaluation-details summary {
+  cursor: pointer;
+  font: var(--font-title-small);
+}
+
+.fred-ui .evaluation-case {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.5rem 0 0;
+}
+
+.fred-ui .evaluation-case dt {
+  font: var(--font-label-medium);
+  color: var(--on-surface-retreat);
+}
+
+.fred-ui .evaluation-case dd {
+  margin: 0 0 0.5rem;
+  white-space: pre-wrap;
+}
+
+.fred-ui .evaluation-inline-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fred-ui .evaluation-form {
+  display: grid;
+  gap: 1rem;
+  max-width: 48rem;
+}
+
+.fred-ui .evaluation-fieldset {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius-m);
+}
+
+.fred-ui .evaluation-fieldset legend {
+  padding: 0 0.25rem;
+  font: var(--font-label-large);
+}
+
+.fred-ui .evaluation-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.fred-ui .evaluation-case-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  align-items: end;
+  gap: 0.5rem;
+}
+
+.fred-ui .evaluation-case-row label,
+.fred-ui .evaluation-file {
+  display: grid;
+  gap: 0.25rem;
+  font: var(--font-label-medium);
+  color: var(--on-surface-retreat);
+}
+
+.fred-ui .evaluation-case-row textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius-s);
+  font: var(--font-body-medium);
+  color: var(--on-surface);
+  background: var(--surface-main);
+  resize: vertical;
+}
+
+@media (max-width: 40rem) {
+  .fred-ui .evaluation-case-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;

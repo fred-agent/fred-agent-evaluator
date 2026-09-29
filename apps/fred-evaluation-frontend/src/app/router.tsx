@@ -1,20 +1,71 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   MemoryRouter,
   Route,
   Routes,
   useLocation,
   useNavigate,
+  useParams,
 } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Button } from "@fred-oss/ui";
 import { useFredApplication } from "./providers/FredApplicationProvider";
 import { EvaluationsPage } from "../features/evaluations/EvaluationsPage";
+import { EvaluationCreatePage } from "../features/evaluations/EvaluationCreatePage";
+import { EvaluationPage } from "../features/evaluations/EvaluationPage";
+import { RunCreatePage } from "../features/evaluations/RunCreatePage";
+import { RunDetailPage } from "../features/evaluations/RunDetailPage";
 
-/** Adapt Fred's relative subpaths to React Router paths without echoing host routes. */
-function RouteContent() {
+/**
+ * Navigate inside the application: `path` is relative to it ("" for the list,
+ * "runs/<id>"...). The host's route follows, so reloads and links land here.
+ */
+export function useAppNavigate() {
+  const navigateMemory = useNavigate();
+  const { navigate: navigateHost } = useFredApplication();
+  return useCallback(
+    (path: string) => {
+      navigateMemory(`/${path}`);
+      navigateHost(path);
+    },
+    [navigateMemory, navigateHost],
+  );
+}
+
+function NotFound() {
   const { t } = useTranslation();
-  const { subPath, navigate: navigateHost, context } = useFredApplication();
+  const go = useAppNavigate();
+  return (
+    <section>
+      <h1>{t("unknownRoute")}</h1>
+      <div>
+        <Button
+          color="primary"
+          variant="outlined"
+          size="small"
+          onClick={() => go("")}
+        >
+          {t("back")}
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+function WithParam({
+  name,
+  render,
+}: {
+  name: string;
+  render: (value: string) => React.ReactNode;
+}) {
+  const value = useParams()[name];
+  return value ? <>{render(value)}</> : <NotFound />;
+}
+
+/** Keep the in-memory route on the host's subpath, without echoing it back. */
+function RouteContent() {
+  const { subPath, context } = useFredApplication();
   const navigateMemory = useNavigate();
   const location = useLocation();
   const reactPath = subPath === "" ? "/" : `/${subPath}`;
@@ -24,38 +75,50 @@ function RouteContent() {
       navigateMemory(reactPath, { replace: true });
   }, [reactPath, location.pathname, navigateMemory]);
 
-  // React uses "/details"; the SDK must receive "details" (or "" for root).
-  const childNavigate = (path: string) => {
-    navigateMemory(path);
-    navigateHost(path.slice(1));
-  };
-
+  // Remount everything when the host switches team.
   return (
-    <Routes>
-      <Route path="/" element={<EvaluationsPage key={context?.team.id} />} />
+    <Routes key={context?.team.id}>
+      <Route path="/" element={<EvaluationsPage />} />
+      <Route path="/evaluations/new" element={<EvaluationCreatePage />} />
       <Route
-        path="*"
+        path="/evaluations/:evaluationId"
         element={
-          <section>
-            <h1>{t("unknownRoute")}</h1>
-            <Button
-              color="primary"
-              variant="outlined"
-              size="small"
-              onClick={() => childNavigate("/")}
-            >
-              {t("back")}
-            </Button>
-          </section>
+          <WithParam
+            name="evaluationId"
+            render={(id) => <EvaluationPage key={id} evaluationId={id} />}
+          />
         }
       />
+      <Route
+        path="/evaluations/:evaluationId/runs/new"
+        element={
+          <WithParam
+            name="evaluationId"
+            render={(id) => <RunCreatePage key={id} evaluationId={id} />}
+          />
+        }
+      />
+      <Route
+        path="/runs/:runId"
+        element={
+          <WithParam
+            name="runId"
+            render={(id) => <RunDetailPage key={id} runId={id} />}
+          />
+        }
+      />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }
 
 export function ApplicationRouter() {
+  const { subPath } = useFredApplication();
+  // Start on the host's route: a deep link must not render (and load) the
+  // list first. Later host moves are followed by RouteContent.
+  const [initial] = useState(() => [subPath === "" ? "/" : `/${subPath}`]);
   return (
-    <MemoryRouter>
+    <MemoryRouter initialEntries={initial}>
       <RouteContent />
     </MemoryRouter>
   );

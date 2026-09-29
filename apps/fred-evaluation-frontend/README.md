@@ -10,6 +10,23 @@ It is a standalone React app. It talks to Fred only through the published
 `@fred-oss/design-tokens`, pinned to exact versions from npmjs
 (`scripts/check-boundary.mjs` refuses any local link).
 
+## Screens
+
+Routes are relative to `/team/<team id>/apps/evaluation/` and follow the host's
+URL, so links and reloads land on the same screen.
+
+| Route                       | Screen                                                                                                             |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| (root)                      | the team's evaluations                                                                                             |
+| `evaluations/new`           | create one: import a JSON document or type cases in                                                                |
+| `evaluations/<id>`          | an evaluation: its cases, run KPIs and runs; delete it                                                             |
+| `evaluations/<id>/runs/new` | start a run: agent, metrics, optional model                                                                        |
+| `runs/<id>`                 | a run: live progress (polled every 3 s until it ends), cases and scores, cancel, LLM analysis, JSON report, delete |
+
+Known limits: model profiles show their id, since their display name is an
+i18n key of Fred's own frontend; the analysis waits up to 3 minutes, but a
+shorter timeout on Fred's gateway would still cut it.
+
 ## How it talks to Fred and to the backend
 
 - **Context**: the team, locale, theme and route come from the host

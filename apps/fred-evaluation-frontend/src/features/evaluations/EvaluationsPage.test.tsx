@@ -81,7 +81,7 @@ describe("evaluations page", () => {
         : Response.json({ evaluations: [golden], total: 1 }),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "The evaluations could not be loaded.",
+      "Something went wrong.",
     );
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     await screen.findByRole("rowheader", { name: "golden-set" });
