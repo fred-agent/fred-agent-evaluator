@@ -17,7 +17,7 @@
     },
     {
       "label": "All Services PROD",
-      "detail": "API + worker against fred-deployment-factory (Postgres, Keycloak, Temporal)",
+      "detail": "API + worker + UI against fred-deployment-factory (Postgres, Keycloak, Temporal)",
       "dependsOn": [
         "install-deps",
         "_services-prod"
@@ -49,7 +49,8 @@
       "detail": "Internal: starts API + worker (prod profile) in parallel once install-deps has finished",
       "dependsOn": [
         "evaluation-api-prod",
-        "evaluation-worker-prod"
+        "evaluation-worker-prod",
+        "evaluation-ui"
       ],
       "dependsOrder": "parallel",
       "problemMatcher": [],
@@ -122,6 +123,28 @@
       "icon": {
         "id": "graph",
         "color": "terminal.ansiMagenta"
+      }
+    },
+    {
+      "label": "evaluation-ui",
+      "detail": "Application UI on :5181, shown by Fred's frontend at /team/<id>/apps/evaluation",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-lc",
+        "set -m; _cleanup(){ kill -- -$$ 2>/dev/null; }; trap _cleanup EXIT INT TERM; pids=$(lsof -tiTCP:5181 -sTCP:LISTEN 2>/dev/null); [ -n \"$pids\" ] && kill $pids; make run PORT=5181"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/apps/fred-evaluation-frontend"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "new",
+        "reveal": "always"
+      },
+      "icon": {
+        "id": "browser",
+        "color": "terminal.ansiCyan"
       }
     },
     {

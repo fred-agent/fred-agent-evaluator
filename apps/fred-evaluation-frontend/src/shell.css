@@ -1,0 +1,88 @@
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.evaluation-shell {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 2rem;
+  margin: 0;
+  font: var(--font-body-medium);
+  color: var(--on-surface);
+  background: var(--surface-main);
+}
+
+.evaluation-shell > section {
+  display: grid;
+  gap: 1rem;
+  width: min(100%, 76rem);
+  margin-inline: auto;
+}
+
+.fred-ui .evaluation-toolbar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  color: var(--on-surface-retreat);
+}
+
+.fred-ui .evaluation-toolbar h1 {
+  margin: 0;
+  font: var(--font-headline-small);
+  color: var(--on-surface);
+}
+
+.fred-ui .evaluation-error {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  color: var(--error);
+}
+
+/* Plain table until @fred-oss/ui ships one; see the application README. */
+.fred-ui .evaluation-table-wrap {
+  overflow-x: auto;
+}
+
+.fred-ui .evaluation-table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.fred-ui .evaluation-table-wrap th,
+.fred-ui .evaluation-table-wrap td {
+  padding: 0.65rem;
+  text-align: left;
+  border-bottom: 1px solid var(--outline-variant);
+}
+
+.fred-ui .evaluation-table-wrap thead th {
+  font: var(--font-label-large);
+  color: var(--on-surface-retreat);
+}
+
+.fred-ui .evaluation-table-wrap tbody th {
+  font: var(--font-body-medium-emphasized);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

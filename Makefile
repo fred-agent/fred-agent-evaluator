@@ -1,5 +1,5 @@
-CODE_QUALITY_DIRS := libs/fred-deepeval-cli apps/fred-evaluation-backend
-TEST_DIRS        := libs/fred-deepeval-cli apps/fred-evaluation-backend
+CODE_QUALITY_DIRS := libs/fred-deepeval-cli apps/fred-evaluation-backend apps/fred-evaluation-frontend
+TEST_DIRS        := libs/fred-deepeval-cli apps/fred-evaluation-backend apps/fred-evaluation-frontend
 
 .DEFAULT_GOAL := help
 

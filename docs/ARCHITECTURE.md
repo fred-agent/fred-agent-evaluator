@@ -3,11 +3,12 @@
 ## Vue d'ensemble
 
 ```
-Frontend (fred)
-     │
-     │ REST / SSE
-     ▼
-fred-evaluation-backend (API)     ←── DB (SQLite dev / PostgreSQL prod)
+UI evaluator (apps/fred-evaluation-frontend,        UI Fred historique
+  iframe dans Fred, app `evaluation`)                (TeamSettingsEvaluations)
+     │ client.request → gateway Fred                      │
+     │ /app-services/evaluation/teams/{team}/…            │ /evaluation/v1 (REST / SSE)
+     ▼                                                    ▼
+fred-evaluation-backend (API) — /teams/{team_id}/… (hosted/) et /evaluation/v1/…     ←── DB (SQLite dev / PostgreSQL prod)
      │                                        ▲
      │ DB directe                             │
      ▼                                        │
@@ -27,6 +28,14 @@ LLM juge (Mistral / GPT-4 / etc.)
 ```
 
 ## Composants
+
+### `apps/fred-evaluation-frontend`
+
+L'UI de l'evaluator, livrée comme application Fred (voir son README) : React,
+`@fred-oss/iframe-sdk`, `@fred-oss/ui`. Elle appelle uniquement la surface
+`/teams/{team_id}/...` de l'API, via l'hôte Fred, sans jamais voir de jeton.
+L'ancienne UI, dans le frontend Fred, utilise encore `/evaluation/v1` ; elle
+sera retirée une fois celle-ci complète.
 
 ### `apps/fred-evaluation-backend`
 

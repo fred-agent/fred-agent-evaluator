@@ -8,6 +8,7 @@ Operational instructions for AI assistants (Claude Code) working in this reposit
 
 ```
 apps/fred-evaluation-backend/   # FastAPI API + Temporal worker
+apps/fred-evaluation-frontend/  # The evaluator's UI, a Fred application (iframe, @fred-oss/*)
 libs/fred-deepeval-cli/         # Scoring library (published to PyPI)
 deploy/
   charts/fred-evaluator/        # Helm chart (2 deployments: api + worker)
