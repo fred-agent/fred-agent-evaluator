@@ -65,6 +65,9 @@ and `managed_instance`, so codes describe the failure, not the target kind:
 | Control Plane 422 | 422 | `target_invalid` (see note below) |
 | Control Plane 5xx / timeout / connection failure | 503 | `control_plane_unavailable` |
 | Malformed/unexpected 2xx upstream response | 502 | `control_plane_invalid_response` |
+| Evaluation absent, or of another team | 404 | `evaluation_not_found` |
+| Run absent, or of another team (application surface) | 404 | `run_not_found` |
+| Team not granted the `evaluation` application (application surface) | 403 | `application_not_granted` |
 
 Note: the creation routes themselves can also return 422 for FastAPI's own request-body
 validation (malformed JSON payload) — a different body (`HTTPValidationError`).
@@ -116,6 +119,40 @@ Ce cycle **(EVAL-04, première version)** ne couvre que les runs sur agent manag
 (`managed_instance`). Sont volontairement différés : cible `runtime_agent` à la
 création, sélection du profil judge, réglages de concurrence/timeout, CSV, et
 un écran de gestion des evaluations indépendant du démarrage d'un run.
+
+## Surface de l'application Fred (`evaluation`)
+
+L'UI de l'evaluator est une application Fred : Fred l'affiche dans un iframe
+(`/apps/evaluation/`) et relaie ses appels via sa gateway, qui retire le
+préfixe `/app-services/evaluation` et transmet `Authorization` tel quel. L'API
+reçoit donc `/teams/{team_id}/...` **sans** `/evaluation/v1` : ces routes
+(`hosted/`) sont montées à côté du routeur existant, qui reste en place.
+
+| Méthode | Route | Équivalent `/evaluation/v1` |
+|---|---|---|
+| GET, POST | `/teams/{team_id}/evaluations` | `/evaluations` (`team_id` en query / body) |
+| DELETE | `/teams/{team_id}/evaluations/{id}` | `/evaluations/{id}` |
+| GET, POST | `/teams/{team_id}/evaluations/{id}/runs` | `/evaluations/{id}/runs` |
+| GET | `/teams/{team_id}/evaluations/{id}/runs/summary` | idem |
+| GET, DELETE | `/teams/{team_id}/runs/{run_id}` | `/runs/{run_id}` |
+| GET | `/teams/{team_id}/runs/{run_id}/cases`, `…/cases/{case_id}`, `…/report` | idem |
+| POST | `/teams/{team_id}/runs/{run_id}/cancel`, `…/analyze` | idem |
+
+Règles :
+
+- **L'équipe vient du chemin, jamais du body** : les bodies sont
+  `EvaluationDocument` et `RunSpec` (`extra: forbid`), sans `team_id`.
+- **Droit d'accès** (`hosted/entitlement.py`) : chaque route demande au
+  Control Plane `GET /teams/{team_id}/applications`, avec le jeton de
+  l'appelant, et n'admet la requête que si `evaluation` y figure. La gateway
+  n'autorise rien elle-même. Tout le reste est un refus : non-membre
+  (`target_forbidden`), app non accordée (`application_not_granted`), Control
+  Plane injoignable (`control_plane_unavailable`) ou incohérent
+  (`control_plane_invalid_response`).
+- **Appartenance** : une evaluation ou un run d'une autre équipe répond 404,
+  comme une ressource absente, et n'est jamais modifié.
+- **Pas de SSE** : le pont de requêtes de l'hôte ne transmet que des réponses
+  complètes ; l'UI interroge `GET /teams/{team_id}/runs/{run_id}`.
 
 ## Metric selection (manual — replaces automatic profile detection for metrics)
 

@@ -5,7 +5,7 @@ import base64
 import json
 import logging
 import os
-from typing import Annotated, AsyncGenerator
+from typing import Annotated, Any, AsyncGenerator
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -21,7 +21,10 @@ from fred_evaluation_backend.execution.analysis_client import (
 )
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
 from fred_evaluation_backend.execution.evaluator_errors import EvaluatorErrorResponse
-from fred_evaluation_backend.execution.outbound_auth import resolve_interactive_auth
+from fred_evaluation_backend.execution.outbound_auth import (
+    OutboundAuth,
+    resolve_interactive_auth,
+)
 from fred_evaluation_backend.runs import service
 from fred_evaluation_backend.runs.schemas import (
     EvaluationCaseListResponse,
@@ -33,6 +36,7 @@ from fred_evaluation_backend.runs.schemas import (
     RunAnalysisResult,
     RunCreatedResponse,
     RunReportResponse,
+    RunSpec,
     StartRunRequest,
 )
 from fred_evaluation_backend.runs.store import RunStore
@@ -94,6 +98,154 @@ async def _resolve_langfuse_session_url(config) -> str | None:
     return None
 
 
+async def launch_run(
+    request: Request,
+    *,
+    evaluation_id: str,
+    team_id: str,
+    spec: RunSpec,
+    created_by: str,
+    store: RunStore,
+    evaluation_store: EvaluationStore,
+    cp_client: ControlPlaneClient,
+    auth: OutboundAuth,
+) -> RunCreatedResponse:
+    """Persist a run of `evaluation_id` for `team_id`, then hand it to Temporal."""
+    configuration = request.app.dependency_overrides.get(get_config, get_config)()
+    # Read once: the same value is frozen into the run's snapshot and carried in
+    # the workflow payload, so the two can never disagree.
+    max_concurrency = configuration.worker.max_concurrent_cases
+    result = await service.start_run(
+        evaluation_id=evaluation_id,
+        team_id=team_id,
+        target=spec.target,
+        created_by=created_by,
+        store=store,
+        evaluation_store=evaluation_store,
+        control_plane_client=cp_client,
+        auth=auth,
+        profile=service._DEFAULT_PROFILE,
+        judge_profile_id=service.default_judge_profile_id(
+            configuration.worker.judge_profiles
+        ),
+        agent_model_override=spec.agent_model_override,
+        max_concurrency=max_concurrency,
+        metrics=spec.metrics,
+        custom_metrics=spec.custom_metrics,
+    )
+
+    temporal_provider = _get_temporal_client_provider(request)
+    if temporal_provider is not None:
+        from fred_evaluation_backend.workers.workflow import RunInput, RunWorkflow
+
+        task_queue = (
+            getattr(request.app.state, "temporal_task_queue", "evaluation")
+            or "evaluation"
+        )
+        client = await temporal_provider.get_client()
+        await client.start_workflow(
+            RunWorkflow.run,
+            RunInput(run_id=result.run_id, max_concurrency=max_concurrency),
+            id=f"run-eval-{result.run_id}",
+            task_queue=task_queue,
+        )
+
+    return result
+
+
+async def write_run_analysis(
+    request: Request, run_id: str, *, store: RunStore
+) -> RunAnalysisResponse:
+    """Write (once) and return the LLM analysis of a completed run."""
+    run = await store.get_run(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    if run.analysis_json:
+        stored = json.loads(run.analysis_json)
+        return RunAnalysisResponse(
+            run_id=run_id,
+            analysis=RunAnalysisResult(**stored["analysis"]),
+            cached=True,
+        )
+
+    analysis_client = getattr(request.app.state, "analysis_client", None)
+    if analysis_client is None:
+        raise HTTPException(status_code=503, detail="Analysis service not configured")
+
+    if run.operational_state != "completed":
+        raise HTTPException(status_code=409, detail="Run is not completed yet")
+
+    metric_averages: dict[str, float] = {}
+    if run.metric_averages_json:
+        metric_averages = json.loads(run.metric_averages_json)
+
+    snapshot = json.loads(run.snapshot_json) if run.snapshot_json else {}
+    run_name = snapshot.get("evaluation_name", run_id)
+
+    raw_cases = await store.list_cases_by_run(run_id, limit=10000)
+    all_metrics = await store.list_metrics_by_run(run_id)
+    metrics_by_case: dict[str, list[Any]] = {}
+    for m in all_metrics:
+        metrics_by_case.setdefault(m.case_id, []).append(m)
+
+    cases: list[CaseDetail] = [
+        CaseDetail(
+            case_id=c.case_id,
+            input=c.input,
+            verdict=c.verdict,
+            metrics=[
+                CaseMetricDetail(
+                    name=m.name,
+                    score=float(m.score) if m.score is not None else None,
+                    verdict=m.verdict,
+                    explanation=m.explanation,
+                )
+                for m in metrics_by_case.get(c.case_id, [])
+            ],
+        )
+        for c in raw_cases
+    ]
+
+    analysis_text = await analysis_client.analyze(
+        evaluation_name=run_name,
+        profile=run.profile,
+        verdict=run.verdict,
+        total_cases=run.total_cases,
+        passed_cases=run.passed_cases,
+        failed_cases=run.failed_cases,
+        insufficient_cases=run.insufficient_cases,
+        metric_averages=metric_averages,
+        cases=cases,
+    )
+
+    analysis_data = json.loads(analysis_text)
+
+    for field in ("strengths", "weaknesses", "recommendations"):
+        analysis_data[field] = [
+            item
+            if isinstance(item, str)
+            else item.get("task")
+            or item.get("recommendation")
+            or item.get("description")
+            or next(iter(item.values()), str(item))
+            for item in analysis_data.get(field, [])
+        ]
+
+    analysis_result = RunAnalysisResult(**analysis_data)
+
+    await store.update_run_analysis(
+        run_id=run_id,
+        analysis_json=json.dumps({"analysis": analysis_data}),
+    )
+
+    return RunAnalysisResponse(
+        run_id=run_id,
+        analysis=analysis_result,
+        cached=False,
+    )
+
+
 def build_evaluations_router(prefix: str = "") -> APIRouter:
     router = APIRouter(prefix=prefix, tags=["Evaluations"])
 
@@ -125,45 +277,17 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         auth = resolve_interactive_auth(
             request, user_security_enabled=configuration.security.user.enabled
         )
-        # Read once: the same value is frozen into the run's snapshot and carried in
-        # the workflow payload, so the two can never disagree.
-        max_concurrency = configuration.worker.max_concurrent_cases
-        result = await service.start_run(
+        return await launch_run(
+            request,
             evaluation_id=evaluation_id,
             team_id=body.team_id,
-            target=body.target,
+            spec=body,
             created_by=user.uid,
             store=store,
             evaluation_store=evaluation_store,
-            control_plane_client=cp_client,
+            cp_client=cp_client,
             auth=auth,
-            profile=service._DEFAULT_PROFILE,
-            judge_profile_id=service.default_judge_profile_id(
-                configuration.worker.judge_profiles
-            ),
-            agent_model_override=body.agent_model_override,
-            max_concurrency=max_concurrency,
-            metrics=body.metrics,
-            custom_metrics=body.custom_metrics,
         )
-
-        temporal_provider = _get_temporal_client_provider(request)
-        if temporal_provider is not None:
-            from fred_evaluation_backend.workers.workflow import RunInput, RunWorkflow
-
-            task_queue = (
-                getattr(request.app.state, "temporal_task_queue", "evaluation")
-                or "evaluation"
-            )
-            client = await temporal_provider.get_client()
-            await client.start_workflow(
-                RunWorkflow.run,
-                RunInput(run_id=result.run_id, max_concurrency=max_concurrency),
-                id=f"run-eval-{result.run_id}",
-                task_queue=task_queue,
-            )
-
-        return result
 
     @router.get(
         "/evaluations/{evaluation_id}/runs",
@@ -369,95 +493,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         user: Annotated[KeycloakUser, Depends(get_current_user)],
         store: Annotated[RunStore, Depends(_get_run_store)],
     ) -> RunAnalysisResponse:
-        run = await store.get_run(run_id)
-        if run is None:
-            raise HTTPException(status_code=404, detail="Run not found")
-
-        if run.analysis_json:
-            stored = json.loads(run.analysis_json)
-            return RunAnalysisResponse(
-                run_id=run_id,
-                analysis=RunAnalysisResult(**stored["analysis"]),
-                cached=True,
-            )
-
-        analysis_client = getattr(request.app.state, "analysis_client", None)
-        if analysis_client is None:
-            raise HTTPException(
-                status_code=503, detail="Analysis service not configured"
-            )
-
-        if run.operational_state != "completed":
-            raise HTTPException(status_code=409, detail="Run is not completed yet")
-
-        metric_averages: dict[str, float] = {}
-        if run.metric_averages_json:
-            metric_averages = json.loads(run.metric_averages_json)
-
-        snapshot = json.loads(run.snapshot_json) if run.snapshot_json else {}
-        run_name = snapshot.get("evaluation_name", run_id)
-
-        raw_cases = await store.list_cases_by_run(run_id, limit=10000)
-        all_metrics = await store.list_metrics_by_run(run_id)
-        metrics_by_case: dict[str, list] = {}
-        for m in all_metrics:
-            metrics_by_case.setdefault(m.case_id, []).append(m)
-
-        cases: list[CaseDetail] = [
-            CaseDetail(
-                case_id=c.case_id,
-                input=c.input,
-                verdict=c.verdict,
-                metrics=[
-                    CaseMetricDetail(
-                        name=m.name,
-                        score=float(m.score) if m.score is not None else None,
-                        verdict=m.verdict,
-                        explanation=m.explanation,
-                    )
-                    for m in metrics_by_case.get(c.case_id, [])
-                ],
-            )
-            for c in raw_cases
-        ]
-
-        analysis_text = await analysis_client.analyze(
-            evaluation_name=run_name,
-            profile=run.profile,
-            verdict=run.verdict,
-            total_cases=run.total_cases,
-            passed_cases=run.passed_cases,
-            failed_cases=run.failed_cases,
-            insufficient_cases=run.insufficient_cases,
-            metric_averages=metric_averages,
-            cases=cases,
-        )
-
-        analysis_data = json.loads(analysis_text)
-
-        for field in ("strengths", "weaknesses", "recommendations"):
-            analysis_data[field] = [
-                item
-                if isinstance(item, str)
-                else item.get("task")
-                or item.get("recommendation")
-                or item.get("description")
-                or next(iter(item.values()), str(item))
-                for item in analysis_data.get(field, [])
-            ]
-
-        analysis_result = RunAnalysisResult(**analysis_data)
-
-        await store.update_run_analysis(
-            run_id=run_id,
-            analysis_json=json.dumps({"analysis": analysis_data}),
-        )
-
-        return RunAnalysisResponse(
-            run_id=run_id,
-            analysis=analysis_result,
-            cached=False,
-        )
+        return await write_run_analysis(request, run_id, store=store)
 
     return router
 

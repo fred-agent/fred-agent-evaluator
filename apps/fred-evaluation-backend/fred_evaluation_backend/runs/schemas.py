@@ -58,10 +58,11 @@ class CustomMetricSpecInput(BaseModel):
     threshold: float = Field(default=0.5, ge=0.0, le=1.0)
 
 
-class StartRunRequest(BaseModel):
+class RunSpec(BaseModel):
+    """What to run an evaluation against, and how to score it."""
+
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
-    team_id: str
     target: ManagedInstanceTarget
     metrics: list[str] = Field(min_length=1)
     custom_metrics: list[CustomMetricSpecInput] = Field(default_factory=list)
@@ -78,6 +79,13 @@ class StartRunRequest(BaseModel):
             allowed = sorted(BUILTIN_METRIC_IDS)
             raise ValueError(f"unknown metrics {sorted(unknown)}; allowed: {allowed}")
         return value
+
+
+class StartRunRequest(RunSpec):
+    """A run addressed to a team named in the body; `hosted/` takes a bare
+    `RunSpec`, its team coming from the path."""
+
+    team_id: str
 
 
 class RunCreatedResponse(BaseModel):

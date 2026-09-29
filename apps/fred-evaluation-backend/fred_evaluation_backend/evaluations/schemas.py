@@ -97,7 +97,7 @@ class Evaluation(BaseModel):
 _MAX_DATASET_CASES = 200
 
 
-class CreateEvaluationRequest(BaseModel):
+class EvaluationDocument(BaseModel):
     """The evaluation document, as authored and uploaded.
 
     Self-describing: it carries its own identity (`name`, optional `version`) and
@@ -110,13 +110,22 @@ class CreateEvaluationRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    team_id: str
     name: str = Field(min_length=1, max_length=255)
     version: str | None = Field(default=None, min_length=1, max_length=100)
     author: str | None = Field(default=None, max_length=255)
     origin: Literal["upload", "manual"]
     source_filename: str | None = None
     cases: list[EvaluationCase] = Field(min_length=1, max_length=_MAX_DATASET_CASES)
+
+
+class CreateEvaluationRequest(EvaluationDocument):
+    """An evaluation document addressed to a team named in the body.
+
+    The team-scoped surface (`hosted/`) takes the bare `EvaluationDocument`
+    instead: its team comes from the path.
+    """
+
+    team_id: str
 
 
 class EvaluationSummaryResponse(BaseModel):

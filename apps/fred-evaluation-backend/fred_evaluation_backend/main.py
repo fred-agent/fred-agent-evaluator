@@ -22,6 +22,7 @@ from fred_evaluation_backend.execution.control_plane_client import ControlPlaneC
 from fred_evaluation_backend.execution.evaluator_errors import (
     normalize_unstructured_auth_error,
 )
+from fred_evaluation_backend.hosted.api import build_hosted_router
 from fred_evaluation_backend.runs.api import build_evaluations_router
 from fred_evaluation_backend.tasks.api import build_tasks_router
 
@@ -159,4 +160,10 @@ def create_app() -> FastAPI:
     router.include_router(build_evaluation_catalog_router())
     router.include_router(build_tasks_router())
     app.include_router(router)
+
+    # The evaluation application's surface, reached through Fred's application
+    # gateway, which strips `/app-services/evaluation` and forwards
+    # `/teams/{team_id}/...` as is — it knows nothing of `base_url`, hence no
+    # prefix. Mounted beside the router above, not replacing it.
+    app.include_router(build_hosted_router())
     return app

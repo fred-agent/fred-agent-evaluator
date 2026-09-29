@@ -46,6 +46,8 @@ EvaluatorErrorCode = Literal[
     "control_plane_unavailable",
     "control_plane_invalid_response",
     "evaluation_not_found",
+    "run_not_found",
+    "application_not_granted",
 ]
 
 # Known external-boundary failures the resolver is allowed to reclassify. Anything
@@ -181,6 +183,28 @@ def evaluation_not_found_error() -> HTTPException:
         detail=EvaluatorErrorDetail(
             code="evaluation_not_found",
             message="The selected evaluation could not be found.",
+        ).model_dump(),
+    )
+
+
+def run_not_found_error() -> HTTPException:
+    """The selected run does not exist for the caller's team."""
+    return HTTPException(
+        status_code=404,
+        detail=EvaluatorErrorDetail(
+            code="run_not_found",
+            message="The selected run could not be found.",
+        ).model_dump(),
+    )
+
+
+def application_not_granted_error() -> HTTPException:
+    """The caller's team is not granted the evaluation application in Fred."""
+    return HTTPException(
+        status_code=403,
+        detail=EvaluatorErrorDetail(
+            code="application_not_granted",
+            message="Your team does not have access to the evaluation application.",
         ).model_dump(),
     )
 
