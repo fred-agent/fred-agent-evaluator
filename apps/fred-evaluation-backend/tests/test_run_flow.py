@@ -231,6 +231,23 @@ async def test_run_operations_case_detail_cancel_delete():
     assert await run_store.list_cases_by_run(result.run_id, limit=100) == []
 
 
+@pytest.mark.parametrize("state", ["completed", "failed", "cancelled", "error"])
+@pytest.mark.asyncio
+async def test_a_finished_run_cannot_be_cancelled(state):
+    """Cancelling must never overwrite how a run ended — a completed run stays
+    completed, its results and verdict intact."""
+    ds_store, run_store = await _make_stores()
+    evaluation_id = await _seed_evaluation(ds_store)
+    result = await _start(evaluation_id, ds_store, run_store, instance="inst-9")
+    await run_store.update_run_state(result.run_id, state)
+
+    with pytest.raises(HTTPException) as exc:
+        await service.cancel_run(result.run_id, store=run_store)
+
+    assert exc.value.status_code == 409
+    assert (await run_store.get_run(result.run_id)).operational_state == state
+
+
 @pytest.mark.asyncio
 async def test_run_aggregates_persist_metric_averages_and_analysis():
     ds_store, run_store = await _make_stores()

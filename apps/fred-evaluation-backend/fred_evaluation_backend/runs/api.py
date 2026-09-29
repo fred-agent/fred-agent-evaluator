@@ -439,11 +439,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
                     )
                     yield f"data: {data}\n\n"
                 run_row = await store.get_run(run_id)
-                if run_row and run_row.operational_state in (
-                    "succeeded",
-                    "failed",
-                    "cancelled",
-                ):
+                if run_row and run_row.operational_state in service.TERMINAL_RUN_STATES:
                     break
                 await asyncio.sleep(1)
 

@@ -286,6 +286,14 @@ async def get_run_case(
     return _case_to_response(row, await store.list_metrics_by_case(case_id))
 
 
+# A run in one of these states never changes again. `completed` is what the
+# workers write on success (`succeeded` is its legacy spelling); `error` is a
+# run that could not execute at all.
+TERMINAL_RUN_STATES: frozenset[str] = frozenset(
+    {"completed", "succeeded", "failed", "cancelled", "error"}
+)
+
+
 async def cancel_run(
     run_id: str,
     *,
@@ -294,7 +302,7 @@ async def cancel_run(
     row = await store.get_run(run_id)
     if row is None:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found.")
-    if row.operational_state in ("succeeded", "failed", "cancelled"):
+    if row.operational_state in TERMINAL_RUN_STATES:
         raise HTTPException(
             status_code=409,
             detail=f"Run '{run_id}' is already in terminal state '{row.operational_state}'.",

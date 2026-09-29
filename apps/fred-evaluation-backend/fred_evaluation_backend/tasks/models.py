@@ -24,6 +24,7 @@ _STATE_MAP: dict[str, TaskState] = {
     "completed": TaskState.succeeded,
     "succeeded": TaskState.succeeded,
     "failed": TaskState.failed,
+    "error": TaskState.failed,
     "cancelled": TaskState.cancelled,
     "cancelling": TaskState.cancelling,
 }
