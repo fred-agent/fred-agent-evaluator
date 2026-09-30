@@ -70,6 +70,11 @@ secret:
   create: false
   data: {}
 
+# Environment variables added to both processes, e.g. each key above read from
+# a Secret the platform already owns (valueFrom.secretKeyRef), under another
+# key name. An alternative, or a complement, to `secret`.
+extraEnvVars: []
+
 # Rendered verbatim as configuration.yaml for both processes. Hosts below are
 # the service names of a default Fred install; override what differs.
 configuration:

@@ -73,6 +73,12 @@ Valeurs requises :
   | `MISTRAL_API_KEY` | modèles juge et analyse |
   | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` | seulement avec `tracer: langfuse` |
 
+  Ou, à la place (ou en complément), `extraEnvVars` : chaque variable lue
+  clé par clé dans un Secret que la plateforme possède déjà
+  (`valueFrom.secretKeyRef`), sous un autre nom de clé. C'est ce que fait
+  l'instance k3d de fred-deployment-factory (`k3d-apps/fred-evaluator/values.yaml`)
+  avec son Secret `fred-secrets`.
+
 - `values.configuration` — surcharger ce qui diffère d'une installation Fred
   par défaut : adresses PostgreSQL, realm Keycloak, Temporal, Control Plane et
   runtime.

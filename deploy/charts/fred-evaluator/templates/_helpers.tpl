@@ -19,23 +19,32 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if .Values.secret.create -}}
 {{ .Release.Name }}-secret
 {{- else -}}
-{{ required "secret.existingSecret is required unless secret.create is true" .Values.secret.existingSecret }}
+{{ .Values.secret.existingSecret }}
 {{- end -}}
 {{- end }}
 
 {{/*
 What both processes share: the configuration file, an empty .env (secrets come
-as environment variables, not from a file) and the secret as envFrom.
+as environment variables, not from a file), extraEnvVars, and the secret as
+envFrom when there is one. Without either, no credential reaches the process.
 */}}
 {{- define "fred-evaluator.env" -}}
+{{- if not (or (include "fred-evaluator.secretName" .) .Values.extraEnvVars) }}
+{{- fail "credentials are required: set secret.existingSecret, secret.create, or extraEnvVars" }}
+{{- end }}
 env:
   - name: CONFIG_FILE
     value: /etc/fred/evaluation/configuration.yaml
   - name: ENV_FILE
     value: /etc/fred/evaluation/empty.env
+  {{- with .Values.extraEnvVars }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+{{- with include "fred-evaluator.secretName" . }}
 envFrom:
   - secretRef:
-      name: {{ include "fred-evaluator.secretName" . }}
+      name: {{ . }}
+{{- end }}
 volumeMounts:
   - name: config
     mountPath: /etc/fred/evaluation
