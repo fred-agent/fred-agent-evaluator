@@ -141,6 +141,8 @@ const en = {
     evaluation_not_found: "This evaluation does not exist.",
     run_not_found: "This run does not exist.",
     control_plane_unavailable: "Fred is not reachable right now.",
+    analysis_unavailable:
+      "Analysis is unavailable because its model could not be initialized. Ask an administrator to check the evaluation service configuration. Your evaluation results are preserved.",
     conflict: "This action conflicts with the current state; reload and retry.",
     invalid: "The request was refused as invalid.",
     generic: "Something went wrong.",
@@ -282,6 +284,8 @@ const fr: typeof en = {
     evaluation_not_found: "Cette évaluation n'existe pas.",
     run_not_found: "Ce run n'existe pas.",
     control_plane_unavailable: "Fred est injoignable pour le moment.",
+    analysis_unavailable:
+      "L'analyse est indisponible car son modèle n'a pas pu être initialisé. Demandez à un administrateur de vérifier la configuration du service d'évaluation. Vos résultats d'évaluation sont conservés.",
     conflict:
       "Cette action entre en conflit avec l'état actuel ; rechargez puis réessayez.",
     invalid: "La requête a été refusée comme invalide.",

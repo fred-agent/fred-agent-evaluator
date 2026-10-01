@@ -13,6 +13,7 @@ export const TERMINAL_STATES = new Set([
 export const isTerminal = (state: string) => TERMINAL_STATES.has(state);
 
 const KNOWN_CODES = new Set([
+  "analysis_unavailable",
   "application_not_granted",
   "target_forbidden",
   "target_not_found",

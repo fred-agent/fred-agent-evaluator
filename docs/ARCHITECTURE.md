@@ -45,7 +45,7 @@ Deux processus distincts dans le même package Python :
 - Reçoit les requêtes du frontend
 - Valide et persiste les evaluations et leurs runs
 - Expose les résultats via REST et SSE
-- Ne connaît pas DeepEval
+- Analyse les résultats via le modèle DeepEval/LiteLLM ; le scoring des cas reste dans le worker
 
 **Worker** (`main_worker.py`) — boucle autonome
 - Poll la DB toutes les 5s

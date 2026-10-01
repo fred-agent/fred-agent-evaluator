@@ -20,6 +20,7 @@ import os
 import tempfile
 from types import SimpleNamespace
 from typing import cast
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
@@ -576,3 +577,64 @@ async def test_control_plane_client_rejects_a_malformed_application_list(monkeyp
         await client.list_team_application_ids(
             team_id="team-1", auth=NoAuthentication()
         )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("prefix", ["/teams/team-1", ""])
+async def test_analysis_unavailable_has_an_actionable_error_and_preserves_run(
+    prefix: str,
+) -> None:
+    engine, evaluation_store, run_store = await _stores()
+    _, run_id = await _seed(evaluation_store, run_store, "team-1")
+    await run_store.update_run_state(run_id, "completed")
+    app = _app(engine, _FakeControlPlane())
+    app.state.analysis_client = None
+    async with _client(app) as client:
+        response = await client.post(f"{prefix}/runs/{run_id}/analyze")
+    assert response.status_code == 503
+    assert _code(response) == "analysis_unavailable"
+    assert "administrator" in response.json()["detail"]["message"]
+    assert "results are preserved" in response.json()["detail"]["message"]
+    run = await run_store.get_run(run_id)
+    assert run is not None and run.operational_state == "completed"
+    assert run.analysis_json is None
+    assert app.openapi()["paths"][
+        f"{prefix}/runs/{{run_id}}/analyze".replace("team-1", "{team_id}")
+    ]["post"]["responses"]["503"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/EvaluatorErrorResponse"
+    }
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("prefix", ["/teams/team-1", ""])
+async def test_analysis_is_generated_once_and_cached_even_when_model_is_unavailable(
+    prefix: str,
+) -> None:
+    engine, evaluation_store, run_store = await _stores()
+    _, run_id = await _seed(evaluation_store, run_store, "team-1")
+    await run_store.update_run_state(run_id, "completed")
+    result = {
+        "summary": "Useful results.",
+        "strengths": ["Relevant answers"],
+        "weaknesses": [],
+        "recommendations": ["Add more cases"],
+        "risk_level": "low",
+    }
+    analyze = AsyncMock(return_value=json.dumps(result))
+    app = _app(engine, _FakeControlPlane())
+    app.state.analysis_client = SimpleNamespace(analyze=analyze)
+    async with _client(app) as client:
+        response = await client.post(f"{prefix}/runs/{run_id}/analyze")
+        assert response.status_code == 200, response.text
+        assert response.json() == {
+            "run_id": run_id,
+            "analysis": result,
+            "cached": False,
+        }
+        app.state.analysis_client = None
+        cached = await client.post(f"{prefix}/runs/{run_id}/analyze")
+    assert cached.status_code == 200
+    assert cached.json() == {"run_id": run_id, "analysis": result, "cached": True}
+    analyze.assert_awaited_once()
+    await engine.dispose()

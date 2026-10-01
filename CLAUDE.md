@@ -28,7 +28,7 @@ docs/
    `~/Fred/fred` checkout; the Docker images ignore those entries (`UV_NO_SOURCES_PACKAGE`) and take
    PyPI. Never make an image or CI depend on the sibling checkout.
 2. **`fred-deepeval-cli` is the only local dependency** — editable install from `libs/`.
-3. **Never add DeepEval/LiteLLM to API image deps** — scoring deps belong in `[scoring]` optional group only.
+3. **DeepEval/LiteLLM are base dependencies for the API's analysis model.** Case scoring through `fred-deepeval-cli` remains worker-only, in the `[scoring]` optional group.
 4. **Never expose worker via HTTP** — worker accesses DB directly.
 5. **API never runs scoring** — `fred-deepeval-cli` is called exclusively by the worker.
 

@@ -770,6 +770,16 @@
               }
             }
           },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluatorErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -3349,7 +3359,7 @@
           "parameters"
         ],
         "title": "CustomMetricSpecInput",
-        "description": "API-side twin of `fred_deepeval_cli.core.models.CustomMetricSpec`.\n\nValidates shape only \u2014 not whether `parameters` names are valid\n`LLMTestCaseParams` members, since that check imports `deepeval`, which\nthe API image never installs (see `dockerfiles/Dockerfile-api`). An\nunknown parameter name is instead caught by the worker's own\n`CustomMetricSpec.model_validate()` and surfaces as a per-case scoring\nerror rather than a run-creation error."
+        "description": "API-side twin of `fred_deepeval_cli.core.models.CustomMetricSpec`.\n\nValidates shape only \u2014 not whether `parameters` names are valid\n`LLMTestCaseParams` members. Scoring-specific validation belongs to\nthe worker: an unknown parameter name is caught by its\n`CustomMetricSpec.model_validate()` and surfaces as a per-case scoring\nerror rather than a run-creation error."
       },
       "ErasureDetail": {
         "properties": {
@@ -4383,7 +4393,8 @@
               "control_plane_invalid_response",
               "evaluation_not_found",
               "run_not_found",
-              "application_not_granted"
+              "application_not_granted",
+              "analysis_unavailable"
             ],
             "title": "Code"
           },

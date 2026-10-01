@@ -2,8 +2,8 @@
 
 Focus: the ``vertex_ai`` provider is **keyless** — on GKE the judge reaches Vertex via
 Application Default Credentials (Workload Identity), like knowledge-flow/fred-agents, so
-it must NOT require a Mistral/OpenAI/LiteLLM API key. deepeval ships only in the
-scoring/worker extra, so we stub ``LiteLLMModel`` to test the factory logic in isolation.
+it must NOT require a Mistral/OpenAI/LiteLLM API key. We stub ``LiteLLMModel``
+to test the factory logic without constructing an external provider client.
 """
 
 from __future__ import annotations
