@@ -48,6 +48,7 @@ EvaluatorErrorCode = Literal[
     "evaluation_not_found",
     "run_not_found",
     "application_not_granted",
+    "analysis_unavailable",
 ]
 
 # Known external-boundary failures the resolver is allowed to reclassify. Anything
@@ -205,6 +206,21 @@ def application_not_granted_error() -> HTTPException:
         detail=EvaluatorErrorDetail(
             code="application_not_granted",
             message="Your team does not have access to the evaluation application.",
+        ).model_dump(),
+    )
+
+
+def analysis_unavailable_error() -> HTTPException:
+    """The analysis model could not be initialized by the API."""
+    return HTTPException(
+        status_code=503,
+        detail=EvaluatorErrorDetail(
+            code="analysis_unavailable",
+            message=(
+                "Analysis is unavailable because its model could not be initialized. "
+                "Ask an administrator to check the evaluation service configuration. "
+                "Your evaluation results are preserved."
+            ),
         ).model_dump(),
     )
 

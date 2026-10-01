@@ -607,9 +607,8 @@ export interface components {
          * @description API-side twin of `fred_deepeval_cli.core.models.CustomMetricSpec`.
          *
          *     Validates shape only — not whether `parameters` names are valid
-         *     `LLMTestCaseParams` members, since that check imports `deepeval`, which
-         *     the API image never installs (see `dockerfiles/Dockerfile-api`). An
-         *     unknown parameter name is instead caught by the worker's own
+         *     `LLMTestCaseParams` members. Scoring-specific validation belongs to
+         *     the worker: an unknown parameter name is caught by its
          *     `CustomMetricSpec.model_validate()` and surfaces as a per-case scoring
          *     error rather than a run-creation error.
          */
@@ -979,7 +978,7 @@ export interface components {
              * Code
              * @enum {string}
              */
-            code: "authentication_required" | "access_forbidden" | "control_plane_authentication_failed" | "target_forbidden" | "target_not_found" | "target_unavailable" | "target_invalid" | "control_plane_unavailable" | "control_plane_invalid_response" | "evaluation_not_found" | "run_not_found" | "application_not_granted";
+            code: "authentication_required" | "access_forbidden" | "control_plane_authentication_failed" | "target_forbidden" | "target_not_found" | "target_unavailable" | "target_invalid" | "control_plane_unavailable" | "control_plane_invalid_response" | "evaluation_not_found" | "run_not_found" | "application_not_granted" | "analysis_unavailable";
             /** Message */
             message: string;
         };
@@ -2066,6 +2065,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluatorErrorResponse"];
                 };
             };
         };

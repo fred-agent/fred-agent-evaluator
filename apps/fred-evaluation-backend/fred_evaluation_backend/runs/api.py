@@ -20,7 +20,10 @@ from fred_evaluation_backend.execution.analysis_client import (
     CaseMetricDetail,
 )
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
-from fred_evaluation_backend.execution.evaluator_errors import EvaluatorErrorResponse
+from fred_evaluation_backend.execution.evaluator_errors import (
+    EvaluatorErrorResponse,
+    analysis_unavailable_error,
+)
 from fred_evaluation_backend.execution.outbound_auth import (
     OutboundAuth,
     resolve_interactive_auth,
@@ -172,7 +175,10 @@ async def write_run_analysis(
 
     analysis_client = getattr(request.app.state, "analysis_client", None)
     if analysis_client is None:
-        raise HTTPException(status_code=503, detail="Analysis service not configured")
+        logger.error(
+            "Analysis unavailable: model initialization failed; run_id=%s", run_id
+        )
+        raise analysis_unavailable_error()
 
     if run.operational_state != "completed":
         raise HTTPException(status_code=409, detail="Run is not completed yet")
@@ -522,7 +528,11 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
             langfuse_session_url=langfuse_session_url,
         )
 
-    @router.post("/runs/{run_id}/analyze", response_model=RunAnalysisResponse)
+    @router.post(
+        "/runs/{run_id}/analyze",
+        response_model=RunAnalysisResponse,
+        responses={503: {"model": EvaluatorErrorResponse}},
+    )
     async def analyze_run(
         run_id: str,
         request: Request,

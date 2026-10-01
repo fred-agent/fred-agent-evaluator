@@ -2,8 +2,7 @@
 
 `metrics` is now the caller's explicit choice, validated against the same
 catalog the API exposes (`runs/metrics_catalog.py`), which deliberately has
-no `deepeval`/`fred_deepeval_cli` dependency — the API image never installs
-either (see `dockerfiles/Dockerfile-api`). `custom_metrics` mirrors
+no `deepeval`/`fred_deepeval_cli` dependency. `custom_metrics` mirrors
 `fred_deepeval_cli.core.models.CustomMetricSpec`'s shape but only validates
 structure here; the stricter DeepEval-enum check on `parameters` stays
 worker-side.

@@ -113,3 +113,9 @@ The images take `fred-core` / `fred-sdk` / `fred-runtime` from PyPI, bounded by 
 `pyproject.toml` floors, even though development resolves them from the sibling
 `~/Fred/fred` checkout. `fred-deepeval-cli` is the only in-repo path dependency
 (worker-only, via the `scoring` extra).
+
+DeepEval and LiteLLM are base dependencies: the API uses their model adapter for
+run analysis, while case scoring remains worker-only. If the analysis model
+cannot initialize, both analysis routes return HTTP 503 with the structured
+`analysis_unavailable` error; the startup log records the technical cause.
+Previously cached analyses remain readable without an initialized model.

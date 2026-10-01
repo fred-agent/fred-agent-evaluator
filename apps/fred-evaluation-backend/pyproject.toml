@@ -18,6 +18,8 @@ dependencies = [
   "alembic>=1.18.4",
   "greenlet>=3.4.0",
   "httpx>=0.27.0",
+  "deepeval>=2.0.0",
+  "litellm>=1.40.0",
 ]
 
 [project.optional-dependencies]
@@ -32,8 +34,6 @@ dev = [
   "pytest-socket>=0.7.0",
 ]
 scoring = [
-  "deepeval>=2.0.0",
-  "litellm>=1.40.0",
   "fred-deepeval-cli>=0.1.2",
 ]
 worker = [

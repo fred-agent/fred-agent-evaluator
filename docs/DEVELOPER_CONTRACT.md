@@ -3,7 +3,7 @@
 ## Règles fondamentales
 
 1. **Le frontend ne soumet jamais d'URL** — seulement des identifiants (`runtime_id`, `agent_instance_id`). Les URLs sont résolues par le Control Plane.
-2. **L'API ne score jamais** — DeepEval est une dépendance du worker uniquement (`[scoring]`).
+2. **L'API ne score jamais** — elle utilise DeepEval/LiteLLM pour le modèle d'analyse des résultats. Le scoring des cas via `fred-deepeval-cli` reste réservé au worker (`[scoring]`).
 3. **Le worker n'expose pas d'HTTP** — il accède directement à la DB.
 4. **Chaque cas est persisté indépendamment** — un crash du worker ne doit pas effacer les résultats déjà calculés.
 5. **`fred-deepeval-cli` est la seule dépendance locale au repo** — `fred-core`, `fred-sdk` et `fred-runtime` sont publiées sur PyPI (planchers dans `pyproject.toml`). En développement elles sont résolues depuis le checkout voisin `~/Fred/fred` ; les images les prennent sur PyPI.
@@ -68,6 +68,7 @@ and `managed_instance`, so codes describe the failure, not the target kind:
 | Evaluation absent, or of another team | 404 | `evaluation_not_found` |
 | Run absent, or of another team (application surface) | 404 | `run_not_found` |
 | Team not granted the `evaluation` application (application surface) | 403 | `application_not_granted` |
+| Analysis model could not be initialized (both analysis surfaces) | 503 | `analysis_unavailable` |
 
 Note: the creation routes themselves can also return 422 for FastAPI's own request-body
 validation (malformed JSON payload) — a different body (`HTTPValidationError`).
@@ -220,9 +221,8 @@ surfaces both.
 `StartRunRequest.custom_metrics: list[CustomMetricSpecInput]` carries
 GEval-scored, user-authored criteria (`name`, `criteria`, `parameters`,
 `threshold`). It only validates shape — not whether `parameters` names are
-valid `LLMTestCaseParams` members, because that check imports `deepeval`,
-which the API image never installs (`dockerfiles/Dockerfile-api`). The
-stricter check happens worker-side (`fred_deepeval_cli.core.models.CustomMetricSpec`),
+valid `LLMTestCaseParams` members. Scoring-specific validation remains
+worker-side (`fred_deepeval_cli.core.models.CustomMetricSpec`),
 so an unknown parameter name surfaces as a per-case scoring error, not a
 run-creation error.
 

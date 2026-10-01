@@ -43,9 +43,8 @@ class CustomMetricSpecInput(BaseModel):
     """API-side twin of `fred_deepeval_cli.core.models.CustomMetricSpec`.
 
     Validates shape only — not whether `parameters` names are valid
-    `LLMTestCaseParams` members, since that check imports `deepeval`, which
-    the API image never installs (see `dockerfiles/Dockerfile-api`). An
-    unknown parameter name is instead caught by the worker's own
+    `LLMTestCaseParams` members. Scoring-specific validation belongs to
+    the worker: an unknown parameter name is caught by its
     `CustomMetricSpec.model_validate()` and surfaces as a per-case scoring
     error rather than a run-creation error.
     """

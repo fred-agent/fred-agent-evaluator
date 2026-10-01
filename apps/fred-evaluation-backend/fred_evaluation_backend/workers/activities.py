@@ -12,7 +12,7 @@ from fred_evaluation_backend.runs.store import RunStore
 from fred_evaluation_backend.telemetry.otel import get_tracer
 
 if TYPE_CHECKING:
-    # Type-only: the API image never installs fred-deepeval-cli/deepeval (`scoring`
+    # Type-only: the API image never installs fred-deepeval-cli (`scoring`
     # extra is worker-only), so this must never become a runtime import here — this
     # module is imported by the API process to register the Temporal workflow.
     from fred_deepeval_cli.core.models import EvaluationMetricResult
