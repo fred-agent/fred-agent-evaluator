@@ -52,6 +52,15 @@ function NotFound() {
   );
 }
 
+function RunWithCase() {
+  const { runId, caseId } = useParams();
+  return runId && caseId ? (
+    <RunDetailPage key={runId} runId={runId} caseId={caseId} />
+  ) : (
+    <NotFound />
+  );
+}
+
 function WithParam({
   name,
   render,
@@ -107,6 +116,7 @@ function RouteContent() {
           />
         }
       />
+      <Route path="/runs/:runId/cases/:caseId" element={<RunWithCase />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

@@ -15,3 +15,6 @@ if (!Blob.prototype.text) {
     });
   };
 }
+
+// jsdom has no scrolling layout; Select scrolls the active option into view.
+Element.prototype.scrollIntoView = () => {};

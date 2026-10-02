@@ -1,0 +1,113 @@
+.evaluation-shell > .evaluation-create-page {
+  width: 100%;
+}
+.evaluation-stack {
+  display: grid;
+  gap: var(--spacing-m);
+  min-width: 0;
+}
+.evaluation-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-s);
+  flex-wrap: wrap;
+}
+.evaluation-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: var(--spacing-m);
+}
+.evaluation-columns,
+.evaluation-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: var(--spacing-m);
+}
+.evaluation-table-wrap {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.evaluation-table-wrap > div {
+  min-width: 48rem;
+}
+.evaluation-form {
+  display: grid;
+  gap: var(--spacing-l);
+  min-width: 0;
+}
+.evaluation-fieldset {
+  display: grid;
+  gap: var(--spacing-m);
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.evaluation-case-card {
+  display: grid;
+  gap: var(--spacing-m);
+  min-width: 0;
+  padding: var(--spacing-l);
+  border-radius: var(--radius-l);
+  background: var(--surface-container-low);
+}
+.evaluation-case-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-m);
+}
+.evaluation-case-header h3 {
+  margin: 0;
+  color: var(--on-surface);
+  font: var(--font-title-medium);
+}
+.evaluation-case-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-l);
+  min-width: 0;
+}
+.evaluation-case-row .evaluation-case-field {
+  width: 100%;
+  box-sizing: border-box;
+  height: auto;
+  min-height: 9rem;
+  resize: vertical;
+}
+@media (max-width: 48rem) {
+  .evaluation-case-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .evaluation-case-card {
+    padding: var(--spacing-m);
+  }
+}
+.evaluation-check {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-s);
+  flex-wrap: wrap;
+}
+.evaluation-muted {
+  color: var(--on-surface-retreat);
+}
+.evaluation-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.evaluation-metadata {
+  display: grid;
+  gap: var(--spacing-m);
+}
+.evaluation-metadata dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.evaluation-progress-cell {
+  width: 100%;
+  display: grid;
+  gap: var(--spacing-2xs);
+}

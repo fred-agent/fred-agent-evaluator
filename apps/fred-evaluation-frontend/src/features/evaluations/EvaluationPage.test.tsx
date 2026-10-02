@@ -33,11 +33,11 @@ describe("evaluation page", () => {
     const { fake } = renderApp(routes, "evaluations/eval-1");
     await screen.findByRole("heading", { name: /golden-set/ });
     expect(screen.getByText("Cases scored").nextSibling).toHaveTextContent("4");
-    const table = screen.getByRole("table", { name: "Runs" });
+    const table = screen.getByRole("region", { name: "Runs" });
     expect(within(table).getByText("Support bot")).toBeInTheDocument();
     expect(within(table).getByText("Completed")).toBeInTheDocument();
 
-    fireEvent.click(within(table).getAllByRole("button")[0]);
+    fireEvent.click(within(table).getByRole("button", { name: "Detail" }));
     expect(fake.client.navigate).toHaveBeenCalledWith("runs/run-1");
   });
 
@@ -62,7 +62,11 @@ describe("evaluation page", () => {
       },
       "evaluations/eval-1",
     );
-    fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
+    fireEvent.click(
+      await screen
+        .findAllByRole("button", { name: "Delete" })
+        .then((buttons) => buttons[0]),
+    );
     const dialog = await screen.findByRole("dialog");
     expect(dialog).toHaveTextContent("Delete “golden-set” and all its runs?");
     // The dialog is portalled into the themed application root.

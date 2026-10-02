@@ -1,3 +1,5 @@
+import { ToastProvider, ServiceNotice } from "@fred-oss/ui";
+import "../features/evaluations/layout.css";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ApplicationRouter } from "./router";
@@ -17,9 +19,18 @@ export function App() {
       data-theme={fred.context?.theme ?? "light"}
     >
       <ShellContext.Provider value={shell}>
-        {fred.status === "connecting" && <p role="status">{t("loading")}</p>}
-        {fred.status === "error" && <p role="alert">{fred.error}</p>}
-        {fred.status === "ready" && <ApplicationRouter />}
+        <ToastProvider
+          copyLabel={t("ui.copyJson")}
+          dismissLabel={t("ui.dismiss")}
+        >
+          {fred.status === "connecting" && <p role="status">{t("loading")}</p>}
+          {fred.status === "error" && (
+            <div role="alert">
+              <ServiceNotice title={fred.error ?? t("errors.generic")} />
+            </div>
+          )}
+          {fred.status === "ready" && <ApplicationRouter />}
+        </ToastProvider>
       </ShellContext.Provider>
     </main>
   );

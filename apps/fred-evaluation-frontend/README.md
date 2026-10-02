@@ -15,13 +15,14 @@ It is a standalone React app. It talks to Fred only through the published
 Routes are relative to `/team/<team id>/apps/evaluation/` and follow the host's
 URL, so links and reloads land on the same screen.
 
-| Route                       | Screen                                                                                                             |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| (root)                      | the team's evaluations                                                                                             |
-| `evaluations/new`           | create one: import a JSON document or type cases in                                                                |
-| `evaluations/<id>`          | an evaluation: its cases, run KPIs and runs; delete it                                                             |
-| `evaluations/<id>/runs/new` | start a run: agent, metrics, optional model                                                                        |
-| `runs/<id>`                 | a run: live progress (polled every 3 s until it ends), cases and scores, cancel, LLM analysis, JSON report, delete |
+| Route                       | Screen                                                                                  |
+| --------------------------- | --------------------------------------------------------------------------------------- |
+| (root)                      | evaluations with debounced search, sorting, server pagination and confirmed deletion    |
+| `evaluations/new`           | JSON import or manual cases, with validation and creation feedback                      |
+| `evaluations/<id>`          | evaluation KPIs, sorted/paginated runs, rerun, delete and case previews                 |
+| `evaluations/<id>/runs/new` | agent, built-in and custom G-Eval metrics, optional model and recap                     |
+| `runs/<id>`                 | live progress, outcome cards, metric averages, analysis, metadata and actions           |
+| `runs/<id>/cases/<case-id>` | full case drawer, metric explanations, errors, structural checks and JSON copy/download |
 
 Known limits: model profiles show their id, since their display name is an
 i18n key of Fred's own frontend; the analysis waits up to 3 minutes, but a
@@ -42,8 +43,8 @@ shorter timeout on Fred's gateway would still cut it.
   `openapi.json` (`make generate-api`); `make code-quality` fails when it lags.
 - **No SSE**: the host's request bridge returns complete responses only, so
   progress is polled.
-- **Tables**: `@fred-oss/ui` has no table yet; the list uses a plain `<table>`
-  styled with design tokens, pending a shared component.
+- **Tables**: shared `DataTable` and `TablePagination`; evaluation/run lists use server totals.
+- **Metrics**: incomplete custom metric rows are explicitly omitted, as shown in the recap.
 
 ## Deploy on Kubernetes
 
@@ -115,3 +116,27 @@ Restart the Fred frontend and the Control Plane to reload both halves. The
 Node 22 (22.13 or later). The lockfile was first resolved with npm 11, which
 avoids an npm 10.9 resolver crash on this dependency set; `npm ci` with npm 10
 installs from it normally.
+
+## Validate unpublished UI alpha.3 locally
+
+Build the actual package in the Fred producer checkout, then install the archive
+in this frontend without changing its manifest or lockfile:
+
+```bash
+make -C /path/to/fred/libs/frontend pack-ui
+npm ci --no-audit --no-fund
+npx --yes npm@11 install --no-save --package-lock=false --no-audit --no-fund \
+  /path/to/fred/libs/frontend/target/archives/fred-oss-ui-0.1.0-alpha.3.tgz
+npm run typecheck
+npm test
+npm run build
+```
+
+Run `make run` to inspect it in Fred. After replacing a tarball with the same
+version, restart Vite with `npm run dev -- --port 5181 --strictPort --force`
+to refresh its prebundled dependency cache. Reinstall the tarball after `npm ci`,
+which restores the published alpha.2 tree. No local link or tarball reference
+belongs in a committed manifest or lockfile. The boundary check validates the
+committed registry coordinates, not the locally installed tarball. Final release
+acceptance requires exact published alpha.3 in the manifest, lockfile and boundary
+checker; this stays pending until publication.

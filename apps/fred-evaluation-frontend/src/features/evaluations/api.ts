@@ -12,6 +12,7 @@ import type {
   ModelProfile,
   RunAnalysis,
   RunCaseList,
+  RunCase,
   RunCreated,
   RunReport,
   RunSpec,
@@ -39,13 +40,27 @@ async function required<T>(response: Promise<T | null>): Promise<T> {
   return value;
 }
 
+export interface ListOptions {
+  limit?: number;
+  offset?: number;
+  sort?: string;
+  q?: string;
+}
+
+function listQuery(options: ListOptions) {
+  return new URLSearchParams({
+    limit: String(options.limit ?? 20),
+    offset: String(options.offset ?? 0),
+    sort: options.sort ?? "created_at:desc",
+    ...(options.q ? { q: options.q } : {}),
+  });
+}
+
 export function createEvaluationApi(service: ApplicationService) {
   return {
-    listEvaluations: (limit = 50) =>
+    listEvaluations: (options: ListOptions = {}) =>
       required(
-        service.request<EvaluationList>(
-          `evaluations?${new URLSearchParams({ limit: String(limit), sort: "created_at:desc" })}`,
-        ),
+        service.request<EvaluationList>(`evaluations?${listQuery(options)}`),
       ),
     getEvaluation: (evaluationId: string) =>
       required(
@@ -62,10 +77,10 @@ export function createEvaluationApi(service: ApplicationService) {
       service.request<null>(`evaluations/${id(evaluationId)}`, {
         method: "DELETE",
       }),
-    listRuns: (evaluationId: string, limit = 50) =>
+    listRuns: (evaluationId: string, options: ListOptions = {}) =>
       required(
         service.request<EvaluationRunList>(
-          `evaluations/${id(evaluationId)}/runs?${new URLSearchParams({ limit: String(limit), sort: "created_at:desc" })}`,
+          `evaluations/${id(evaluationId)}/runs?${listQuery(options)}`,
         ),
       ),
     getRunsSummary: (evaluationId: string) =>
@@ -88,6 +103,10 @@ export function createEvaluationApi(service: ApplicationService) {
         service.request<RunCaseList>(
           `runs/${id(runId)}/cases?${new URLSearchParams({ limit: String(limit) })}`,
         ),
+      ),
+    getRunCase: (runId: string, caseId: string) =>
+      required(
+        service.request<RunCase>(`runs/${id(runId)}/cases/${id(caseId)}`),
       ),
     cancelRun: (runId: string) =>
       service.request<unknown>(`runs/${id(runId)}/cancel`, { method: "POST" }),

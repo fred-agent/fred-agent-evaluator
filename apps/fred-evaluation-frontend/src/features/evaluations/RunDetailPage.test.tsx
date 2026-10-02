@@ -1,4 +1,10 @@
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../../shared/i18n";
 import { run, runCase } from "../../test/fixtures";
@@ -32,6 +38,7 @@ describe("run detail", () => {
       {
         "GET runs/run-1": () => Response.json(states[Math.min(polls++, 1)]),
         "GET runs/run-1/cases": cases,
+        "GET runs/run-1/cases/case-1": ok(runCase),
       },
       "runs/run-1",
     );
@@ -61,14 +68,21 @@ describe("run detail", () => {
           run({ operational_state: "completed", verdict: "passed" }),
         ),
         "GET runs/run-1/cases": cases,
+        "GET runs/run-1/cases/case-1": ok(runCase),
       },
       "runs/run-1",
     );
     expect(
-      await screen.findByText("Answer relevancy 0.91"),
+      await screen
+        .findAllByText("Answer relevancy 0.91")
+        .then((items) => items[0]),
     ).toBeInTheDocument();
-    expect(screen.getByText("mistral-small-2506")).toBeInTheDocument();
-    expect(screen.getByText("A platform.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "case-1" }));
+    await screen.findByText(/Model used:/);
+    expect(screen.getByText(/mistral-small-2506/)).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("complementary")).getByText("A platform."),
+    ).toBeInTheDocument();
   });
 
   it("analyzes a completed run and shows the analysis", async () => {
@@ -78,6 +92,7 @@ describe("run detail", () => {
           run({ operational_state: "completed", verdict: "passed" }),
         ),
         "GET runs/run-1/cases": cases,
+        "GET runs/run-1/cases/case-1": ok(runCase),
         "POST runs/run-1/analyze": ok({
           run_id: "run-1",
           cached: false,
@@ -106,6 +121,7 @@ describe("run detail", () => {
             cancelled ? run({ operational_state: "cancelled" }) : run(),
           ),
         "GET runs/run-1/cases": cases,
+        "GET runs/run-1/cases/case-1": ok(runCase),
         "POST runs/run-1/cancel": () => {
           cancelled = true;
           return Response.json(
@@ -137,6 +153,7 @@ describe("run detail", () => {
           run({ operational_state: "completed", verdict: "passed" }),
         ),
         "GET runs/run-1/cases": cases,
+        "GET runs/run-1/cases/case-1": ok(runCase),
         "GET runs/run-1/report": ok({ run: { run_id: "run-1" } }),
       },
       "runs/run-1",

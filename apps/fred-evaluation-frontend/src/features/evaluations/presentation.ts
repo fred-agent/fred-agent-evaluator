@@ -1,3 +1,4 @@
+import type { StatusBadgeTone } from "@fred-oss/ui";
 import type { TFunction } from "i18next";
 import { ApplicationHttpError } from "../../shared/api/applicationService";
 
@@ -53,4 +54,48 @@ export function formatDate(value: string | null | undefined, locale: string) {
 
 export function formatScore(score: number | null | undefined): string {
   return score === null || score === undefined ? "—" : score.toFixed(2);
+}
+
+export function statusPresentation(
+  value: string,
+  group: "states" | "verdicts" | "evaluations" | "risk",
+  t: TFunction,
+) {
+  const tones: Record<string, StatusBadgeTone> = {
+    passed: "success",
+    complete: "success",
+    completed: "success",
+    succeeded: "success",
+    low: "success",
+    failed: "error",
+    error: "error",
+    high: "error",
+    critical: "error",
+    insufficient: "warning",
+    inconclusive: "warning",
+    minimal: "warning",
+    medium: "warning",
+    running: "info",
+    pending: "neutral",
+    cancelled: "neutral",
+    cancelling: "info",
+    skipped: "neutral",
+  };
+  return {
+    label: t(`${group}.${value}`, { defaultValue: value }),
+    tone: tones[value] ?? "neutral",
+  };
+}
+
+export function downloadJson(filename: string, content: unknown) {
+  const url = URL.createObjectURL(
+    new Blob([JSON.stringify(content, null, 2)], { type: "application/json" }),
+  );
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }

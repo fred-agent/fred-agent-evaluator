@@ -1,153 +1,53 @@
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Button, Chip, Dialog, Spinner } from "@fred-oss/ui";
+import {
+  Breadcrumb,
+  Button,
+  DataTable,
+  Dialog,
+  Disclosure,
+  KpiStatCard,
+  PageEmptyState,
+  PageHeader,
+  ProgressBar,
+  Spinner,
+  StatusBadge,
+  useToast,
+} from "@fred-oss/ui";
 import { useAppNavigate } from "../../app/router";
 import { useShellElement } from "../../app/shell";
 import { useLoad } from "../../shared/api/useLoad";
-import type {
-  EvaluationRun,
-  RunAnalysis,
-  RunCase,
-} from "../../shared/api/schemas";
+import type { RunAnalysis } from "../../shared/api/schemas";
 import { LoadFailure } from "./LoadFailure";
 import {
   describeError,
+  downloadJson,
   formatDate,
   formatScore,
   isTerminal,
-  stateLabel,
-  verdictLabel,
+  statusPresentation,
 } from "./presentation";
 import { useEvaluationApi } from "./useEvaluationApi";
+import { useTableLabels } from "./ListControls";
+import { CaseDrawer } from "./CaseDrawer";
 
-const POLL_MS = 3000;
-
-interface RunView {
-  run: EvaluationRun;
-  cases: RunCase[];
-}
-
-function download(filename: string, content: unknown) {
-  const url = URL.createObjectURL(
-    new Blob([JSON.stringify(content, null, 2)], { type: "application/json" }),
-  );
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.click();
-  URL.revokeObjectURL(url);
-}
-
-function CasesTable({ cases }: { cases: RunCase[] }) {
-  const { t } = useTranslation();
-  return (
-    <div className="evaluation-table-wrap">
-      <table>
-        <caption className="visually-hidden">{t("cases.title")}</caption>
-        <thead>
-          <tr>
-            <th scope="col">{t("cases.input")}</th>
-            <th scope="col">{t("runs.verdict")}</th>
-            <th scope="col">{t("cases.metrics")}</th>
-            <th scope="col">{t("cases.model")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {cases.map((c) => (
-            <tr key={c.case_id}>
-              <td>
-                <details>
-                  <summary>{c.input}</summary>
-                  <dl className="evaluation-case">
-                    <dt>{t("cases.expected")}</dt>
-                    <dd>{c.expected_output ?? "—"}</dd>
-                    <dt>{t("cases.actual")}</dt>
-                    <dd>{c.actual_output ?? "—"}</dd>
-                    {c.execution_error && (
-                      <>
-                        <dt>{t("cases.error")}</dt>
-                        <dd className="evaluation-error">
-                          {c.execution_error}
-                        </dd>
-                      </>
-                    )}
-                    {c.metrics
-                      .filter((m) => m.explanation || m.error)
-                      .map((m) => (
-                        <div key={m.name}>
-                          <dt>{m.name}</dt>
-                          <dd>{m.error ?? m.explanation}</dd>
-                        </div>
-                      ))}
-                  </dl>
-                </details>
-              </td>
-              <td>
-                <Chip label={verdictLabel(c.verdict, t)} />
-              </td>
-              <td>
-                <ul className="evaluation-inline-list">
-                  {c.metrics.map((m) => (
-                    <li key={m.name}>
-                      {t(`metrics.${m.name}`, { defaultValue: m.name })}{" "}
-                      {formatScore(m.score)}
-                    </li>
-                  ))}
-                </ul>
-              </td>
-              <td>{c.actual_model_name ?? "—"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function AnalysisPanel({ analysis }: { analysis: RunAnalysis }) {
-  const { t } = useTranslation();
-  const result = analysis.analysis;
-  const lists: Array<[string, string[]]> = [
-    ["analysis.strengths", result.strengths],
-    ["analysis.weaknesses", result.weaknesses],
-    ["analysis.recommendations", result.recommendations],
-  ];
-  return (
-    <section aria-labelledby="analysis-title" className="evaluation-panel">
-      <h2 id="analysis-title">
-        {t("analysis.title")} <Chip label={result.risk_level} />
-      </h2>
-      <p>{result.summary}</p>
-      {lists.map(([key, items]) =>
-        items.length ? (
-          <div key={key}>
-            <h3>{t(key)}</h3>
-            <ul>
-              {items.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          </div>
-        ) : null,
-      )}
-    </section>
-  );
-}
-
-/** One run: its progress while it runs, its results once done. */
-export function RunDetailPage({ runId }: { runId: string }) {
+export function RunDetailPage({
+  runId,
+  caseId,
+}: {
+  runId: string;
+  caseId?: string;
+}) {
   const { t, i18n } = useTranslation();
   const api = useEvaluationApi();
   const go = useAppNavigate();
   const shell = useShellElement();
+  const toast = useToast();
+  const labels = useTableLabels();
   const [analysis, setAnalysis] = useState<RunAnalysis | null>(null);
-  const [busy, setBusy] = useState<
-    "cancel" | "analyze" | "report" | "delete" | null
-  >(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-
-  const load = useCallback(async (): Promise<RunView> => {
+  const load = useCallback(async () => {
     const [run, cases] = await Promise.all([
       api.getRun(runId),
       api.listRunCases(runId),
@@ -155,65 +55,89 @@ export function RunDetailPage({ runId }: { runId: string }) {
     return { run, cases: cases.cases };
   }, [api, runId]);
   const { state, retry, reload } = useLoad(load, (view) =>
-    isTerminal(view.run.operational_state) ? null : POLL_MS,
+    isTerminal(view.run.operational_state) ? null : 3000,
   );
-
-  const act = async (
-    kind: NonNullable<typeof busy>,
-    action: () => Promise<void>,
-  ) => {
+  const act = async (kind: string, action: () => Promise<void>) => {
+    if (busy !== null) return;
     setBusy(kind);
-    setActionError(null);
     try {
       await action();
+      toast.showSuccess({ summary: t("ui.done") });
     } catch (error) {
-      setActionError(describeError(error, t));
+      toast.showError({ summary: describeError(error, t) });
     } finally {
       setBusy(null);
     }
   };
-
   if (state.status === "loading")
     return <Spinner statusText={t("loadingPage")} />;
   if (state.status === "error")
     return <LoadFailure error={state.error} onRetry={retry} />;
-
   const { run, cases } = state.data;
   const terminal = isTerminal(run.operational_state);
   const completed = ["completed", "succeeded"].includes(run.operational_state);
-  const title = `${run.snapshot.evaluation_name} ${run.snapshot.evaluation_version}`;
-
+  const metricScores = new Map<string, number[]>();
+  for (const row of cases)
+    for (const metric of row.metrics)
+      if (metric.score !== null && Number.isFinite(metric.score))
+        metricScores.set(metric.name, [
+          ...(metricScores.get(metric.name) ?? []),
+          metric.score,
+        ]);
+  const averages = [...metricScores].map(([name, scores]) => ({
+    name,
+    score: scores.reduce((sum, score) => sum + score, 0) / scores.length,
+  }));
+  const global = averages.length
+    ? averages.reduce((sum, metric) => sum + metric.score, 0) / averages.length
+    : null;
+  const stats = [
+    ["runs.passed", run.passed_cases, "passed"],
+    ["runs.failed", run.failed_cases, "failed"],
+    ["runs.insufficient", run.insufficient_cases, "insufficient"],
+    ["ui.executionErrors", run.execution_error_cases, "error"],
+    ["ui.scoringErrors", run.scoring_error_cases, "error"],
+  ] as const;
   return (
-    <section aria-labelledby="run-title">
-      <div>
-        <Button
-          color="on-surface"
-          variant="text"
-          size="small"
-          onClick={() => go(`evaluations/${run.evaluation_id}`)}
-        >
-          {t("runs.backToEvaluation")}
-        </Button>
-      </div>
-      <header className="evaluation-toolbar">
-        <div>
-          <h1 id="run-title">{title}</h1>
-          <span>
-            {formatDate(run.created_at, i18n.language)}
-            {run.agent_model_override && ` · ${run.agent_model_override}`}
-          </span>
-        </div>
-        <div className="evaluation-actions">
-          <Chip label={stateLabel(run.operational_state, t)} />
-          <Chip label={verdictLabel(run.verdict, t)} />
-        </div>
-      </header>
-      <div className="evaluation-progress">
-        <progress
-          value={run.completed_cases}
-          max={Math.max(run.total_cases, 1)}
-          aria-label={t("runs.progress")}
+    <section>
+      <PageHeader
+        title={`${run.snapshot.evaluation_name} ${run.snapshot.evaluation_version}`}
+        breadcrumb={
+          <Breadcrumb
+            segments={[
+              { label: t("evaluations.title"), onClick: () => go("") },
+              {
+                label: run.snapshot.evaluation_name,
+                onClick: () => go(`evaluations/${run.evaluation_id}`),
+              },
+              { label: runId.slice(0, 8) },
+            ]}
+          />
+        }
+      />
+      <div className="evaluation-actions">
+        <StatusBadge
+          {...statusPresentation(run.operational_state, "states", t)}
         />
+        <StatusBadge {...statusPresentation(run.verdict, "verdicts", t)} />
+        <span>
+          {t("ui.passRate", {
+            passed: run.passed_cases,
+            total: run.total_cases,
+            rate: run.total_cases
+              ? Math.round((100 * run.passed_cases) / run.total_cases)
+              : 0,
+          })}
+        </span>
+      </div>
+      <div className="evaluation-stack">
+        {!terminal && (
+          <ProgressBar
+            theme="primary"
+            current={run.completed_cases}
+            max={Math.max(1, run.total_cases)}
+          />
+        )}
         <span>
           {t("runs.progressText", {
             completed: run.completed_cases,
@@ -221,24 +145,36 @@ export function RunDetailPage({ runId }: { runId: string }) {
           })}
         </span>
       </div>
-      <dl className="evaluation-kpis">
-        <div>
-          <dt>{t("runs.passed")}</dt>
-          <dd>{run.passed_cases}</dd>
-        </div>
-        <div>
-          <dt>{t("runs.failed")}</dt>
-          <dd>{run.failed_cases}</dd>
-        </div>
-        <div>
-          <dt>{t("runs.insufficient")}</dt>
-          <dd>{run.insufficient_cases}</dd>
-        </div>
-        <div>
-          <dt>{t("runs.errors")}</dt>
-          <dd>{run.execution_error_cases + run.scoring_error_cases}</dd>
-        </div>
-      </dl>
+      <div className="evaluation-kpis">
+        {stats.map(([key, value, verdict]) => (
+          <KpiStatCard
+            key={key}
+            label={t(key)}
+            value={value}
+            tone={statusPresentation(verdict, "verdicts", t).tone}
+            isLoading={false}
+            isError={false}
+          />
+        ))}
+      </div>
+      <section className="evaluation-stack">
+        <h2>
+          {t("ui.averages")}
+          {!terminal && ` · ${t("ui.partial")}`}
+        </h2>
+        <p>
+          {t("ui.globalScore")}: {formatScore(global)}
+        </p>
+        {averages.map((metric) => (
+          <div key={metric.name}>
+            <span>
+              {t(`metrics.${metric.name}`, { defaultValue: metric.name })}{" "}
+              {formatScore(metric.score)}
+            </span>
+            <ProgressBar theme="primary" current={metric.score} max={1} />
+          </div>
+        ))}
+      </section>
       <div className="evaluation-actions">
         {!terminal && (
           <Button
@@ -271,24 +207,22 @@ export function RunDetailPage({ runId }: { runId: string }) {
             {busy === "analyze" ? t("analysis.running") : t("analysis.run")}
           </Button>
         )}
-        {terminal && (
-          <Button
-            color="primary"
-            variant="outlined"
-            size="small"
-            disabled={busy !== null}
-            onClick={() =>
-              void act("report", async () =>
-                download(
-                  `evaluation-run-${runId}.json`,
-                  await api.getRunReport(runId),
-                ),
-              )
-            }
-          >
-            {t("runs.report")}
-          </Button>
-        )}
+        <Button
+          color="primary"
+          variant="outlined"
+          size="small"
+          disabled={busy !== null}
+          onClick={() =>
+            void act("report", async () =>
+              downloadJson(
+                `evaluation-run-${runId}.json`,
+                await api.getRunReport(runId),
+              ),
+            )
+          }
+        >
+          {t("runs.report")}
+        </Button>
         {terminal && (
           <Button
             color="error"
@@ -301,17 +235,150 @@ export function RunDetailPage({ runId }: { runId: string }) {
           </Button>
         )}
       </div>
-      {actionError && (
-        <p role="alert" className="evaluation-error">
-          {actionError}
-        </p>
+      {analysis && (
+        <section className="evaluation-stack">
+          <div className="evaluation-actions">
+            <h2>{t("analysis.title")}</h2>
+            <StatusBadge
+              {...statusPresentation(analysis.analysis.risk_level, "risk", t)}
+            />
+            <Button
+              color="on-surface"
+              variant="text"
+              size="small"
+              onClick={() => setAnalysis(null)}
+            >
+              {t("ui.dismiss")}
+            </Button>
+          </div>
+          <p>{analysis.analysis.summary}</p>
+          {(["strengths", "weaknesses", "recommendations"] as const).map(
+            (key) => (
+              <div key={key}>
+                <h3>{t(`analysis.${key}`)}</h3>
+                <ul>
+                  {analysis.analysis[key].map((item, index) => (
+                    <li key={index}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ),
+          )}
+        </section>
       )}
-      {analysis && <AnalysisPanel analysis={analysis} />}
+      <Disclosure title={t("ui.metadata")}>
+        <dl className="evaluation-metadata">
+          {[
+            [t("evaluations.name"), run.snapshot.evaluation_name],
+            [t("evaluations.version"), run.snapshot.evaluation_version],
+            [t("evaluations.author"), run.created_by],
+            [t("ui.judge"), run.judge_profile_id],
+            [
+              t("runCreate.model"),
+              run.agent_model_override ?? t("runCreate.teamDefault"),
+            ],
+            [
+              t("evaluations.created"),
+              formatDate(run.created_at, i18n.language),
+            ],
+            [t("runs.started"), formatDate(run.started_at, i18n.language)],
+            [t("ui.completedAt"), formatDate(run.completed_at, i18n.language)],
+          ].map(([label, value]) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      </Disclosure>
       <h2>{t("cases.title")}</h2>
       {cases.length === 0 ? (
-        <p>{t("cases.empty")}</p>
+        <PageEmptyState icon="article" message={t("cases.empty")} />
       ) : (
-        <CasesTable cases={cases} />
+        <div
+          className="evaluation-table-wrap"
+          role="region"
+          aria-label={t("cases.title")}
+        >
+          <DataTable
+            data={cases}
+            onRowClick={(row) =>
+              go(`runs/${runId}/cases/${encodeURIComponent(row.case_id)}`)
+            }
+            labels={labels}
+            rowKey={(row) => row.case_id}
+            pageSize={20}
+            columns={[
+              {
+                label: t("ui.id"),
+                cellRenderer: (row) => (
+                  <Button
+                    color="primary"
+                    variant="text"
+                    size="small"
+                    onClick={() =>
+                      go(
+                        `runs/${runId}/cases/${encodeURIComponent(row.case_id)}`,
+                      )
+                    }
+                  >
+                    {row.case_id}
+                  </Button>
+                ),
+              },
+              {
+                label: t("cases.input"),
+                size: "minmax(12rem, 2fr)",
+                cellRenderer: (row) => row.input,
+              },
+              {
+                label: t("runs.state"),
+                cellRenderer: (row) => (
+                  <StatusBadge
+                    {...statusPresentation(row.status, "states", t)}
+                  />
+                ),
+              },
+              {
+                label: t("runs.verdict"),
+                cellRenderer: (row) => (
+                  <StatusBadge
+                    {...statusPresentation(row.verdict, "verdicts", t)}
+                  />
+                ),
+              },
+              {
+                label: t("ui.latency"),
+                cellRenderer: (row) =>
+                  row.latency_ms === null ? "—" : `${row.latency_ms} ms`,
+              },
+              {
+                label: t("cases.metrics"),
+                size: "14rem",
+                cellRenderer: (row) => (
+                  <div>
+                    {row.metrics.slice(0, 2).map((metric) => (
+                      <div key={metric.name}>
+                        {t(`metrics.${metric.name}`, {
+                          defaultValue: metric.name,
+                        })}{" "}
+                        {formatScore(metric.score)}
+                      </div>
+                    ))}
+                  </div>
+                ),
+              },
+            ]}
+          />
+        </div>
+      )}
+      {caseId && (
+        <CaseDrawer
+          key={caseId}
+          runId={runId}
+          caseId={caseId}
+          onClose={() => go(`runs/${runId}`)}
+        />
       )}
       <Dialog
         open={confirmDelete}
@@ -319,13 +386,13 @@ export function RunDetailPage({ runId }: { runId: string }) {
         confirmLabel={t("delete")}
         cancelLabel={t("cancel")}
         confirmColor="error"
-        onConfirm={() => {
-          setConfirmDelete(false);
+        onConfirm={() =>
           void act("delete", async () => {
             await api.deleteRun(runId);
+            setConfirmDelete(false);
             go(`evaluations/${run.evaluation_id}`);
-          });
-        }}
+          })
+        }
         onCancel={() => setConfirmDelete(false)}
         portalContainer={shell}
       >

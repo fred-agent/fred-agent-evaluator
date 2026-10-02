@@ -1,6 +1,15 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Button, IconButton, TextInput } from "@fred-oss/ui";
+import {
+  Button,
+  IconButton,
+  TextInput,
+  TextArea,
+  SelectableCard,
+  FileDropzone,
+  PageHeader,
+  useToast,
+} from "@fred-oss/ui";
 import { useAppNavigate } from "../../app/router";
 import { DOCUMENT_ERRORS, MAX_CASES, parseDocument } from "./document";
 import { describeError } from "./presentation";
@@ -20,18 +29,23 @@ export function EvaluationCreatePage() {
   const { t } = useTranslation();
   const api = useEvaluationApi();
   const go = useAppNavigate();
+  const toast = useToast();
+  const [mode, setMode] = useState<"manual" | "upload">("manual");
   const [name, setName] = useState("");
   const [version, setVersion] = useState("");
   const [author, setAuthor] = useState("");
   const [rows, setRows] = useState<Row[]>(() => [emptyRow()]);
   const [sourceFilename, setSourceFilename] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+
   const [submitting, setSubmitting] = useState(false);
 
   const cases = rows.filter((row) => row.input.trim());
   const valid =
-    name.trim() !== "" && cases.length > 0 && cases.length <= MAX_CASES;
+    name.trim() !== "" &&
+    cases.length > 0 &&
+    cases.length <= MAX_CASES &&
+    (mode === "manual" || sourceFilename !== null);
 
   const importFile = async (file: File) => {
     setImportError(null);
@@ -65,31 +79,30 @@ export function EvaluationCreatePage() {
   const submit = async () => {
     if (!valid) return;
     setSubmitting(true);
-    setError(null);
+
     try {
       const created = await api.createEvaluation({
         name: name.trim(),
         version: version.trim() || null,
         author: author.trim() || null,
-        origin: sourceFilename ? "upload" : "manual",
-        source_filename: sourceFilename,
+        origin: mode,
+        source_filename: mode === "upload" ? sourceFilename : null,
         cases: cases.map((row) => ({
           input: row.input,
           expected_output: row.expected.trim() ? row.expected : null,
         })),
       });
+      toast.showSuccess({ summary: t("ui.created") });
       go(`evaluations/${created.evaluation_id}`);
     } catch (reason) {
-      setError(describeError(reason, t));
+      toast.showError({ summary: describeError(reason, t) });
       setSubmitting(false);
     }
   };
 
   return (
-    <section aria-labelledby="create-title">
-      <header className="evaluation-toolbar">
-        <h1 id="create-title">{t("evaluations.new")}</h1>
-      </header>
+    <section className="evaluation-create-page">
+      <PageHeader title={t("evaluations.new")} />
       <form
         className="evaluation-form"
         onSubmit={(event) => {
@@ -97,21 +110,35 @@ export function EvaluationCreatePage() {
           void submit();
         }}
       >
-        <label className="evaluation-file">
-          <span>{t("create.import")}</span>
-          <input
-            type="file"
-            accept="application/json,.json"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file) void importFile(file);
-            }}
+        <div className="evaluation-columns">
+          <SelectableCard
+            selected={mode === "upload"}
+            title={t("create.import")}
+            description={t("ui.importHint")}
+            onSelect={() => setMode("upload")}
           />
-        </label>
-        {importError && (
-          <p role="alert" className="evaluation-error">
-            {importError}
-          </p>
+          <SelectableCard
+            selected={mode === "manual"}
+            title={t("ui.manual")}
+            description={t("ui.manualHint")}
+            onSelect={() => setMode("manual")}
+          />
+        </div>
+        {mode === "upload" && (
+          <div role={importError ? "alert" : undefined}>
+            <FileDropzone
+              accept="application/json,.json"
+              hint={t("create.import")}
+              subHint={t("ui.importHint")}
+              error={importError ?? undefined}
+              onFile={(file) => void importFile(file)}
+            />
+            {sourceFilename && (
+              <p>
+                {sourceFilename} · {t("ui.imported", { count: cases.length })}
+              </p>
+            )}
+          </div>
         )}
         <TextInput
           label={t("evaluations.name")}
@@ -139,39 +166,50 @@ export function EvaluationCreatePage() {
             )
           </legend>
           {rows.map((row, index) => (
-            <div key={row.key} className="evaluation-case-row">
-              <label>
-                <span>{t("create.caseInput", { n: index + 1 })}</span>
-                <textarea
+            <section
+              key={row.key}
+              className="evaluation-case-card"
+              aria-labelledby={`case-${row.key}-title`}
+            >
+              <div className="evaluation-case-header">
+                <h3 id={`case-${row.key}-title`}>
+                  {t("create.caseTitle", { n: index + 1 })}
+                </h3>
+                <IconButton
+                  variant="icon"
+                  color="on-surface-retreat"
+                  size="small"
+                  icon={{ type: "delete" }}
+                  aria-label={t("create.removeCase", { n: index + 1 })}
+                  disabled={rows.length === 1}
+                  onClick={() =>
+                    setRows((current) =>
+                      current.filter((r) => r.key !== row.key),
+                    )
+                  }
+                />
+              </div>
+              <div className="evaluation-case-row">
+                <TextArea
+                  label={t("create.caseInput", { n: index + 1 })}
                   value={row.input}
-                  rows={2}
+                  rows={5}
+                  className="evaluation-case-field"
                   onChange={(event) =>
                     update(row.key, { input: event.target.value })
                   }
                 />
-              </label>
-              <label>
-                <span>{t("cases.expected")}</span>
-                <textarea
+                <TextArea
+                  label={t("cases.expected")}
                   value={row.expected}
-                  rows={2}
+                  rows={5}
+                  className="evaluation-case-field"
                   onChange={(event) =>
                     update(row.key, { expected: event.target.value })
                   }
                 />
-              </label>
-              <IconButton
-                variant="icon"
-                color="on-surface-retreat"
-                size="small"
-                icon={{ type: "delete" }}
-                aria-label={t("create.removeCase", { n: index + 1 })}
-                disabled={rows.length === 1}
-                onClick={() =>
-                  setRows((current) => current.filter((r) => r.key !== row.key))
-                }
-              />
-            </div>
+              </div>
+            </section>
           ))}
           <div>
             <Button
@@ -186,11 +224,6 @@ export function EvaluationCreatePage() {
             </Button>
           </div>
         </fieldset>
-        {error && (
-          <p role="alert" className="evaluation-error">
-            {error}
-          </p>
-        )}
         <div className="evaluation-actions">
           <Button
             type="button"

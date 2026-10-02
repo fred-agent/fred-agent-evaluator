@@ -41,8 +41,8 @@ describe("evaluations page", () => {
     const fake = renderWith(() =>
       Response.json({ evaluations: [golden], total: 1 }),
     );
-    const row = (await screen.findByRole("rowheader", { name: "golden-set" }))
-      .parentElement as HTMLElement;
+    await screen.findByRole("button", { name: "golden-set" });
+    const row = screen.getByRole("region", { name: "Evaluations" });
     expect(within(row).getByText("v2")).toBeInTheDocument();
     expect(within(row).getByText("12")).toBeInTheDocument();
     expect(within(row).getByText("Complete")).toBeInTheDocument();
@@ -50,7 +50,7 @@ describe("evaluations page", () => {
     expect(screen.getByText("1 evaluation")).toBeInTheDocument();
     // Team-relative: the host, not this code, names the team and adds the token.
     expect(fake.request).toHaveBeenCalledExactlyOnceWith(
-      "evaluations?limit=50&sort=created_at%3Adesc",
+      "evaluations?limit=20&offset=0&sort=created_at%3Adesc",
       undefined,
     );
   });
@@ -84,7 +84,7 @@ describe("evaluations page", () => {
       "Something went wrong.",
     );
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-    await screen.findByRole("rowheader", { name: "golden-set" });
+    await screen.findByRole("button", { name: "golden-set" });
     expect(fake.request).toHaveBeenCalledTimes(2);
   });
 });

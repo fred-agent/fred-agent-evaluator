@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client";
 import "@fred-oss/design-tokens/tokens.css";
+import "@fred-oss/design-tokens/fonts.css";
 import "@fred-oss/ui/styles.css";
 import "./shared/i18n";
 import "./shell.css";

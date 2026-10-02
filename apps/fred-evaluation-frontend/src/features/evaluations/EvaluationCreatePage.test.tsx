@@ -63,9 +63,13 @@ describe("evaluation creation", () => {
       "golden.json",
       { type: "application/json" },
     );
-    fireEvent.change(await screen.findByLabelText("Import a JSON document"), {
-      target: { files: [file] },
-    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Import a JSON document/ }),
+    );
+    fireEvent.drop(
+      screen.getAllByRole("button", { name: /Import a JSON document/ })[1],
+      { dataTransfer: { files: [file] } },
+    );
     await waitFor(() =>
       expect(screen.getByLabelText(/^Name/)).toHaveValue("golden"),
     );
@@ -82,9 +86,13 @@ describe("evaluation creation", () => {
 
   it("explains an unreadable document and keeps the form as it was", async () => {
     renderApp({}, "evaluations/new");
-    fireEvent.change(await screen.findByLabelText("Import a JSON document"), {
-      target: { files: [new File(["{"], "broken.json")] },
-    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Import a JSON document/ }),
+    );
+    fireEvent.drop(
+      screen.getAllByRole("button", { name: /Import a JSON document/ })[1],
+      { dataTransfer: { files: [new File(["{"], "broken.json")] } },
+    );
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "This file is not valid JSON.",
     );

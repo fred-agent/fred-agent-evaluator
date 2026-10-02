@@ -1,0 +1,123 @@
+.form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 20rem);
+  align-items: start;
+  gap: var(--spacing-xl);
+  min-width: 0;
+}
+.configuration {
+  display: grid;
+  gap: var(--spacing-l);
+  min-width: 0;
+}
+.target {
+  display: grid;
+  gap: var(--spacing-m);
+}
+.targetFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-m);
+  min-width: 0;
+}
+.sectionTitle,
+.metrics legend {
+  margin: 0;
+  padding: 0;
+  font: var(--font-title-small-emphasized);
+  color: var(--on-surface);
+}
+.metrics {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.metrics > .hint {
+  margin-block: var(--spacing-2xs) var(--spacing-s);
+}
+.hint {
+  margin: 0;
+  font: var(--font-body-small);
+  color: var(--on-surface-retreat);
+  overflow-wrap: anywhere;
+}
+.metric {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-m);
+  padding-block: var(--spacing-s);
+  border-bottom: 1px solid var(--outline-variant);
+  cursor: pointer;
+}
+.metricCopy {
+  display: grid;
+  gap: var(--spacing-2xs);
+  min-width: 0;
+}
+.metricName {
+  font: var(--font-body-medium-emphasized);
+}
+.requirement {
+  font: var(--font-body-small);
+  color: var(--on-surface-retreat);
+}
+.summary {
+  position: sticky;
+  top: var(--spacing-l);
+  display: grid;
+  gap: var(--spacing-l);
+  min-width: 0;
+  padding: var(--spacing-l);
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius-m);
+  background: var(--surface-container-low);
+  color: var(--on-surface);
+}
+.dataset {
+  display: grid;
+  gap: var(--spacing-2xs);
+}
+.datasetName {
+  margin: 0;
+  font: var(--font-body-medium-emphasized);
+  overflow-wrap: anywhere;
+}
+.summaryList {
+  display: grid;
+  gap: var(--spacing-m);
+  margin: 0;
+}
+.summaryList > div {
+  display: grid;
+  gap: var(--spacing-2xs);
+}
+.summaryList dt {
+  color: var(--on-surface-retreat);
+  font: var(--font-body-small);
+}
+.summaryList dd {
+  margin: 0;
+  font: var(--font-body-medium);
+  overflow-wrap: anywhere;
+}
+.actions {
+  display: grid;
+  gap: var(--spacing-xs);
+  border-top: 1px solid var(--outline-variant);
+  padding-top: var(--spacing-m);
+}
+@media (max-width: 56rem) {
+  .form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .summary {
+    position: static;
+  }
+}
+@media (max-width: 32rem) {
+  .targetFields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
