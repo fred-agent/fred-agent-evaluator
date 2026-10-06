@@ -76,7 +76,7 @@ Valeurs requises :
   Ou, à la place (ou en complément), `extraEnvVars` : chaque variable lue
   clé par clé dans un Secret que la plateforme possède déjà
   (`valueFrom.secretKeyRef`), sous un autre nom de clé. C'est ce que fait
-  l'instance k3d de fred-deployment-factory (`k3d-apps/fred-evaluator/values.yaml`)
+  l'instance k3d de fred-deployment-factory (`deploy/k3d/values.yaml`, ici)
   avec son Secret `fred-secrets`.
 
 - `values.configuration` — surcharger ce qui diffère d'une installation Fred

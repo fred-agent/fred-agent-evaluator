@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+# Build the evaluation application's three images (API, worker, UI) for the
+# local k3d instance (fred-deployment-factory's `make k3d-app`). Writes
+# $K3D_APP_OUT/images.txt, the content-tagged references to copy into the
+# cluster, and $K3D_APP_OUT/images.yaml, the Helm values selecting them.
+root="$(cd "$(dirname "$0")/../.." && pwd)"
+out="${K3D_APP_OUT:?the factory provides K3D_APP_OUT}"
+
+# chart value -> "<app directory> <make target> <image suffix>"
+declare -A builds=(
+  [api]="fred-evaluation-backend docker-build-api "
+  [worker]="fred-evaluation-backend docker-build-worker -worker"
+  [ui]="fred-evaluation-frontend docker-build "
+)
+values=""
+images=""
+for component in api worker ui; do
+  read -r app target suffix <<<"${builds[$component]}"
+  image="$(make -s -C "$root/apps/$app" --eval 'print-%: ; @echo $($*)' print-IMAGE_FULL)${suffix}"
+  log="$out/$component.log"
+  echo "Build $component (log: $log)"
+  # One retry: a dependency download cut mid-build is the usual failure.
+  if ! make -C "$root/apps/$app" "$target" >"$log" 2>&1; then
+    echo "Retry $component; see $log"
+    make -C "$root/apps/$app" "$target" >"$log" 2>&1 || { tail -n 30 "$log" >&2; exit 1; }
+  fi
+  id="$(docker image inspect --format '{{.Id}}' "$image")"
+  repository="${image%:*}"
+  tag="k3d-${id#sha256:}"; tag="${tag:0:16}"
+  docker tag "$image" "$repository:$tag"
+  images+="$repository:$tag"$'\n'
+  values+="$component:"$'\n'"  image: { repository: \"$repository\", tag: \"$tag\" }"$'\n'
+  echo "Built $component: $repository:$tag"
+done
+# Publish only a complete build's outputs.
+printf '%s' "$images" >"$out/images.txt"
+printf '%s' "$values" >"$out/images.yaml"
