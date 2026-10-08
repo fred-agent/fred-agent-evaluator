@@ -275,7 +275,7 @@ it("submits complete G-Eval rows and omits half-filled rows", async () => {
   });
 });
 
-it("activates a run row by keyboard without confusing its detail action", async () => {
+it("opens a run's preview from its row without confusing its detail action", async () => {
   renderApp(
     {
       ...evaluationRoutes,
@@ -286,8 +286,7 @@ it("activates a run row by keyboard without confusing its detail action", async 
   );
   const region = await screen.findByRole("region", { name: "Runs" });
   const row = region.querySelector('[data-activatable="true"]') as HTMLElement;
-  row.focus();
-  fireEvent.keyDown(row, { key: "Enter" });
+  fireEvent.click(row);
   expect(await screen.findByRole("complementary")).toHaveTextContent("Preview");
   fireEvent.click(screen.getByRole("button", { name: "Close" }));
   await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());

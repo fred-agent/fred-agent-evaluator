@@ -125,7 +125,7 @@ export function EvaluationCreatePage() {
           />
         </div>
         {mode === "upload" && (
-          <div role={importError ? "alert" : undefined}>
+          <div>
             <FileDropzone
               accept="application/json,.json"
               hint={t("create.import")}

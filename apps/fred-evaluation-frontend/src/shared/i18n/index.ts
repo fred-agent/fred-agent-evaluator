@@ -63,8 +63,6 @@ const en = {
     manualHint: "Write questions and optional expected answers.",
     importHint: "Drop or choose a JSON document (up to 200 cases).",
     imported: "{{count}} cases imported",
-    selectAll: "Select all rows",
-    selectRow: "Select row",
     description_answer_relevancy: "How relevant the answer is to the question.",
     description_faithfulness:
       "Whether the answer is grounded in retrieved context.",
@@ -283,8 +281,6 @@ const fr: typeof en = {
     manualHint: "Rédiger les questions et les réponses attendues facultatives.",
     importHint: "Déposer ou choisir un document JSON (200 cas maximum).",
     imported: "{{count}} cas importés",
-    selectAll: "Sélectionner toutes les lignes",
-    selectRow: "Sélectionner la ligne",
     description_answer_relevancy: "Pertinence de la réponse pour la question.",
     description_faithfulness: "Fidélité de la réponse au contexte récupéré.",
     description_contextual_relevancy:

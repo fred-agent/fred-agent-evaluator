@@ -19,10 +19,7 @@ export function App() {
       data-theme={fred.context?.theme ?? "light"}
     >
       <ShellContext.Provider value={shell}>
-        <ToastProvider
-          copyLabel={t("ui.copyJson")}
-          dismissLabel={t("ui.dismiss")}
-        >
+        <ToastProvider dismissLabel={t("ui.dismiss")}>
           {fred.status === "connecting" && <p role="status">{t("loading")}</p>}
           {fred.status === "error" && (
             <div role="alert">

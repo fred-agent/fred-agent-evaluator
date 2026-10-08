@@ -4,8 +4,6 @@ import type { DataTableLabels } from "@fred-oss/ui";
 export function useTableLabels(): DataTableLabels {
   const { t } = useTranslation();
   return {
-    selectAllOnPage: t("ui.selectAll"),
-    selectRow: t("ui.selectRow"),
     pagination: {
       totalItems: (count) => t("ui.items", { count }),
       itemsPerPage: t("ui.perPage"),
