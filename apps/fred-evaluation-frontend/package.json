@@ -17,8 +17,8 @@
     "node": ">=22.13.0 <23"
   },
   "dependencies": {
-    "@fred-oss/design-tokens": "0.1.0-alpha.1",
-    "@fred-oss/iframe-sdk": "0.1.0-alpha.3",
+    "@fred-oss/design-tokens": "0.1.0-alpha.4",
+    "@fred-oss/iframe-sdk": "0.1.0-alpha.4",
     "@fred-oss/ui": "0.1.0-alpha.4",
     "i18next": "25.2.1",
     "react": "19.2.4",
