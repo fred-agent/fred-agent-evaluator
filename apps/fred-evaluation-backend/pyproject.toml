@@ -1,7 +1,7 @@
 [project]
 name = "fred-evaluation-backend"
 readme = "README.md"
-version = "1.0.1"
+version = "1.2.0"
 license = "Apache-2.0"
 description = "Fred evaluation platform — campaign API and worker"
 authors = [{ name = "Fred", email = "noreply@example.com" }]
