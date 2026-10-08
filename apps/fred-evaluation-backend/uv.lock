@@ -619,7 +619,7 @@ wheels = [
 
 [[package]]
 name = "fred-core"
-version = "4.4.0"
+version = "4.4.2"
 source = { editable = "../../../fred/libs/fred-core" }
 dependencies = [
     { name = "aiosqlite" },
@@ -817,7 +817,7 @@ provides-extras = ["dev", "scoring", "worker", "otel"]
 
 [[package]]
 name = "fred-pod"
-version = "4.4.0"
+version = "4.4.2"
 source = { editable = "../../../fred/libs/fred-pod" }
 dependencies = [
     { name = "httpx" },
@@ -857,7 +857,7 @@ dev = [
 
 [[package]]
 name = "fred-runtime"
-version = "4.4.0"
+version = "4.4.2"
 source = { editable = "../../../fred/libs/fred-runtime" }
 dependencies = [
     { name = "alembic" },
@@ -921,7 +921,7 @@ dev = [
 
 [[package]]
 name = "fred-sdk"
-version = "4.4.0"
+version = "4.4.2"
 source = { editable = "../../../fred/libs/fred-sdk" }
 dependencies = [
     { name = "fred-pod" },
@@ -935,6 +935,7 @@ agents = [
     { name = "langchain" },
     { name = "langchain-core" },
     { name = "langgraph" },
+    { name = "pyyaml" },
 ]
 
 [package.metadata]
@@ -953,6 +954,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.4.2" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6.2.1" },
     { name = "pytest-socket", marker = "extra == 'dev'", specifier = ">=0.7.0" },
+    { name = "pyyaml", marker = "extra == 'agents'", specifier = ">=6.0.1" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.12.5" },
     { name = "temporalio", marker = "extra == 'dev'", specifier = ">=1.7.0" },
     { name = "temporalio", marker = "extra == 'knowledge-base'", specifier = ">=1.7.0" },
