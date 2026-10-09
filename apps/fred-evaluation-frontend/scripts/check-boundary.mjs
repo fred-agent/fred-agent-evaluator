@@ -4,9 +4,9 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 export const EXPECTED = Object.freeze({
-  "@fred-oss/design-tokens": "0.1.0-alpha.1",
-  "@fred-oss/ui": "0.1.0-alpha.2",
-  "@fred-oss/iframe-sdk": "0.1.0-alpha.3",
+  "@fred-oss/design-tokens": "0.1.0-alpha.4",
+  "@fred-oss/ui": "0.1.0-alpha.4",
+  "@fred-oss/iframe-sdk": "0.1.0-alpha.4",
   react: "19.2.4",
   "react-dom": "19.2.4",
 });
