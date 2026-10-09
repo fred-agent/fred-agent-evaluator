@@ -3,6 +3,16 @@ TEST_DIRS        := libs/fred-deepeval-cli apps/fred-evaluation-backend apps/fre
 
 .DEFAULT_GOAL := help
 
+##@ Setup
+
+.PHONY: dev
+dev: ## Install every package's dependencies
+	@set -e; \
+	for dir in $(CODE_QUALITY_DIRS); do \
+		echo "************ Installing dependencies in $$dir ************"; \
+		$(MAKE) -C $$dir dev; \
+	done
+
 ##@ Code quality
 
 .PHONY: code-quality
