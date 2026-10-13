@@ -11,7 +11,8 @@ apps/fred-evaluation-backend/   # FastAPI API + Temporal worker
 apps/fred-evaluation-frontend/  # The evaluator's UI, a Fred application (iframe, @fred-oss/*)
 libs/fred-deepeval-cli/         # Scoring library (published to PyPI)
 deploy/
-  charts/fred-evaluator/        # Helm chart (2 deployments: api + worker)
+  charts/fred-evaluator/        # Helm chart (ui + api + worker), published; its README is the install doc
+  k3d/                          # The same chart on a local k3d instance (fred-deployment-factory)
   docker-compose/               # API + worker images against fred-deployment-factory
 docs/
   ARCHITECTURE.md               # Component diagram + end-to-end flow

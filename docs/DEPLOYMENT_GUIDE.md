@@ -42,58 +42,12 @@ ensemble.
 
 ### Chart
 
-`deploy/charts/fred-evaluator` vise une installation neuve, dans n'importe quel
-namespace :
-
-| Ressource | Rôle |
-|---|---|
-| `Deployment` / `Service <release>-ui` | l'UI, ClusterIP :8080 |
-| `ConfigMap <release>-ui-config` | le `config.json` de l'UI (`hostOrigin`) |
-| `Deployment` / `Service <release>-api` | l'API, ClusterIP :8336 ; un `initContainer` lance d'abord `alembic upgrade head` |
-| `Deployment <release>-worker` | le worker, sans Service |
-| `ConfigMap <release>-config` | `configuration.yaml`, rendu tel quel depuis `values.configuration` |
-| `Secret <release>-secret` | seulement avec `secret.create: true` |
-
-Rien n'est exposé, pas d'Ingress : la gateway de Fred atteint l'UI et l'API
-dans le cluster.
-
-Valeurs requises :
-
-- `ui.hostOrigin` — l'origine exacte à laquelle les utilisateurs ouvrent Fred
-  (`https://fred.example.com` : schéma, hôte, port non standard, sans chemin).
-  L'UI ignore les messages de toute autre origine ; le chart refuse ce qui
-  n'est pas une origine nue.
-- `secret.existingSecret` (ou `secret.create`) — un Secret dont les clés
-  arrivent en variables d'environnement dans l'API et le worker :
-
-  | Clé | Lue par |
-  |---|---|
-  | `FRED_POSTGRES_PASSWORD` | `storage.postgres` |
-  | `KEYCLOAK_EVAL_WORKER_CLIENT_SECRET` | `security.m2m` (worker) |
-  | `MISTRAL_API_KEY` | modèles juge et analyse |
-  | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` | seulement avec `tracer: langfuse` |
-
-  Ou, à la place (ou en complément), `extraEnvVars` : chaque variable lue
-  clé par clé dans un Secret que la plateforme possède déjà
-  (`valueFrom.secretKeyRef`), sous un autre nom de clé. C'est ce que fait
-  l'instance k3d de fred-deployment-factory (`deploy/k3d/values.yaml`, ici)
-  avec son Secret `fred-secrets`.
-
-- `values.configuration` — surcharger ce qui diffère d'une installation Fred
-  par défaut : adresses PostgreSQL, realm Keycloak, Temporal, Control Plane et
-  runtime.
-
-```bash
-kubectl -n fred-apps create secret generic fred-evaluator-secrets \
-  --from-literal=FRED_POSTGRES_PASSWORD=... \
-  --from-literal=KEYCLOAK_EVAL_WORKER_CLIENT_SECRET=... \
-  --from-literal=MISTRAL_API_KEY=...
-
-helm install evaluator deploy/charts/fred-evaluator -n fred-apps \
-  --set ui.hostOrigin=https://fred.example.com \
-  --set secret.existingSecret=fred-evaluator-secrets \
-  -f my-values.yaml
-```
+Le chart `deploy/charts/fred-evaluator` est publié en
+`oci://ghcr.io/fred-agent/fred-evaluator-helm/fred-evaluator` (tag `chart/v<version>`).
+Sa documentation, [deploy/charts/fred-evaluator/README.md](../deploy/charts/fred-evaluator/README.md),
+est la référence pour l'installer et le configurer : ressources créées,
+prérequis côté Fred, valeurs requises, clés du Secret, adresses à surcharger.
+`helm show readme` l'affiche depuis le chart publié.
 
 ## 2. Enregistrer dans Fred
 

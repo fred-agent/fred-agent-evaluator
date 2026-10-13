@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "fred-evaluator Helm chart values",
+  "description": "Catches misspelled or misplaced keys before anything is deployed. `configuration` stays open: the backend validates it at startup.",
+  "type": "object",
+  "additionalProperties": false,
+  "patternProperties": {
+    "^x-": {}
+  },
+  "definitions": {
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string" },
+        "pullPolicy": { "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requests": { "type": "object" },
+        "limits": { "type": "object" },
+        "claims": { "type": "array" }
+      }
+    },
+    "replicas": { "type": "integer", "minimum": 0 },
+    "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+  },
+  "properties": {
+    "api": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "image": { "$ref": "#/definitions/image" },
+        "replicas": { "$ref": "#/definitions/replicas" },
+        "port": { "$ref": "#/definitions/port" },
+        "resources": { "$ref": "#/definitions/resources" }
+      }
+    },
+    "ui": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "image": { "$ref": "#/definitions/image" },
+        "replicas": { "$ref": "#/definitions/replicas" },
+        "port": { "$ref": "#/definitions/port" },
+        "hostOrigin": {
+          "type": "string",
+          "description": "The exact origin users open Fred at, e.g. https://fred.example.com. Required; the templates check its form."
+        },
+        "resources": { "$ref": "#/definitions/resources" }
+      }
+    },
+    "worker": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "image": { "$ref": "#/definitions/image" },
+        "replicas": { "$ref": "#/definitions/replicas" },
+        "resources": { "$ref": "#/definitions/resources" }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": { "name": { "type": "string" } }
+      }
+    },
+    "secret": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "existingSecret": { "type": "string" },
+        "create": { "type": "boolean" },
+        "data": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "extraEnvVars": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": { "name": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "configuration": {
+      "type": "object"
+    }
+  }
+}

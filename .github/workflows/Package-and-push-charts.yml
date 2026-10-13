@@ -105,6 +105,8 @@ jobs:
            ## Setup
 
             ```bash
+            # What to configure: required values, credentials, addresses
+            helm show readme oci://ghcr.io/fred-agent/fred-evaluator-helm/fred-evaluator --version ${{ steps.meta.outputs.version }}
             # Install chart
             helm install fred-evaluator oci://ghcr.io/fred-agent/fred-evaluator-helm/fred-evaluator --version ${{ steps.meta.outputs.version }}
             ```
