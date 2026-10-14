@@ -45,8 +45,9 @@ make run-worker
 - `fred-core` — PyPI (config, storage, Keycloak helpers)
 - `fred-sdk` — PyPI (EvalTrace, ExecutionGrant contracts)
 
-In development both resolve from the sibling `~/Fred/fred` checkout
-(`[tool.uv.sources]`); the Docker images take the published versions.
+Both resolve from PyPI through the committed `uv.lock`. To work on unreleased fred,
+`make dev-local` with `FRED_REPO` set to your fred checkout (no default) overlays it, and
+`FRED_LIBS=local` does the same for the images (fred-deployment-factory's docs/LOCAL-DEVELOPMENT.md, "Work on unreleased fred").
 - `fred-deepeval-cli` — local editable (`libs/fred-deepeval-cli`)
 
 ## Documentation

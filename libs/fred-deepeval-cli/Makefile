@@ -9,6 +9,10 @@ include ../../scripts/makefiles/python-test.mk
 include ../../scripts/makefiles/python-clean.mk
 include ../../scripts/makefiles/help.mk
 
+FRED_LOCAL_BASE := eval-dev
+FRED_LOCAL_PACKAGES := fred-core fred-pod fred-sdk fred-runtime
+include ../../scripts/makefiles/python-fred-libs.mk
+
 ENV_FILE := $(ROOT_DIR)/config/.env
 export ENV_FILE
 
@@ -27,9 +31,14 @@ type-check: eval-dev
 cli: dev ## Run the external EvalTrace CLI
 	VIRTUAL_ENV= $(UV) run python -m fred_deepeval_cli.cli.main --help
 
-.PHONY: eval-dev
-eval-dev: ## Install dev + DeepEval dependencies
+# Synced once per change of the manifest or the lock, like `dev`: a re-sync on
+# every `make test` would drop a `make dev-local` overlay.
+$(TARGET)/.full-env: pyproject.toml uv.lock $(TARGET)/.uv-installed
 	VIRTUAL_ENV= $(UV) sync --extra dev --extra eval
+	@touch $(TARGET)/.compiled $@
+
+.PHONY: eval-dev
+eval-dev: $(TARGET)/.full-env ## Install dev + DeepEval dependencies
 
 .PHONY: score
 score: eval-dev ## Evaluate one Fred agent turn: trace + structural checks + DeepEval

@@ -109,10 +109,10 @@ make docker-build-api      # API image
 make docker-build-worker   # worker image (installs scoring/worker/otel extras)
 ```
 
-The images take `fred-core` / `fred-sdk` / `fred-runtime` from PyPI, bounded by the
-`pyproject.toml` floors, even though development resolves them from the sibling
-`~/Fred/fred` checkout. `fred-deepeval-cli` is the only in-repo path dependency
-(worker-only, via the `scoring` extra).
+The environment and the images take `fred-core` / `fred-sdk` / `fred-runtime` from PyPI,
+through the committed `uv.lock`; `make dev-local` and `FRED_LIBS=local make docker-build-*`
+take them from your fred checkout at `FRED_REPO` instead (no default). `fred-deepeval-cli` is
+the only in-repo path dependency (worker-only, via the `scoring` extra).
 
 DeepEval and LiteLLM are base dependencies: the API uses their model adapter for
 run analysis, while case scoring remains worker-only. If the analysis model

@@ -1,3 +1,13 @@
+# fred's libraries: the locked, published ones (pypi), or local: the fred checkout
+# passed as the `fred` build context (`FRED_LIBS=local make docker-build-*`;
+# fred-deployment-factory's docs/LOCAL-DEVELOPMENT.md, "Work on unreleased fred").
+ARG FRED_LIBS=pypi
+
+FROM scratch AS fred-libs-pypi
+FROM scratch AS fred-libs-local
+COPY --from=fred libs /libs
+FROM fred-libs-${FRED_LIBS} AS fred-libs
+
 # -----------------------------------------------------------------------------
 # BUILD STAGE
 # -----------------------------------------------------------------------------
@@ -26,12 +36,14 @@ COPY scripts/makefiles /workspace/scripts/makefiles
 # it. Copied in the builder only; it is NOT carried into the final image.
 COPY libs/fred-deepeval-cli /workspace/libs/fred-deepeval-cli
 
-# [tool.uv.sources] points fred-* at a sibling monorepo checkout that is not in
-# this build context. Take them from PyPI instead, bounded by the pyproject
-# floors: uv.lock records those local paths, so it is re-resolved here rather
-# than honoured.
-ENV UV_NO_SOURCES_PACKAGE="fred-core fred-sdk fred-runtime fred-pod"
 RUN make dev VENV=/app/venv TARGET=/app/target
+
+# Empty unless FRED_LIBS=local: then fred's libraries from the checkout replace the locked ones.
+COPY --from=fred-libs / /fred/
+RUN if [ -d /fred/libs ]; then \
+      /app/venv/bin/uv pip install --no-sources --python /app/venv/bin/python \
+        /fred/libs/fred-core /fred/libs/fred-pod /fred/libs/fred-sdk /fred/libs/fred-runtime; \
+    fi
 
 # -----------------------------------------------------------------------------
 # FINAL STAGE

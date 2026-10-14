@@ -65,8 +65,8 @@ Librairie Python publiée sur PyPI.
 
 | Package | Source | Rôle |
 |---|---|---|
-| `fred-core` | PyPI (dev : checkout voisin `~/Fred/fred`) | Config, DB, Keycloak |
-| `fred-sdk` | PyPI (dev : checkout voisin `~/Fred/fred`) | EvalTrace, ExecutionGrant |
+| `fred-core` | PyPI (`make dev-local` : votre checkout, `FRED_REPO`) | Config, DB, Keycloak |
+| `fred-sdk` | PyPI (`make dev-local` : votre checkout, `FRED_REPO`) | EvalTrace, ExecutionGrant |
 | `fred-deepeval-cli` | Local editable | Scoring |
 | `deepeval` | PyPI (transitif) | Métriques |
 | `litellm` | PyPI (transitif) | Routeur LLM |

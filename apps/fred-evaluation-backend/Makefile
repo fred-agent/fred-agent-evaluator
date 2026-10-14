@@ -12,15 +12,23 @@ include ../../scripts/makefiles/python-openapi.mk
 include ../../scripts/makefiles/alembic.mk
 include ../../scripts/makefiles/help.mk
 
+FRED_LOCAL_BASE := dev-scoring
+FRED_LOCAL_PACKAGES := fred-core fred-pod fred-sdk fred-runtime
+include ../../scripts/makefiles/python-fred-libs.mk
+
 ENV_FILE := $(ROOT_DIR)/config/.env
 export ENV_FILE
 
 ##@ Run
 
 
+# Synced once per change of the manifest or the lock, like `dev`: a re-sync on
+# every `make test` would drop a `make dev-local` overlay.
+$(TARGET)/.full-env: pyproject.toml uv.lock $(TARGET)/.uv-installed
+	flock $(TARGET)/.compiled.lock sh -c '$(UV) sync --extra dev --extra scoring --extra worker --extra otel --refresh-package fred-deepeval-cli && touch $(TARGET)/.compiled $@'
+
 .PHONY: dev-scoring
-dev-scoring: $(TARGET)/.uv-installed ## Install scoring+worker+otel extras required by the worker
-	flock $(TARGET)/.compiled.lock sh -c '$(UV) sync --extra dev --extra scoring --extra worker --extra otel --refresh-package fred-deepeval-cli && touch $(TARGET)/.compiled'
+dev-scoring: $(TARGET)/.full-env ## Install scoring+worker+otel extras required by the worker
 	@echo "✅ Scoring dependencies installed."
 
 # tests/ and fred_evaluation_backend/workers/ import fred_deepeval_cli (worker
@@ -51,17 +59,19 @@ run-worker-prod: run-worker ## Run the evaluation worker with prod-like configur
 ##@ Docker
 
 .PHONY: docker-build-api
-docker-build-api: ## Build the API Docker image
+docker-build-api: fred-docker-check ## Build the API Docker image (FRED_LIBS=local: fred from FRED_REPO)
 	docker build \
 		--network=$(API_DOCKER_NETWORK) \
+		$(FRED_DOCKER_ARGS) \
 		-f dockerfiles/Dockerfile-api \
 		-t $(IMAGE_FULL) \
 		$(DOCKER_CONTEXT)
 
 .PHONY: docker-build-worker
-docker-build-worker: ## Build the worker Docker image
+docker-build-worker: fred-docker-check ## Build the worker Docker image (FRED_LIBS=local: fred from FRED_REPO)
 	docker build \
 		--network=$(API_DOCKER_NETWORK) \
+		$(FRED_DOCKER_ARGS) \
 		-f dockerfiles/Dockerfile-worker \
 		-t $(IMAGE_FULL)-worker \
 		$(DOCKER_CONTEXT)

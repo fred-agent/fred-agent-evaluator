@@ -31,8 +31,9 @@ make docker-build   # les trois
 ```
 
 Les images API et worker prennent `fred-core`, `fred-sdk`, `fred-runtime` et
-`fred-pod` sur PyPI (`UV_NO_SOURCES_PACKAGE`), bornés par les planchers de
-`pyproject.toml` : elles se construisent depuis un clone seul. L'image UI
+`fred-pod` sur PyPI, d'après le `uv.lock` commité : elles se construisent depuis un clone
+seul. Avec `FRED_LIBS=local` et `FRED_REPO` (sans valeur par défaut), elles les prennent
+dans votre checkout de fred (docs/LOCAL-DEVELOPMENT.md de fred-deployment-factory, « Work on unreleased fred »). L'image UI
 épingle Node 22.13.0 et les `@fred-oss/*` en versions publiées exactes.
 
 La CI (`Build-and-push-docker.yml`) publie les trois en `swift-dev` à chaque

@@ -25,9 +25,11 @@ docs/
 ## Key rules
 
 1. **`fred-*` libraries (`fred-core`, `fred-sdk`, `fred-runtime`) are published on PyPI** — `pyproject.toml`
-   holds the version floors. In development, `[tool.uv.sources]` resolves them from the sibling
-   `~/Fred/fred` checkout; the Docker images ignore those entries (`UV_NO_SOURCES_PACKAGE`) and take
-   PyPI. Never make an image or CI depend on the sibling checkout.
+   holds the version floors and the committed `uv.lock` resolves them from PyPI (no
+   `[tool.uv.sources]` for them). To work on unreleased fred, `FRED_LIBS=local` with `FRED_REPO`
+   (no default) overlays your checkout: `make dev-local`, the images, k3d
+   (`scripts/makefiles/python-fred-libs.mk`; fred-deployment-factory's docs/LOCAL-DEVELOPMENT.md, "Work on unreleased fred").
+   Never make an image or CI depend on a checkout by default.
 2. **`fred-deepeval-cli` is the only local dependency** — editable install from `libs/`.
 3. **DeepEval/LiteLLM are base dependencies for the API's analysis model.** Case scoring through `fred-deepeval-cli` remains worker-only, in the `[scoring]` optional group.
 4. **Never expose worker via HTTP** — worker accesses DB directly.

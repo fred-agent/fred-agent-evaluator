@@ -6,7 +6,7 @@
 2. **L'API ne score jamais** — elle utilise DeepEval/LiteLLM pour le modèle d'analyse des résultats. Le scoring des cas via `fred-deepeval-cli` reste réservé au worker (`[scoring]`).
 3. **Le worker n'expose pas d'HTTP** — il accède directement à la DB.
 4. **Chaque cas est persisté indépendamment** — un crash du worker ne doit pas effacer les résultats déjà calculés.
-5. **`fred-deepeval-cli` est la seule dépendance locale au repo** — `fred-core`, `fred-sdk` et `fred-runtime` sont publiées sur PyPI (planchers dans `pyproject.toml`). En développement elles sont résolues depuis le checkout voisin `~/Fred/fred` ; les images les prennent sur PyPI.
+5. **`fred-deepeval-cli` est la seule dépendance locale au repo** — `fred-core`, `fred-sdk` et `fred-runtime` sont publiées sur PyPI (planchers dans `pyproject.toml`). Le `uv.lock` commité les résout sur PyPI ; pour travailler sur un fred non publié, `make dev-local` avec `FRED_REPO` (sans valeur par défaut) installe votre checkout par-dessus.
 6. **L'API et le worker n'utilisent jamais la même identité sortante** (RFC `EVAL-AUTH`, issue #33) — voir §Identity below.
 
 ## Identity: API-user vs worker-service (RFC `EVAL-AUTH`)

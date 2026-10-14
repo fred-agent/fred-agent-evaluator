@@ -44,14 +44,6 @@ minversion = "8.0"
 addopts = "-ra"
 testpaths = ["tests"]
 
-[tool.uv.sources]
-# Local path override for development against the monorepo's own fred-sdk /
-# fred-runtime, sibling to this repo under ~/Fred. Keeps `uv run` / `uv sync`
-# from silently reverting to the PyPI versions. The evaluator's worker image
-# ignores these entries and resolves from PyPI, bounded by the floors above.
-fred-sdk = { path = "../../../fred/libs/fred-sdk", editable = true }
-fred-runtime = { path = "../../../fred/libs/fred-runtime", editable = true }
-
 [tool.uv]
 # Path-style editable installs (a .pth entry, not an import-hook finder) so
 # basedpyright resolves the sibling fred-* sources, as in the backend.
