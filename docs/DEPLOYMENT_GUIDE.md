@@ -50,6 +50,29 @@ est la référence pour l'installer et le configurer : ressources créées,
 prérequis côté Fred, valeurs requises, clés du Secret, adresses à surcharger.
 `helm show readme` l'affiche depuis le chart publié.
 
+### Certificats TLS sortants et rotation des secrets
+
+Pour joindre Keycloak ou les endpoints de modèles avec une CA privée, créer un
+Secret dans le namespace de l'evaluator contenant un bundle PEM, puis configurer :
+
+```yaml
+trustedCA:
+  existingSecret: evaluator-trusted-ca
+  key: ca.crt
+```
+
+Le chart monte ce bundle en lecture seule dans `/etc/fred/trusted-ca/ca.pem` et
+définit `SSL_CERT_FILE` et `REQUESTS_CA_BUNDLE` pour l'API, son initContainer de
+migration et le worker. Le montage reste séparé de la configuration et fonctionne
+avec un filesystem racine en lecture seule. Sans `existingSecret`, le comportement
+TLS par défaut est conservé. Le bundle remplace les autorités par défaut : inclure
+les CA publiques et privées nécessaires à tous les endpoints utilisés.
+
+Avec `secret.create: true`, une modification de `secret.data` change l'annotation
+de checksum et déclenche le redémarrage des pods API et worker au prochain upgrade
+Helm. Après rotation d'un Secret externe ou du bundle CA, redémarrer explicitement
+ces Deployments ; leur contenu n'est pas inclus dans le checksum du chart.
+
 ## 2. Enregistrer dans Fred
 
 **`helm install` affiche les deux blocs**, avec les noms DNS complets des
