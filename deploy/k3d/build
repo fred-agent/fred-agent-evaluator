@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 # Build the evaluation application's three images (API, worker, UI) for the
-# local k3d instance (fred-deployment-factory's `make k3d-app`). Writes
+# local k3d instance (fred-deployment-factory's `make k3d-app APP=fred-evaluator DIR=<this checkout>`). Writes
 # $K3D_APP_OUT/images.txt, the content-tagged references to copy into the
 # cluster, and $K3D_APP_OUT/images.yaml, the Helm values selecting them.
 root="$(cd "$(dirname "$0")/../.." && pwd)"
