@@ -130,4 +130,5 @@ again):
 installs this same chart on a local k3d instance with
 [fred-deployment-factory](https://github.com/fred-agent/fred-deployment-factory)
 (`make k3d-app DIR=../fred-agent-evaluator`): its `values.yaml` is an example of a real
-instance's values.
+instance's values. `RELEASE=<version>` deploys that published chart and its images
+instead, without building, still with the checkout's k3d values.

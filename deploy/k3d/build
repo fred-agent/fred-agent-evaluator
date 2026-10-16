@@ -4,9 +4,22 @@ set -Eeuo pipefail
 # Build the evaluation application's three images (API, worker, UI) for the
 # local k3d instance (fred-deployment-factory's `make k3d-app`). Writes
 # $K3D_APP_OUT/images.txt, the content-tagged references to copy into the
-# cluster, and $K3D_APP_OUT/images.yaml, the Helm values selecting them.
+# cluster, and $K3D_APP_OUT/images.yaml, the Helm values selecting them. With
+# RELEASE set, builds nothing: the published images of that release.
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 out="${K3D_APP_OUT:?the factory provides K3D_APP_OUT}"
+
+if [[ -n "${RELEASE:-}" ]]; then
+  [[ "$RELEASE" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] \
+    || { echo "RELEASE must be a release version such as 1.2.0, not '$RELEASE'" >&2; exit 1; }
+  # The published chart already selects these tags (its appVersion): the values
+  # stay empty and the list only lets the factory import the images once.
+  echo "No build: the evaluation application $RELEASE's published images"
+  printf 'ghcr.io/fred-agent/%s:v%s\n' fred-evaluation-api "$RELEASE" \
+    fred-evaluation-worker "$RELEASE" fred-evaluation-ui "$RELEASE" >"$out/images.txt"
+  echo '{}' >"$out/images.yaml"
+  exit 0
+fi
 
 # chart value -> "<app directory> <make target> <image suffix>"
 declare -A builds=(
