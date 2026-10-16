@@ -131,3 +131,26 @@ this chart on a local k3d instance: `make k3d-app APP=fred-evaluator` the publis
 `DIR=../fred-agent-evaluator` added to build the images from a checkout (its
 `deploy/k3d/build`). Its `k3d-apps/fred-evaluator/values.yaml` is an example of a real
 instance's values.
+
+## Outbound TLS certificates and Secret rotation
+
+For Keycloak or model endpoints using a private CA, create a Secret in the
+evaluator namespace containing a PEM trust bundle and set:
+
+```yaml
+trustedCA:
+  existingSecret: evaluator-trusted-ca
+  key: ca.crt
+```
+
+The chart mounts the bundle read-only at `/etc/fred/trusted-ca/ca.pem` and sets
+`SSL_CERT_FILE` and `REQUESTS_CA_BUNDLE` for the API, its schema init container
+and the worker. The mount is separate from configuration and does not require
+writes to the root filesystem. Without `existingSecret`, default TLS trust is
+unchanged. The bundle replaces the default CA bundle: include all public and
+private CAs needed by the endpoints in use.
+
+With `secret.create: true`, changing `secret.data` changes the pod checksum
+annotation and restarts API and worker pods on the next Helm upgrade. After
+rotating an external Secret or the CA bundle, explicitly restart those
+Deployments; external Secret contents are not included in the chart checksum.

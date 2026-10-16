@@ -83,6 +83,14 @@
         }
       }
     },
+    "trustedCA": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "existingSecret": { "type": "string" },
+        "key": { "type": "string" }
+      }
+    },
     "extraEnvVars": {
       "type": "array",
       "items": {
