@@ -126,9 +126,8 @@ again):
 
 ## Local development
 
-`deploy/k3d/` in the [source repository](https://github.com/fred-agent/fred-agent-evaluator)
-installs this same chart on a local k3d instance with
-[fred-deployment-factory](https://github.com/fred-agent/fred-deployment-factory)
-(`make k3d-app DIR=../fred-agent-evaluator`): its `values.yaml` is an example of a real
-instance's values. `RELEASE=<version>` deploys that published chart and its images
-instead, without building, still with the checkout's k3d values.
+[fred-deployment-factory](https://github.com/fred-agent/fred-deployment-factory) installs
+this chart on a local k3d instance: `make k3d-app APP=fred-evaluator` the published release,
+`DIR=../fred-agent-evaluator` added to build the images from a checkout (its
+`deploy/k3d/build`). Its `k3d-apps/fred-evaluator/values.yaml` is an example of a real
+instance's values.

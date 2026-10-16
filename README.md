@@ -11,7 +11,7 @@ libs/
   fred-deepeval-cli/         # Scoring library (PyPI: fred-deepeval-cli)
 deploy/
   charts/fred-evaluator/     # Helm chart — ui + api + worker; its README is the install doc
-  k3d/                       # The same chart on a local k3d instance
+  k3d/build                  # Images from this checkout for a local k3d instance
   docker-compose/            # API + worker images against fred-deployment-factory
 scripts/
   makefiles/                 # Shared Makefile includes
