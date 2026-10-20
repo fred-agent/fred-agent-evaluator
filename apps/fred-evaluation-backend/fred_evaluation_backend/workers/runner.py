@@ -5,6 +5,7 @@ import json
 import logging
 import uuid
 
+from fred_core.kpi import BaseKPIWriter, NoOpKPIWriter
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from fred_evaluation_backend.config.models import EvaluationConfig
@@ -12,9 +13,13 @@ from fred_evaluation_backend.execution.agent_client import AgentClient
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
 from fred_evaluation_backend.execution.outbound_auth import ServiceAuthentication
 from fred_evaluation_backend.model.factory import build_judge_model
+from fred_evaluation_backend.model.judge_calls import classify
 from fred_evaluation_backend.runs.schemas import RunSnapshot
 from fred_evaluation_backend.runs.store import RunStore
-from fred_evaluation_backend.workers.activities import execute_and_score_case
+from fred_evaluation_backend.workers.activities import (
+    execute_and_score_case,
+    record_case_end,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +31,10 @@ class RunRunner:
         config: EvaluationConfig,
         engine: AsyncEngine,
         cp_client: ControlPlaneClient,
+        kpi: BaseKPIWriter | None = None,
     ) -> None:
         self._config = config
+        self._kpi: BaseKPIWriter = kpi or NoOpKPIWriter()
         self._store = RunStore(engine)
         self._cp_client = cp_client
         self._agent_client = AgentClient()
@@ -120,7 +127,7 @@ class RunRunner:
         judge = None
         if judge_profile is not None:
             try:
-                judge = build_judge_model(judge_profile)
+                judge = build_judge_model(judge_profile, kpi=self._kpi)
             except Exception as exc:
                 logger.warning(
                     "[RUNNER] run=%s cannot build judge '%s': %s — proceeding without scoring",
@@ -158,10 +165,18 @@ class RunRunner:
                         store=self._store,
                         agent_client=self._agent_client,
                         agent_profile_overrides=prep.agent_profile_overrides,
+                        kpi=self._kpi,
                     )
                 except Exception as exc:
-                    logger.error(
-                        "[RUNNER] case=%s unhandled exception: %s", case.case_id, exc
+                    failure = classify(exc)
+                    logger.exception(
+                        "event=case_setup_failed run=%s case=%s error_code=%s "
+                        "exception_type=%s message=%s",
+                        run_id,
+                        case.case_id,
+                        failure.code,
+                        failure.exception_type,
+                        failure.message,
                     )
                     await self._store.update_case_result(
                         case.case_id,
@@ -170,10 +185,13 @@ class RunRunner:
                         verdict="failed",
                         actual_output=None,
                         latency_ms=None,
-                        execution_error=str(exc),
+                        execution_error=str(failure),
                         scoring_errors_json=None,
                         structural_checks_json=None,
                         actual_model_name=None,
+                    )
+                    record_case_end(
+                        self._kpi, run_id=run_id, case_id=case.case_id, verdict="error"
                     )
 
         results = await asyncio.gather(

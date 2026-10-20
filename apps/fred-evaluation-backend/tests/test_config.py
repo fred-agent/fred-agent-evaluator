@@ -12,7 +12,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
+from pydantic import ValidationError
 
 from fred_evaluation_backend.config.loader import load_configuration
 from fred_evaluation_backend.config.models import EvaluationConfig
@@ -81,3 +83,33 @@ def test_env_file_selects_configuration_file(monkeypatch, tmp_path: Path) -> Non
 def test_m2m_token_provider_disabled_returns_none() -> None:
     cfg = EvaluationConfig()  # m2m disabled by default
     assert build_m2m_token_provider(cfg.security) is None
+
+
+def _with_judge(provider: str, **settings: object) -> dict[str, object]:
+    return {
+        "worker": {
+            "judge_profiles": {
+                "judge-a": {"provider": provider, "name": "m", "settings": settings}
+            }
+        }
+    }
+
+
+def test_openai_profile_is_rejected_at_load_with_the_litellm_pointer() -> None:
+    with pytest.raises(ValidationError) as raised:
+        EvaluationConfig.model_validate(_with_judge("openai"))
+    message = str(raised.value)
+    assert "judge-a" in message
+    assert "provider 'litellm'" in message and "openai/<model>" in message
+
+
+def test_a_load_limit_below_one_is_rejected_naming_profile_and_setting() -> None:
+    with pytest.raises(ValidationError) as raised:
+        EvaluationConfig.model_validate(_with_judge("litellm", max_attempts=0))
+    message = str(raised.value)
+    assert "judge-a" in message and "max_attempts" in message
+
+
+def test_shipped_judge_profiles_pass_validation() -> None:
+    for name in ("configuration.yaml", "configuration_prod.yaml"):
+        assert _load(name).worker.judge_profiles

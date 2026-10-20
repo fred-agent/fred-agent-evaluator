@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import final, override
 from unittest.mock import MagicMock, patch
 
 from fred_deepeval_cli.core.scorer import score_trace
@@ -186,3 +187,37 @@ def test_score_trace_explicit_empty_metrics_runs_nothing_but_custom_metrics() ->
         )
     assert [m.name for m in metrics] == ["cites_source"]
     assert errors == []
+
+
+def test_one_failing_metric_carries_its_error_code_and_spares_the_others() -> None:
+    @final
+    class RateLimited(Exception):
+        error_code: str = "rate_limited"
+
+    class FailingMetric(FakeMetric):
+        @override
+        def measure(self, test_case: object) -> None:
+            raise RateLimited("slow down")
+
+    failing = type("FaithfulnessMetric", (FailingMetric,), {})
+    with patch.dict(
+        "sys.modules",
+        {
+            "deepeval.metrics": MagicMock(
+                AnswerRelevancyMetric=_fake_metric_class("AnswerRelevancyMetric"),
+                FaithfulnessMetric=failing,
+            )
+        },
+    ):
+        metrics, errors = score_trace(
+            make_trace(output="answer", retrieval_context=["chunk-1"]),
+            judge=object(),
+            metrics=["answer_relevancy", "faithfulness"],
+        )
+
+    by_name = {m.name: m for m in metrics}
+    assert by_name["AnswerRelevancyMetric"].verdict == "passed"
+    failed = by_name["FaithfulnessMetric"]
+    assert (failed.verdict, failed.error_code) == ("error", "rate_limited")
+    assert failed.error == "[rate_limited] RateLimited: slow down"
+    assert errors == ["FaithfulnessMetric: [rate_limited] RateLimited: slow down"]

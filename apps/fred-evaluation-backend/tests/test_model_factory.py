@@ -2,69 +2,73 @@
 
 Focus: the ``vertex_ai`` provider is **keyless** — on GKE the judge reaches Vertex via
 Application Default Credentials (Workload Identity), like knowledge-flow/fred-agents, so
-it must NOT require a Mistral/OpenAI/LiteLLM API key. We stub ``LiteLLMModel``
-to test the factory logic without constructing an external provider client.
+it must NOT require a Mistral/OpenAI/LiteLLM API key. Every provider yields the
+bounded model, carrying the profile's load limits.
 """
 
 from __future__ import annotations
 
-import sys
-import types
-from unittest.mock import MagicMock
-
 import pytest
 from fred_core.common import ModelConfiguration
 
+from fred_evaluation_backend.model.bounded_model import BoundedLiteLLMModel
 from fred_evaluation_backend.model.factory import build_judge_model
 
 
-def _stub_deepeval(monkeypatch) -> MagicMock:
-    """Install a fake ``deepeval.models.llms`` so the lazy import inside the factory
-    resolves without deepeval installed. Returns the ``LiteLLMModel`` mock."""
-    litellm_model = MagicMock(name="LiteLLMModel")
-    llms = types.ModuleType("deepeval.models.llms")
-    llms.LiteLLMModel = litellm_model
-    llms.GPTModel = MagicMock(name="GPTModel")
-    models = types.ModuleType("deepeval.models")
-    models.llms = llms
-    root = types.ModuleType("deepeval")
-    root.models = models
-    monkeypatch.setitem(sys.modules, "deepeval", root)
-    monkeypatch.setitem(sys.modules, "deepeval.models", models)
-    monkeypatch.setitem(sys.modules, "deepeval.models.llms", llms)
-    return litellm_model
-
-
 def test_vertex_ai_is_keyless_and_prefixes_model(monkeypatch):
-    litellm_model = _stub_deepeval(monkeypatch)
     # No provider key set: a keyed provider would raise; vertex_ai must not.
     for var in ("MISTRAL_API_KEY", "LITELLM_API_KEY", "OPENAI_API_KEY"):
         monkeypatch.delenv(var, raising=False)
 
-    build_judge_model(ModelConfiguration(provider="vertex_ai", name="gemini-2.5-flash"))
+    judge = build_judge_model(
+        ModelConfiguration(provider="vertex_ai", name="gemini-2.5-flash")
+    )
 
-    litellm_model.assert_called_once()
-    kwargs = litellm_model.call_args.kwargs
-    assert kwargs["model"] == "vertex_ai/gemini-2.5-flash"
-    assert kwargs["api_key"] is None
+    assert isinstance(judge, BoundedLiteLLMModel)
+    assert judge.name == "vertex_ai/gemini-2.5-flash"
+    assert judge.api_key is None
 
 
-def test_vertex_alias_preserves_existing_prefix(monkeypatch):
-    litellm_model = _stub_deepeval(monkeypatch)
-    build_judge_model(
+def test_vertex_alias_preserves_existing_prefix():
+    judge = build_judge_model(
         ModelConfiguration(provider="vertex", name="vertex_ai/gemini-2.5-pro")
     )
-    assert litellm_model.call_args.kwargs["model"] == "vertex_ai/gemini-2.5-pro"
+    assert judge.name == "vertex_ai/gemini-2.5-pro"
 
 
 def test_litellm_provider_still_requires_key(monkeypatch):
-    _stub_deepeval(monkeypatch)
     monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
     with pytest.raises(RuntimeError):
         build_judge_model(
             ModelConfiguration(
                 provider="litellm",
                 name="mistral/mistral-small-latest",
-                settings={"api_key_env": "MISTRAL_API_KEY"},
+                settings={"api_key_env": "MISTRAL_API_KEY"},  # pragma: allowlist secret
             )
         )
+
+
+def test_profile_limits_reach_the_model(monkeypatch):
+    monkeypatch.setenv("MISTRAL_API_KEY", "k")  # pragma: allowlist secret
+    judge = build_judge_model(
+        ModelConfiguration(
+            provider="litellm",
+            name="mistral/mistral-small-latest",
+            settings={
+                "api_key_env": "MISTRAL_API_KEY",  # pragma: allowlist secret
+                "max_attempts": 3,
+                "request_timeout": 90,
+            },
+        ),
+        role="analysis",
+    )
+    assert judge._call_policy.max_attempts == 3
+    assert judge._call_policy.role == "analysis"
+    assert judge.kwargs["request_timeout"] == 90
+    assert judge.kwargs["num_retries"] == 0
+
+
+def test_defaults_apply_when_a_profile_sets_no_limit():
+    judge = build_judge_model(ModelConfiguration(provider="ollama", name="llama3"))
+    assert judge._call_policy.max_attempts == 2
+    assert judge.kwargs["request_timeout"] == 60

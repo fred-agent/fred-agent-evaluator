@@ -4,6 +4,7 @@ import logging
 from dataclasses import dataclass
 
 from fred_core.common import ModelConfiguration
+from fred_core.kpi import BaseKPIWriter
 
 from fred_evaluation_backend.model.factory import build_judge_model
 
@@ -129,14 +130,16 @@ class AnalysisClient:
     """Generate a textual analysis of an evaluation run, provider-agnostically.
 
     Reuses the judge factory (`build_judge_model`) so the analysis works with any
-    provider (litellm / openai / ollama) selected purely by config — the same
+    provider (litellm / vertex_ai / ollama) selected purely by config — the same
     mechanism as metric scoring, but with its own `ModelConfiguration` so the
     analysis model can differ from the scoring model.
     """
 
-    def __init__(self, config: ModelConfiguration) -> None:
+    def __init__(
+        self, config: ModelConfiguration, *, kpi: BaseKPIWriter | None = None
+    ) -> None:
         self._config: ModelConfiguration = config
-        self._model = build_judge_model(config)
+        self._model = build_judge_model(config, role="analysis", kpi=kpi)
 
     async def analyze(
         self,

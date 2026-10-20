@@ -162,21 +162,25 @@ async def run_case_for_run(payload: RunCaseInput) -> None:
 
     from fred_evaluation_backend.execution.outbound_auth import ServiceAuthentication
     from fred_evaluation_backend.model.factory import build_judge_model
+    from fred_evaluation_backend.model.judge_calls import classify
     from fred_evaluation_backend.workers._activity_context import (
         get_agent_client,
         get_config,
         get_cp_client,
+        get_kpi,
         get_store,
     )
     from fred_evaluation_backend.workers.activities import (
         emit_run_event,
         execute_and_score_case,
+        record_case_end,
     )
 
     store = get_store()
     config = get_config()
     cp_client = get_cp_client()
     agent_client = get_agent_client()
+    kpi = get_kpi()
 
     try:
         run = await store.get_run(payload.run_id)
@@ -192,7 +196,11 @@ async def run_case_for_run(payload: RunCaseInput) -> None:
         )
 
         judge_profile = config.worker.judge_profiles.get(run.judge_profile_id)
-        judge = build_judge_model(judge_profile) if judge_profile is not None else None
+        judge = (
+            build_judge_model(judge_profile, kpi=kpi)
+            if judge_profile is not None
+            else None
+        )
 
         custom_metrics = [
             CustomMetricSpec.model_validate(m)
@@ -219,13 +227,19 @@ async def run_case_for_run(payload: RunCaseInput) -> None:
             store=store,
             agent_client=agent_client,
             agent_profile_overrides=prep.agent_profile_overrides,
+            kpi=kpi,
         )
     except Exception as exc:
-        logger.error(
-            "[RUN-CASE] run=%s case=%s setup failed before scoring: %s",
+        failure = classify(exc)
+        logger.exception(
+            "event=case_setup_failed run=%s case=%s error_code=%s http_status=%s "
+            "exception_type=%s message=%s",
             payload.run_id,
             payload.case_id,
-            exc,
+            failure.code,
+            failure.http_status,
+            failure.exception_type,
+            failure.message,
         )
         await store.update_case_result(
             payload.case_id,
@@ -234,12 +248,15 @@ async def run_case_for_run(payload: RunCaseInput) -> None:
             verdict="failed",
             actual_output=None,
             latency_ms=None,
-            execution_error=str(exc),
+            execution_error=str(failure),
             scoring_errors_json=None,
             structural_checks_json=None,
             actual_model_name=None,
         )
         await emit_run_event(payload.run_id, payload.case_id, "case_error", store)
+        record_case_end(
+            kpi, run_id=payload.run_id, case_id=payload.case_id, verdict="error"
+        )
 
     # Refresh the Run's aggregate progress now that this case has a final
     # result. This is what makes the runs-list progress increment as cases

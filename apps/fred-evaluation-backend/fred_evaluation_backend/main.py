@@ -8,11 +8,10 @@ from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fred_core import build_log_store, get_config, initialize_user_security, log_setup
 from fred_core.common import read_env_bool
-from fred_core.kpi import KPIMiddleware, build_kpi_writer
+from fred_core.kpi import KPIMiddleware
 from fred_core.scheduler import SchedulerBackend, TemporalClientProvider
 from fred_core.sql import create_async_engine_from_config
 from fred_core.users.store.postgres_user_store import init_user_store
-from prometheus_client import start_http_server
 from pydantic import BaseModel
 
 from fred_evaluation_backend.config.loader import load_configuration
@@ -25,6 +24,7 @@ from fred_evaluation_backend.execution.evaluator_errors import (
 from fred_evaluation_backend.hosted.api import build_hosted_router
 from fred_evaluation_backend.runs.api import build_evaluations_router
 from fred_evaluation_backend.tasks.api import build_tasks_router
+from fred_evaluation_backend.telemetry.kpi import start_kpi
 
 logger = logging.getLogger(__name__)
 
@@ -54,24 +54,7 @@ def create_app() -> FastAPI:
         ),
     )
 
-    # Stream 1 (OBSERVABILITY-AND-AUDIT.md §3): operational metrics, scraped by
-    # Prometheus. Built from the same fred-core factory every other Fred backend
-    # uses, so the evaluator reports through the same pipeline rather than a
-    # bespoke one.
-    kpi_writer = build_kpi_writer(
-        kpi_config=configuration.observability.kpi,
-        opensearch_config=configuration.storage.opensearch,
-        service_name="fred-evaluation",
-        log_level=configuration.app.log_level,
-    )
-    prometheus_cfg = configuration.observability.kpi.prometheus
-    if prometheus_cfg.enabled:
-        start_http_server(prometheus_cfg.port, addr=prometheus_cfg.address)
-        logger.info(
-            "[fred-evaluation] Prometheus metrics exporter ready at %s:%s",
-            prometheus_cfg.address,
-            prometheus_cfg.port,
-        )
+    kpi_writer = start_kpi(configuration, service_name="fred-evaluation")
 
     initialize_user_security(configuration.security.user)
     docs_enabled = read_env_bool("PRODUCTION_FASTAPI_DOCS_ENABLED", default=True)
@@ -88,7 +71,7 @@ def create_app() -> FastAPI:
     )
 
     try:
-        analysis_client = AnalysisClient(configuration.analysis)
+        analysis_client = AnalysisClient(configuration.analysis, kpi=kpi_writer)
     except Exception as exc:
         logger.warning(
             "[ANALYSIS] disabled — cannot build analysis model (provider=%s name=%s): %s",

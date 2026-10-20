@@ -22,9 +22,9 @@ fred-runtime (fred repo)
      ▼
 fred-deepeval-cli (libs/)
      │
-     │ LiteLLM
+     │ LiteLLM, via CallPolicy (relances bornées, plafond d'appels/min)
      ▼
-LLM juge (Mistral / GPT-4 / etc.)
+LLM juge (Mistral / Vertex Gemini / etc.)
 ```
 
 ## Composants
@@ -100,6 +100,16 @@ Deux domaines, deux responsabilités :
 C'est ce découpage qui permet de ré-exécuter une même evaluation sans écraser
 les résultats précédents : chaque exécution est un run distinct. Un run ne
 reçoit jamais de cas en ligne — ils viennent toujours de l'evaluation référencée.
+
+## Appels au juge et observabilité
+
+Chaque appel à un modèle juge ou d'analyse passe par `model/judge_calls.py` :
+relances seulement sur 429, 5xx, timeout et erreur de connexion, plafond
+d'appels par minute et par profil, KPI et log à chaque tentative. Le worker
+expose `/metrics` (port `metrics`) avec `llm.calls_total{llm_role="judge"}`,
+les mêmes noms que fred-runtime, et logue une ligne `event=eval_case_done` par
+cas (temps agent, appels juge, relances). Contrats : `openspec/specs/judge-calls`
+et `openspec/specs/evaluation-observability`.
 
 ## Identité sortante — API vs worker (RFC `EVAL-AUTH`)
 

@@ -56,18 +56,22 @@ worker:
   max_concurrent_cases: 1
   poll_interval_seconds: 5
   judge_profiles:
-    # Available providers: litellm | openai | ollama
+    # Available providers: litellm | vertex_ai | ollama. Each profile may also
+    # set, in `settings`, its load limits (per worker process):
+    #   max_attempts: 2            attempts per call, retried only on 429/5xx/timeout
+    #   request_timeout: 60        seconds per attempt
+    #   max_calls_per_minute: 60   calls are spaced evenly to stay under it
     mistral-small:
       provider: litellm
       name: mistral/mistral-small-latest
       settings:
         api_key_env: MISTRAL_API_KEY  # pragma: allowlist secret
-    # openai-mini:
-    #   provider: openai
-    #   name: gpt-4o-mini
+    # openai-mini:                 # any OpenAI-compatible endpoint, through litellm
+    #   provider: litellm
+    #   name: openai/gpt-4o-mini
     #   settings:
     #     api_key_env: OPENAI_API_KEY  # pragma: allowlist secret
-    #     base_url: https://...   # optional: OpenAI-compatible endpoint
+    #     base_url: https://...   # optional: another OpenAI-compatible endpoint
     # llama-local:
     #   provider: ollama
     #   name: llama3
@@ -81,15 +85,15 @@ scheduler:
     task_queue: evaluation
 
 # Model used to write the campaign analysis (separate from the scoring judge).
-# Available providers: litellm | openai | ollama
+# Available providers: litellm | vertex_ai | ollama; same load limits as a judge profile.
 analysis:
   provider: litellm
   name: mistral/mistral-small-latest
   settings:
     api_key_env: MISTRAL_API_KEY  # pragma: allowlist secret
-  # OpenAI (requires an OPENAI_API_KEY):
-  # provider: openai
-  # name: gpt-4o-mini
+  # OpenAI or any OpenAI-compatible endpoint (requires an OPENAI_API_KEY):
+  # provider: litellm
+  # name: openai/gpt-4o-mini
   # settings:
   #   api_key_env: OPENAI_API_KEY  # pragma: allowlist secret
   #   base_url: https://...   # optional: OpenAI-compatible endpoint

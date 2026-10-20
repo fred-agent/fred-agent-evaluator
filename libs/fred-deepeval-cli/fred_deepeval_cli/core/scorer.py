@@ -167,14 +167,20 @@ def score_trace(
                 )
             )
         except Exception as e:
-            scoring_errors.append(f"{name}: {e}")
+            # `error_code` is set by a judge that classifies its failures (the
+            # evaluation backend's); a plain DeepEval model leaves it unknown.
+            code = getattr(e, "error_code", None) or "unknown"
+            message = " ".join(str(e).split()) or type(e).__name__
+            detail = f"[{code}] {type(e).__name__}: {message}"
+            scoring_errors.append(f"{name}: {detail}")
             results.append(
                 EvaluationMetricResult(
                     name=name,
                     provider="deepeval",
                     score=None,
                     verdict="error",
-                    error=str(e),
+                    error=detail,
+                    error_code=code,
                 )
             )
 

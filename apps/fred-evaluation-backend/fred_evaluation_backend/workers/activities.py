@@ -1,13 +1,23 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import time
 from typing import TYPE_CHECKING
 
 from fred_core import M2MTokenProvider
+from fred_core.kpi import BaseKPIWriter, Dims, NoOpKPIWriter
 from opentelemetry.trace import Status, StatusCode
 
 from fred_evaluation_backend.execution.agent_client import AgentClient
+from fred_evaluation_backend.model.judge_calls import (
+    ACTOR,
+    CallFailure,
+    JudgeCallStats,
+    classify,
+    track_case_calls,
+)
 from fred_evaluation_backend.runs.store import RunStore
 from fred_evaluation_backend.telemetry.otel import get_tracer
 
@@ -40,6 +50,7 @@ async def execute_and_score_case(
     agent_client: AgentClient,
     run_id: str,
     agent_profile_overrides: dict[str, str] | None = None,
+    kpi: BaseKPIWriter | None = None,
 ) -> None:
     tracer = get_tracer()
     with tracer.start_as_current_span("eval.case") as span:
@@ -70,6 +81,7 @@ async def execute_and_score_case(
             store=store,
             agent_client=agent_client,
             agent_profile_overrides=agent_profile_overrides,
+            kpi=kpi or NoOpKPIWriter(),
         )
 
 
@@ -94,12 +106,14 @@ async def _execute_and_score_case_inner(
     store: RunStore,
     agent_client: AgentClient,
     agent_profile_overrides: dict[str, str] | None = None,
+    kpi: BaseKPIWriter,
 ) -> None:
     from fred_deepeval_cli.core.evaluator import classify_outcome
     from fred_deepeval_cli.core.profiles import resolve_profile
     from fred_deepeval_cli.core.scorer import score_trace
     from fred_deepeval_cli.core.structural_checks import build_structural_checks
 
+    stats = track_case_calls(run_id, case_id)
     await store.update_case_result(
         case_id,
         status="running",
@@ -114,6 +128,7 @@ async def _execute_and_score_case_inner(
     )
 
     logger.debug("[ACTIVITY] calling agent case=%s", case_id)
+    agent_started = time.perf_counter()
     try:
         eval_trace = await agent_client.evaluate(
             evaluate_url=evaluate_url,
@@ -126,9 +141,22 @@ async def _execute_and_score_case_inner(
             agent_profile_overrides=agent_profile_overrides,
         )
     except Exception as exc:
-        logger.error("[ACTIVITY] agent call failed case=%s: %s", case_id, exc)
+        agent_ms = _elapsed_ms(agent_started)
+        failure = classify(exc)
+        _record_agent_call(kpi, agent_ms, failure)
+        logger.error(
+            "event=agent_call_failed run=%s case=%s error_code=%s http_status=%s "
+            "exception_type=%s agent_ms=%.0f message=%s",
+            run_id,
+            case_id,
+            failure.code,
+            failure.http_status,
+            failure.exception_type,
+            agent_ms,
+            failure.message,
+        )
         span.record_exception(exc)
-        span.set_status(Status(StatusCode.ERROR, str(exc)))
+        span.set_status(Status(StatusCode.ERROR, str(failure)))
         span.set_attribute("eval.verdict", "failed")
         await store.update_case_result(
             case_id,
@@ -137,13 +165,18 @@ async def _execute_and_score_case_inner(
             verdict="failed",
             actual_output=None,
             latency_ms=None,
-            execution_error=str(exc),
+            execution_error=str(failure),
             scoring_errors_json=None,
             structural_checks_json=None,
             actual_model_name=None,
         )
         await emit_run_event(run_id, case_id, "case_error", store)
+        record_case_end(
+            kpi, run_id=run_id, case_id=case_id, verdict="error", agent_ms=agent_ms
+        )
         return
+    agent_ms = _elapsed_ms(agent_started)
+    _record_agent_call(kpi, agent_ms, None)
 
     trace_dict = eval_trace.model_dump()
     logger.info(
@@ -163,7 +196,9 @@ async def _execute_and_score_case_inner(
         metric_results: list[EvaluationMetricResult] = []
         scoring_errors: list[str] = []
         if judge is not None:
-            metric_results, scoring_errors = score_trace(
+            # DeepEval scores synchronously: a thread keeps the worker's loop free.
+            metric_results, scoring_errors = await asyncio.to_thread(
+                score_trace,
                 trace_dict,
                 profile=resolved_profile,
                 expected_output=expected_output,
@@ -172,9 +207,18 @@ async def _execute_and_score_case_inner(
                 metrics=metrics,
             )
     except Exception as exc:
-        logger.error("[ACTIVITY] scoring failed case=%s: %s", case_id, exc)
+        failure = classify(exc)
+        logger.exception(
+            "event=case_scoring_failed run=%s case=%s error_code=%s exception_type=%s "
+            "message=%s",
+            run_id,
+            case_id,
+            failure.code,
+            failure.exception_type,
+            failure.message,
+        )
         span.record_exception(exc)
-        span.set_status(Status(StatusCode.ERROR, str(exc)))
+        span.set_status(Status(StatusCode.ERROR, str(failure)))
         span.set_attribute("eval.verdict", "failed")
         await store.update_case_result(
             case_id,
@@ -183,13 +227,32 @@ async def _execute_and_score_case_inner(
             verdict="failed",
             actual_output=eval_trace.output,
             latency_ms=eval_trace.latency_ms,
-            execution_error=str(exc),
+            execution_error=str(failure),
             scoring_errors_json=None,
             structural_checks_json=None,
             actual_model_name=eval_trace.model_name,
         )
         await emit_run_event(run_id, case_id, "case_error", store)
+        record_case_end(
+            kpi,
+            run_id=run_id,
+            case_id=case_id,
+            verdict="error",
+            agent_ms=agent_ms,
+            stats=stats,
+        )
         return
+
+    for m in metric_results:
+        if m.verdict == "error":
+            logger.error(
+                "event=metric_error run=%s case=%s metric=%s error_code=%s error=%s",
+                run_id,
+                case_id,
+                m.name,
+                m.error_code or "unknown",
+                m.error,
+            )
 
     structural_ok = all(c.passed is not False for c in structural_checks)
     metrics_ok = (
@@ -273,6 +336,80 @@ async def _execute_and_score_case_inner(
         )
 
     await emit_run_event(run_id, case_id, "case_completed", store)
+    record_case_end(
+        kpi,
+        run_id=run_id,
+        case_id=case_id,
+        verdict=verdict,
+        agent_ms=agent_ms,
+        stats=stats,
+        metric_errors=sum(1 for m in metric_results if m.verdict == "error"),
+    )
+
+
+def _elapsed_ms(started: float) -> float:
+    return (time.perf_counter() - started) * 1000.0
+
+
+def _record_agent_call(
+    kpi: BaseKPIWriter, agent_ms: float, failure: CallFailure | None
+) -> None:
+    dims: Dims = {
+        "status": "error" if failure else "ok",
+        "error_code": failure.code if failure else "none",
+        "http_status": str(failure.http_status)
+        if failure and failure.http_status
+        else "none",
+    }
+    try:
+        kpi.emit(
+            name="eval.agent_call_latency_ms",
+            type="timer",
+            value=agent_ms,
+            unit="ms",
+            dims=dims,
+            actor=ACTOR,
+        )
+    except Exception:
+        logger.warning(
+            "KPI emission failed for eval.agent_call_latency_ms", exc_info=True
+        )
+
+
+def record_case_end(
+    kpi: BaseKPIWriter,
+    *,
+    run_id: str,
+    case_id: str,
+    verdict: str,
+    agent_ms: float | None = None,
+    stats: JudgeCallStats | None = None,
+    metric_errors: int = 0,
+) -> None:
+    """Count the case outcome and log the one summary line every finished case gets.
+
+    `verdict` is the case verdict, or `error` when the case could not run.
+    """
+    stats = stats or JudgeCallStats()
+    try:
+        kpi.count("eval.cases_total", dims={"status": verdict}, actor=ACTOR)
+    except Exception:
+        logger.warning("KPI emission failed for eval.cases_total", exc_info=True)
+    logger.info(
+        "event=eval_case_done run=%s case=%s verdict=%s agent_ms=%s judge_calls=%d "
+        "judge_retries=%d judge_failures=%d judge_ms=%.0f throttle_ms=%.0f "
+        "metric_errors=%d",
+        run_id,
+        case_id,
+        verdict,
+        f"{agent_ms:.0f}" if agent_ms is not None else "none",
+        stats.calls,
+        stats.retries,
+        stats.failures,
+        stats.call_ms,
+        stats.throttle_ms,
+        metric_errors,
+    )
 
 
 async def emit_run_event(

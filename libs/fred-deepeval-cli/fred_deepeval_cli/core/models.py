@@ -53,6 +53,8 @@ class EvaluationMetricResult(BaseModel):
     verdict: Literal["passed", "insufficient", "skipped", "error"]
     explanation: str | None = None
     error: str | None = None
+    # Closed-set failure code (rate_limited, timeout…) when the judge model sets one.
+    error_code: str | None = None
 
 
 class StructuralCheckResult(BaseModel):

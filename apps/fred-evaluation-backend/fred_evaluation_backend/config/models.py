@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import ClassVar, Literal
 
 from fred_core import LogStorageConfig, SecurityConfiguration
 from fred_core.common import KpiObservabilityConfig, ModelConfiguration
@@ -10,7 +10,47 @@ from fred_core.common.structures import (
     TemporalSchedulerConfig,
 )
 from fred_core.scheduler import SchedulerBackend
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+
+SUPPORTED_MODEL_PROVIDERS = ("litellm", "vertex_ai", "vertex", "ollama")
+
+
+class ModelCallSettings(BaseModel):
+    """Load limits a model profile may set in its `settings`, with their defaults.
+
+    Per process: N worker replicas make N × `max_calls_per_minute`.
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore")
+
+    max_attempts: int = Field(default=2, ge=1)
+    request_timeout: float = Field(default=60, ge=1)
+    max_calls_per_minute: int = Field(default=60, ge=1)
+
+
+def validate_model_profile(label: str, cfg: ModelConfiguration) -> ModelCallSettings:
+    """Reject a profile the evaluator cannot call, naming the profile."""
+    provider = (cfg.provider or "").lower()
+    if provider == "openai":
+        raise ValueError(
+            f"model profile '{label}': provider 'openai' is no longer supported; "
+            "use provider 'litellm' with name 'openai/<model>' and settings.base_url"
+        )
+    if provider not in SUPPORTED_MODEL_PROVIDERS:
+        raise ValueError(
+            f"model profile '{label}': unsupported provider {cfg.provider!r}; "
+            f"expected one of {', '.join(SUPPORTED_MODEL_PROVIDERS)}"
+        )
+    try:
+        return ModelCallSettings.model_validate(cfg.settings or {})
+    except ValidationError as exc:
+        fields = ", ".join(
+            f"{'.'.join(str(p) for p in err['loc'])}: {err['msg']}"
+            for err in exc.errors()
+        )
+        raise ValueError(
+            f"model profile '{label}': invalid settings ({fields})"
+        ) from exc
 
 
 class AppConfig(BaseModel):
@@ -60,8 +100,7 @@ class WorkerConfig(BaseModel):
     # judge LLM, so concurrency here is a burst against someone else's rate limits, not
     # a local speed dial. Raise it deliberately once the target is known to absorb it.
     # This is the single lever for both execution paths: the in-memory runner's
-    # semaphore and, for Temporal, `max_concurrent_activities` plus the activity
-    # executor's pool size (see main_worker.py).
+    # semaphore and, for Temporal, `max_concurrent_activities` (see main_worker.py).
     max_concurrent_cases: int = 1
     poll_interval_seconds: int = 5
     # Judge models follow fred's canonical ModelConfiguration (provider / name /
@@ -129,3 +168,11 @@ class EvaluationConfig(BaseModel):
     scheduler: SchedulerConfig = Field(default_factory=SchedulerConfig)
     worker: WorkerConfig = Field(default_factory=WorkerConfig)
     analysis: ModelConfiguration = Field(default_factory=_default_analysis)
+
+    @model_validator(mode="after")
+    def _model_profiles_are_callable(self) -> "EvaluationConfig":
+        # At load, not per case: a bad profile would otherwise fail every case of a run.
+        for profile_id, profile in self.worker.judge_profiles.items():
+            _ = validate_model_profile(profile_id, profile)
+        _ = validate_model_profile("analysis", self.analysis)
+        return self

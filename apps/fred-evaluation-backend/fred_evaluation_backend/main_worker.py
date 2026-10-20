@@ -12,15 +12,14 @@ from fred_evaluation_backend.execution.agent_client import AgentClient
 from fred_evaluation_backend.execution.auth import build_m2m_token_provider
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
 from fred_evaluation_backend.runs.store import RunStore
+from fred_evaluation_backend.telemetry.kpi import start_kpi
 from fred_evaluation_backend.telemetry.otel import setup_otel
 from fred_evaluation_backend.workers.runner import RunRunner
 
 logger = logging.getLogger(__name__)
 
 
-async def _run_temporal_worker(configuration, engine, cp_client) -> None:
-    import concurrent.futures
-
+async def _run_temporal_worker(configuration, engine, cp_client, kpi) -> None:
     from temporalio.client import Client
     from temporalio.worker import Worker
     from temporalio.worker.workflow_sandbox import (
@@ -46,6 +45,7 @@ async def _run_temporal_worker(configuration, engine, cp_client) -> None:
         config=configuration,
         agent_client=agent_client,
         cp_client=cp_client,
+        kpi=kpi,
     )
 
     temporal_cfg = configuration.scheduler.temporal
@@ -60,8 +60,6 @@ async def _run_temporal_worker(configuration, engine, cp_client) -> None:
         namespace=temporal_cfg.namespace,
     )
 
-    max_concurrent = configuration.worker.max_concurrent_cases
-    executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_concurrent)
     worker = Worker(
         client=client,
         task_queue=temporal_cfg.task_queue,
@@ -73,8 +71,8 @@ async def _run_temporal_worker(configuration, engine, cp_client) -> None:
             finalize_run,
             mark_run_failed,
         ],
-        activity_executor=executor,
-        max_concurrent_activities=max_concurrent,
+        # Every activity is async: no activity executor is needed.
+        max_concurrent_activities=configuration.worker.max_concurrent_cases,
         workflow_runner=SandboxedWorkflowRunner(
             restrictions=SandboxRestrictions.default.with_passthrough_modules("rich")
         ),
@@ -102,6 +100,7 @@ async def main() -> None:
     if configuration.observability.tracer == "langfuse":
         setup_otel(host=configuration.observability.langfuse.host)
 
+    kpi = start_kpi(configuration, service_name="fred-evaluation-worker")
     engine = create_async_engine_from_config(configuration.storage.postgres)
     # The worker never impersonates a user (RFC EVAL-AUTH §3/§9): it always
     # authenticates to the Control Plane as its own M2M service identity.
@@ -115,10 +114,12 @@ async def main() -> None:
     backend = configuration.scheduler.backend
     if backend == SchedulerBackend.TEMPORAL:
         logger.info("Scheduler backend: TEMPORAL")
-        await _run_temporal_worker(configuration, engine, cp_client)
+        await _run_temporal_worker(configuration, engine, cp_client, kpi)
     else:
         logger.info("Scheduler backend: MEMORY (asyncio polling)")
-        runner = RunRunner(config=configuration, engine=engine, cp_client=cp_client)
+        runner = RunRunner(
+            config=configuration, engine=engine, cp_client=cp_client, kpi=kpi
+        )
         await runner.run_forever()
 
 

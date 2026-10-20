@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from fred_core.kpi import BaseKPIWriter, NoOpKPIWriter
+
 if TYPE_CHECKING:
     from fred_evaluation_backend.config.models import EvaluationConfig
     from fred_evaluation_backend.execution.agent_client import AgentClient
@@ -25,6 +27,7 @@ _store: "RunStore | None" = None
 _config: "EvaluationConfig | None" = None
 _agent_client: "AgentClient | None" = None
 _cp_client: "ControlPlaneClient | None" = None
+_kpi: BaseKPIWriter = NoOpKPIWriter()
 
 
 def init(
@@ -33,12 +36,14 @@ def init(
     config: "EvaluationConfig",
     agent_client: "AgentClient",
     cp_client: "ControlPlaneClient",
+    kpi: BaseKPIWriter | None = None,
 ) -> None:
-    global _store, _config, _agent_client, _cp_client
+    global _store, _config, _agent_client, _cp_client, _kpi
     _store = store
     _config = config
     _agent_client = agent_client
     _cp_client = cp_client
+    _kpi = kpi or NoOpKPIWriter()
 
 
 def get_store() -> "RunStore":
@@ -63,3 +68,7 @@ def get_cp_client() -> "ControlPlaneClient":
     if _cp_client is None:
         raise RuntimeError("Activity context not initialised — call init() first")
     return _cp_client
+
+
+def get_kpi() -> BaseKPIWriter:
+    return _kpi
