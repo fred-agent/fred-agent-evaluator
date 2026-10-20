@@ -2,8 +2,8 @@ apiVersion: v2
 name: fred-evaluator
 description: The `evaluation` Fred application — UI, API and worker
 type: application
-version: 1.2.0
-appVersion: "1.2.0"
+version: 1.3.0
+appVersion: "1.3.0"
 home: https://github.com/fred-agent/fred-agent-evaluator
 sources:
   - https://github.com/fred-agent/fred-agent-evaluator
