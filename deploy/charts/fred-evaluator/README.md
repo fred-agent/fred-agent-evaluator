@@ -105,7 +105,10 @@ validates it at startup, and a pod that fails to start says which key is wrong.
 | `api.replicas`, `ui.replicas`, `worker.replicas` | `1` | |
 | `api.resources`, `ui.resources`, `worker.resources` | see `values.yaml` | |
 | `configuration.worker.max_concurrent_cases` | `1` | cases one worker replica runs at once; each one is a live agent turn plus judge calls |
-| `configuration.observability` | log tracer, log KPIs | `tracer: langfuse`, Prometheus or OpenSearch KPIs |
+| `configuration.worker.judge_profiles.<id>.settings`, `configuration.analysis.settings` | `max_attempts: 2`, `request_timeout: 60`, `max_calls_per_minute: 60` | load limits of one model, per process (N worker replicas: N × the cap); retries only on 429, 5xx, timeouts and connection errors |
+| `configuration.observability` | log tracer, log and Prometheus KPIs | `tracer: langfuse`, OpenSearch KPIs |
+| `configuration.observability.kpi.prometheus` | `enabled: true`, `address: 0.0.0.0`, `port: 9000` | both pods serve `/metrics` on a container port named `metrics`; a loopback address fails the render |
+| `metricsService.enabled`, `metricsService.serviceMonitor.enabled` | `true`, `false` | scraped like Fred's applications: a `<release>-api-metrics` and a `<release>-worker-metrics` Service, and `prometheus.io/*` pod annotations, or a ServiceMonitor instead (Prometheus Operator CRDs) |
 
 ## Register and enable in Fred
 
@@ -122,6 +125,9 @@ again):
 ## Upgrade and uninstall
 
 `helm upgrade` migrates the database before the new API serves (the init container).
+A judge or analysis profile with `provider: openai` no longer starts: declare it as
+`provider: litellm` with `name: openai/<model>` (and `settings.base_url` for another
+OpenAI-compatible endpoint).
 `helm uninstall` removes the workloads; the `evaluation` database and its data stay.
 
 ## Local development

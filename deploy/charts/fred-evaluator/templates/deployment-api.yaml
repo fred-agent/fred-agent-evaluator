@@ -39,6 +39,7 @@ spec:
           ports:
             - name: http
               containerPort: {{ .Values.api.port }}
+            {{- include "fred-evaluator.metricsPorts" . | trim | nindent 12 }}
           startupProbe:
             httpGet:
               path: {{ printf "%s/healthz" $basePath }}

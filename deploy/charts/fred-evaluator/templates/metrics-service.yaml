@@ -1,0 +1,28 @@
+{{- if and .Values.metricsService.enabled (include "fred-evaluator.metricsPorts" .) }}
+{{- range $component := list "api" "worker" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $.Release.Name }}-{{ $component }}-metrics
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "fred-evaluator.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+    app.kubernetes.io/part-of: metrics
+  {{- with $.Values.metricsService.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ $.Values.metricsService.type }}
+  selector:
+    {{- include "fred-evaluator.selectorLabels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+  ports:
+    - name: metrics
+      port: {{ include "fred-evaluator.metricsPort" $ }}
+      targetPort: metrics
+      protocol: TCP
+{{- end }}
+{{- end }}

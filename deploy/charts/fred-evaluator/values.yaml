@@ -57,6 +57,23 @@ worker:
 
 imagePullSecrets: []
 
+# Metrics are scraped like Fred's own applications. The API and the worker each
+# get a `<release>-<component>-metrics` Service (port `metrics`) and the
+# `prometheus.io/*` pod annotations; with `serviceMonitor.enabled`, a
+# ServiceMonitor scrapes those Services instead of the annotations (it needs the
+# Prometheus Operator CRDs). Both follow configuration.observability.kpi.prometheus.
+metricsService:
+  enabled: true
+  type: ClusterIP
+  annotations: {}
+  serviceMonitor:
+    enabled: false
+    labels: {}
+    annotations: {}
+    interval: 30s
+    scrapeTimeout: 10s
+    path: /metrics
+
 # Secret values reach both processes as environment variables, through a
 # Secret mounted with envFrom. The keys the shipped configuration reads:
 #   FRED_POSTGRES_PASSWORD              database password (storage.postgres)
@@ -113,8 +130,12 @@ configuration:
     kpi:
       log:
         enabled: true
+      # Both pods serve /metrics on this port, declared as a container port named
+      # `metrics`. The address must not be loopback, or Prometheus cannot scrape it.
       prometheus:
-        enabled: false
+        enabled: true
+        address: 0.0.0.0
+        port: 9000
       opensearch:
         enabled: false
 
@@ -127,6 +148,10 @@ configuration:
     # plus judge calls, so raise it deliberately.
     max_concurrent_cases: 1
     poll_interval_seconds: 5
+    # Providers: litellm | vertex_ai | ollama (an OpenAI-compatible endpoint is
+    # litellm with `name: openai/<model>` and `settings.base_url`). Each profile,
+    # and `analysis` below, may set its load limits in `settings`, per process:
+    # max_attempts (2), request_timeout in seconds (60), max_calls_per_minute (60).
     judge_profiles:
       mistral-small:
         provider: litellm

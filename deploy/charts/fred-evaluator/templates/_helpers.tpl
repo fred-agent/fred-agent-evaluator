@@ -76,4 +76,30 @@ volumes:
 
 {{- define "fred-evaluator.podAnnotations" -}}
 checksum/config: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
+{{- /* Scraped like Fred's applications: annotations, unless a ServiceMonitor does it. */}}
+{{- if and (include "fred-evaluator.metricsPorts" .) (not .Values.metricsService.serviceMonitor.enabled) }}
+prometheus.io/scrape: "true"
+prometheus.io/port: {{ include "fred-evaluator.metricsPort" . | quote }}
+prometheus.io/path: /metrics
+{{- end }}
+{{- end }}
+
+{{/*
+The `metrics` container port of both processes, when the Prometheus KPI sink is
+on. An exporter left on loopback is unreachable from Prometheus: refuse it.
+*/}}
+{{- define "fred-evaluator.metricsPorts" -}}
+{{- $prometheus := dig "observability" "kpi" "prometheus" dict .Values.configuration -}}
+{{- if $prometheus.enabled }}
+{{- $address := $prometheus.address | default "127.0.0.1" }}
+{{- if has $address (list "127.0.0.1" "localhost" "::1") }}
+{{- fail "configuration.observability.kpi.prometheus.address is a loopback address while the sink is enabled: Prometheus cannot reach it, use 0.0.0.0" }}
+{{- end }}
+- name: metrics
+  containerPort: {{ include "fred-evaluator.metricsPort" . }}
+{{- end }}
+{{- end }}
+
+{{- define "fred-evaluator.metricsPort" -}}
+{{- (dig "observability" "kpi" "prometheus" dict .Values.configuration).port | default 9000 -}}
 {{- end }}

@@ -91,6 +91,27 @@
         "properties": { "name": { "type": "string", "minLength": 1 } }
       }
     },
+    "metricsService": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "type": { "type": "string" },
+        "annotations": { "type": "object" },
+        "serviceMonitor": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "labels": { "type": "object" },
+            "annotations": { "type": "object" },
+            "interval": { "type": "string" },
+            "scrapeTimeout": { "type": "string" },
+            "path": { "type": "string" }
+          }
+        }
+      }
+    },
     "configuration": {
       "type": "object"
     }
