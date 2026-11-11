@@ -1,9 +1,8 @@
 import { fileURLToPath } from "node:url";
 
-// Node 22 from 22.13 on, the release the image pins; any later 22.x works for
-// local development.
-export const REQUIRED_MAJOR = 22;
-export const MINIMUM_MINOR = 13;
+// Match Weaver: Node 24 from 24.21 on; .nvmrc and the image pin 24.22.2.
+export const REQUIRED_MAJOR = 24;
+export const MINIMUM_MINOR = 21;
 
 export function assertSupportedNode(version) {
   const [major, minor] = version.split(".").map(Number);

@@ -14,7 +14,7 @@
     "generate:api": "openapi-typescript ../fred-evaluation-backend/openapi.json -o src/shared/api/openapi.d.ts"
   },
   "engines": {
-    "node": ">=22.13.0 <23"
+    "node": ">=24.21.0 <25"
   },
   "dependencies": {
     "@fred-oss/design-tokens": "0.1.0-alpha.4",

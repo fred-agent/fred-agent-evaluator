@@ -113,9 +113,16 @@ Restart the Fred frontend and the Control Plane to reload both halves. The
 | `make generate-api`     | regenerate the API types from the backend's `openapi.json`                   |
 | `make build`            | static bundle in `dist/`                                                     |
 
-Node 22 (22.13 or later). The lockfile was first resolved with npm 11, which
-avoids an npm 10.9 resolver crash on this dependency set; `npm ci` with npm 10
-installs from it normally.
+Node 24 (24.21 or later, below 25), aligned with Weaver. `.nvmrc` and the
+Docker build pin 24.22.2; the CI image build uses that Dockerfile. With nvm:
+
+```bash
+nvm install
+nvm use
+npm ci --no-audit --no-fund
+```
+
+The lockfile is maintained with npm 11.
 
 ## Validate unpublished UI alpha.3 locally
 

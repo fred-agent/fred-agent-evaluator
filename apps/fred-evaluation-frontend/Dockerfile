@@ -1,5 +1,5 @@
 # The evaluation application's UI: a static bundle Fred shows at /apps/evaluation/.
-FROM mirror.gcr.io/node:22.13.0-slim AS build
+FROM mirror.gcr.io/node:24.22.2-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts --no-audit --no-fund
