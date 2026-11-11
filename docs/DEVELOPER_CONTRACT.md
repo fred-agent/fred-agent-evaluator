@@ -332,11 +332,12 @@ make run-worker   # Worker
 ## Test manuel contre la stack Docker Weaver
 
 Procédure à exécuter par le développeur : elle n'est pas une preuve de validation
-bout en bout. Elle suppose le Control Plane avec `GET /spaces/{id}`, un pod Python
-et les services Docker déjà disponibles. Le rapport lit le **nom courant** via
-cette nouvelle route, champ `Space.name`, avec le jeton du lecteur. L'UUID reste
-la référence ; un échec de lecture du nom laisse `team_name: null` sans faire
-échouer le rapport. Aucun parcours de `/me/spaces` ne sert de repli.
+bout en bout. Elle suppose un pod Python et les services Docker déjà disponibles.
+Le rapport lit le **nom courant** de l'espace dans `GET /me/spaces`, avec le jeton
+du lecteur : cette liste contient chaque espace où il détient un rôle direct, ce
+qui est le cas de quiconque peut évaluer. L'UUID reste la référence ; un espace
+absent de la liste ou un échec de lecture laisse `team_name: null` sans faire
+échouer le rapport.
 
 1. Choisir un utilisateur admis (CGU acceptées), disposant de `run_evaluations`
    et de `read` sur l'espace, et une instance Python exécutable dans cet espace.

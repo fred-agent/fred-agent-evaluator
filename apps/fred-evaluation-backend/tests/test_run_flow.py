@@ -280,9 +280,17 @@ async def test_run_aggregates_persist_metric_averages_and_analysis():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("status", [200, 404, 503])
+@pytest.mark.parametrize(
+    ("status", "listed", "expected"),
+    [
+        (200, "team-1", "Current space name"),
+        (200, "other-space", None),
+        (403, "team-1", None),
+        (503, "team-1", None),
+    ],
+)
 async def test_report_resolves_current_space_name_best_effort(
-    monkeypatch: pytest.MonkeyPatch, status: int
+    monkeypatch: pytest.MonkeyPatch, status: int, listed: str, expected: str | None
 ) -> None:
     import httpx
 
@@ -297,10 +305,11 @@ async def test_report_resolves_current_space_name_best_effort(
     result = await _start(evaluation_id, ds_store, run_store, instance="inst-1")
 
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == "/spaces/team-1"
+        assert request.url.path == "/me/spaces"
         assert request.headers["authorization"] == "Bearer report-reader"
         return httpx.Response(
-            status, json={"id": "team-1", "name": "Current space name"}
+            status,
+            json=[{"id": listed, "name": "Current space name", "kind": "team"}],
         )
 
     patch_transport(monkeypatch, handler)
@@ -311,6 +320,4 @@ async def test_report_resolves_current_space_name_best_effort(
         control_plane_client=ControlPlaneClient(base_url="http://cp.test"),
         auth=UserAuthentication(authorization_header="Bearer report-reader"),
     )
-    assert report.evaluation.team_name == (
-        "Current space name" if status == 200 else None
-    )
+    assert report.evaluation.team_name == expected

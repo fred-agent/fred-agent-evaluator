@@ -5,7 +5,7 @@ from urllib.parse import quote, urljoin, urlsplit
 
 import httpx
 from fred_core import M2MBearerAuth, M2MTokenProvider
-from pydantic import BaseModel, StrictBool
+from pydantic import BaseModel, StrictBool, TypeAdapter
 
 from fred_evaluation_backend.execution.outbound_auth import (
     NoAuthentication,
@@ -50,6 +50,16 @@ class SpaceAuthorization(BaseModel):
 
 class SpaceDetails(BaseModel):
     name: str
+
+
+class SpaceListing(BaseModel):
+    """One `GET /me/spaces` item; only the fields the evaluator reads."""
+
+    id: str
+    name: str
+
+
+_SPACE_LISTINGS = TypeAdapter(list[SpaceListing])
 
 
 class TeamAgentInstance(BaseModel):
@@ -244,21 +254,31 @@ class ControlPlaneClient:
                 ) from exc
 
     async def get_space(self, *, space_id: str, auth: OutboundAuth) -> SpaceDetails:
+        """The caller's view of one space, read from `GET /me/spaces`.
+
+        Weaver lists every space where the caller holds a direct role; evaluation
+        rights (Analyst, Owner) are direct grants, so an evaluator always finds
+        its space there. A space absent from the list is reported as not found.
+        """
         headers, http_auth = self._build_request(auth)
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await self._get(
                 client,
-                f"{self._base_url}/spaces/{quote(space_id, safe='')}",
+                f"{self._base_url}/me/spaces",
                 headers=headers,
                 http_auth=http_auth,
             )
             _ = response.raise_for_status()
             try:
-                return SpaceDetails.model_validate(response.json())
+                spaces = _SPACE_LISTINGS.validate_python(response.json())
             except (TypeError, ValueError) as exc:
                 raise ControlPlaneInvalidResponseError(
-                    "Malformed get_space response"
+                    "Malformed list_my_spaces response"
                 ) from exc
+        for space in spaces:
+            if space.id.lower() == space_id.lower():
+                return SpaceDetails(name=space.name)
+        raise LookupError(f"Space '{space_id}' is not among the caller's spaces.")
 
     async def list_team_application_ids(
         self,
