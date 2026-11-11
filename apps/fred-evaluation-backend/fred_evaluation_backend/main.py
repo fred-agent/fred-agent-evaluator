@@ -101,7 +101,10 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    allowed_origins = list(configuration.security.authorized_origins)
+    # AnyHttpUrl renders with a trailing slash; a browser Origin header never has one.
+    allowed_origins = [
+        str(origin).rstrip("/") for origin in configuration.security.authorized_origins
+    ]
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
