@@ -32,7 +32,6 @@ export function run(overrides: Partial<EvaluationRun> = {}): EvaluationRun {
     schema_version: "1",
     run_id: "run-1",
     evaluation_id: "eval-1",
-    task_id: "task-1",
     created_by: "alice",
     target: { kind: "managed_instance", agent_instance_id: "agent-1" },
     profile: "auto",

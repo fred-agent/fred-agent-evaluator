@@ -1,5 +1,5 @@
-"""Team authorization for `/evaluation/v1` routes that name a run, a task or an
-evaluation by id.
+"""Team authorization for `/evaluation/v1` routes that name a run or an evaluation
+by id.
 
 Those ids are global, so authentication alone would let any caller read,
 cancel or delete another team's run by knowing its id. Each helper loads the
@@ -52,20 +52,6 @@ async def authorize_run(
     row = await store.get_run(run_id)
     if row is None:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found.")
-    await require_team_member(request, row.team_id, cp_client=cp_client)
-    return row
-
-
-async def authorize_task(
-    request: Request,
-    task_id: str,
-    *,
-    store: RunStore,
-    cp_client: ControlPlaneClient,
-) -> EvaluationRunRow:
-    row = await store.get_run_by_task_id(task_id)
-    if row is None:
-        raise HTTPException(status_code=404, detail=f"Task '{task_id}' not found.")
     await require_team_member(request, row.team_id, cp_client=cp_client)
     return row
 

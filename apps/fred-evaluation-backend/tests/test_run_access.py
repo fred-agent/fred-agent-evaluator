@@ -1,11 +1,11 @@
-"""`/evaluation/v1` routes naming a run, a task or an evaluation are team-checked.
+"""`/evaluation/v1` routes naming a run or an evaluation are team-checked.
 
 Those ids are global: authentication alone let any caller read, cancel or delete
 another team's run by knowing its id. Every such route now asks the Control
 Plane whether the caller belongs to the resource's own team.
 
 Real schema (SQLite built from the ORM models) and real stores; only the Control
-Plane is faked. The route list is not written by hand: every route of the three
+Plane is faked. The route list is not written by hand: every route of the two
 `/evaluation/v1` routers carrying an id is driven, so a route added later
 without the check fails here.
 """
@@ -40,7 +40,6 @@ from fred_evaluation_backend.runs.api import build_evaluations_router
 from fred_evaluation_backend.runs.base import Base
 from fred_evaluation_backend.runs.schemas import ManagedInstanceTarget
 from fred_evaluation_backend.runs.store import RunStore
-from fred_evaluation_backend.tasks.api import build_tasks_router
 
 HEADERS = {"Authorization": "Bearer alice-token"}
 
@@ -75,7 +74,6 @@ def _routers():
     return (
         build_evaluations_router(),
         build_evaluation_catalog_router(),
-        build_tasks_router(),
     )
 
 
@@ -136,7 +134,7 @@ async def _seed(evaluation_store: EvaluationStore, run_store: RunStore, team: st
         metrics=["answer_relevancy"],
         custom_metrics=[],
     )
-    return evaluation_id, created.run_id, created.task_id
+    return evaluation_id, created.run_id
 
 
 def _client(app: FastAPI) -> httpx.AsyncClient:
@@ -145,13 +143,13 @@ def _client(app: FastAPI) -> httpx.AsyncClient:
     )
 
 
-_ID_PARAMS = ("{run_id}", "{task_id}", "{evaluation_id}")
+_ID_PARAMS = ("{run_id}", "{evaluation_id}")
 
 
 @pytest.mark.asyncio
-async def test_no_route_reaches_another_teams_run_task_or_evaluation():
+async def test_no_route_reaches_another_teams_run_or_evaluation():
     engine, evaluation_store, run_store = await _stores()
-    evaluation_id, run_id, task_id = await _seed(evaluation_store, run_store, "team-2")
+    evaluation_id, run_id = await _seed(evaluation_store, run_store, "team-2")
     before = await run_store.get_run(run_id)
     checked: list[str] = []
     async with _client(_app(engine)) as client:
@@ -164,7 +162,6 @@ async def test_no_route_reaches_another_teams_run_task_or_evaluation():
                 path = route.path.format(
                     evaluation_id=evaluation_id,
                     run_id=run_id,
-                    task_id=task_id,
                     case_id="any",
                 )
                 for method in sorted(route.methods or ()):
@@ -189,7 +186,7 @@ async def test_no_route_reaches_another_teams_run_task_or_evaluation():
                         response.text,
                     )
                     assert response.json()["detail"]["code"] == "target_forbidden"
-    assert len(checked) == 17, checked
+    assert len(checked) == 13, checked
     after = await run_store.get_run(run_id)
     assert after is not None and before is not None
     assert after.operational_state == before.operational_state
@@ -199,21 +196,9 @@ async def test_no_route_reaches_another_teams_run_task_or_evaluation():
 
 
 @pytest.mark.asyncio
-async def test_listing_another_teams_tasks_is_refused():
+async def test_a_member_still_reaches_their_own_teams_runs():
     engine, evaluation_store, run_store = await _stores()
-    _ = await _seed(evaluation_store, run_store, "team-2")
-    async with _client(_app(engine)) as client:
-        response = await client.get(
-            "/tasks", params={"scope": "team", "team_id": "team-2"}
-        )
-    assert response.status_code == 403
-    assert response.json()["detail"]["code"] == "target_forbidden"
-
-
-@pytest.mark.asyncio
-async def test_a_member_still_reaches_their_own_teams_runs_and_tasks():
-    engine, evaluation_store, run_store = await _stores()
-    evaluation_id, run_id, task_id = await _seed(evaluation_store, run_store, "team-1")
+    evaluation_id, run_id = await _seed(evaluation_store, run_store, "team-1")
     async with _client(_app(engine)) as client:
         responses = [
             await client.get(f"/runs/{run_id}"),
@@ -221,12 +206,8 @@ async def test_a_member_still_reaches_their_own_teams_runs_and_tasks():
             await client.get(f"/runs/{run_id}/report"),
             await client.get(f"/evaluations/{evaluation_id}/runs"),
             await client.get(f"/evaluations/{evaluation_id}/runs/summary"),
-            await client.get(f"/tasks/{task_id}"),
-            await client.get(f"/tasks/{task_id}/latest"),
-            await client.get("/tasks", params={"scope": "team", "team_id": "team-1"}),
         ]
         cancelled = await client.post(f"/runs/{run_id}/cancel")
     for response in responses:
         assert response.status_code == 200, (str(response.url), response.text)
     assert cancelled.status_code == 202
-    assert [t["task_id"] for t in responses[-1].json()["tasks"]] == [task_id]

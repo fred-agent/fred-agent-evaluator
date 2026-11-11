@@ -117,8 +117,7 @@ async def mark_run_started(run_id: str) -> None:
     """Flip a Run from `pending` to `running` before any case executes.
 
     Why this exists: the runs-list UI polls the Run row's own
-    `operational_state` (via the canonical task-state mapping in
-    `tasks/models.py::map_state`). Without this activity nothing wrote to
+    `operational_state`. Without this activity nothing wrote to
     the row until `finalize_run` ran at the very end, so the list showed
     `pending` for the entire execution window even while cases were
     actively being scored.

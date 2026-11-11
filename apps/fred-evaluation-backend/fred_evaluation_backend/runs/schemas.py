@@ -90,7 +90,6 @@ class StartRunRequest(RunSpec):
 class RunCreatedResponse(BaseModel):
     run_id: str
     evaluation_id: str
-    task_id: str | None
     state: str
 
 
@@ -98,7 +97,6 @@ class EvaluationRun(BaseModel):
     schema_version: Literal["1"] = "1"
     run_id: str
     evaluation_id: str
-    task_id: str | None
     # The authenticated identity that launched the run — surfaced in the frontend's
     # "Run information" panel as its author.
     created_by: str

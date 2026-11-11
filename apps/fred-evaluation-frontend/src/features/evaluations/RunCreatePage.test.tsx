@@ -24,7 +24,6 @@ function routes(agents: unknown[], onStart?: (body: unknown) => void) {
         {
           run_id: "run-9",
           evaluation_id: "eval-1",
-          task_id: "t",
           state: "pending",
         },
         { status: 202 },

@@ -23,7 +23,6 @@ those belong to the Control Plane.
 ```
 evaluations/   — immutable, versioned evaluations (API, store, schemas)
 runs/          — runs, cases, reports, SSE events, LLM analysis
-tasks/         — platform-canonical task API (list, SSE, cancel)
 execution/     — Control Plane client, runtime resolution, outbound auth
 scoring/       — ScorerPort, DeepEval adapter
 workers/       — Temporal workflow and activities

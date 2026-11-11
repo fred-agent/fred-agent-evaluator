@@ -85,7 +85,6 @@ async def start_run(
     )
 
     run_id = f"eval-run-{uuid4().hex[:8]}"
-    task_id = f"eval-task-{uuid4().hex[:8]}"
 
     # Frozen with the rest of the run's parameters. Concurrency is a property of
     # THIS run against THIS target — a later config change must not retroactively
@@ -105,7 +104,6 @@ async def start_run(
         evaluation_id=evaluation_id,
         team_id=team_id,
         created_by=created_by,
-        task_id=task_id,
         target_kind="managed_instance",
         target_runtime_id=None,
         target_agent_id=None,
@@ -133,7 +131,6 @@ async def start_run(
     return RunCreatedResponse(
         run_id=run_id,
         evaluation_id=evaluation_id,
-        task_id=task_id,
         state="pending",
     )
 
@@ -142,7 +139,6 @@ def _run_to_response(row: EvaluationRunRow) -> EvaluationRun:
     return EvaluationRun(
         run_id=row.run_id,
         evaluation_id=row.evaluation_id,
-        task_id=row.task_id,
         created_by=row.created_by,
         target=ManagedInstanceTarget(
             kind="managed_instance", agent_instance_id=row.target_instance_id

@@ -22,7 +22,6 @@ from fred_evaluation_backend.execution.evaluator_errors import (
 )
 from fred_evaluation_backend.hosted.api import build_hosted_router
 from fred_evaluation_backend.runs.api import build_evaluations_router
-from fred_evaluation_backend.tasks.api import build_tasks_router
 from fred_evaluation_backend.telemetry.kpi import start_kpi
 
 logger = logging.getLogger(__name__)
@@ -135,7 +134,6 @@ def create_app() -> FastAPI:
 
     router.include_router(build_evaluations_router())
     router.include_router(build_evaluation_catalog_router())
-    router.include_router(build_tasks_router())
     app.include_router(router)
 
     # The evaluation application's surface, reached through Fred's application

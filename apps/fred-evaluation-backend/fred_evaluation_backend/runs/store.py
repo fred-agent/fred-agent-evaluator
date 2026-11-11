@@ -235,7 +235,6 @@ class RunStore:
         evaluation_id: str,
         team_id: str,
         created_by: str,
-        task_id: str,
         target_kind: str,
         target_runtime_id: str | None,
         target_agent_id: str | None,
@@ -254,7 +253,6 @@ class RunStore:
             evaluation_id=evaluation_id,
             team_id=team_id,
             created_by=created_by,
-            task_id=task_id,
             target_kind=target_kind,
             target_runtime_id=target_runtime_id,
             target_agent_id=target_agent_id,
@@ -384,63 +382,6 @@ class RunStore:
                 .all()
             )
         return list(rows)
-
-    async def list_runs_by_team(
-        self,
-        team_id: str,
-        session: AsyncSession | None = None,
-    ) -> list[EvaluationRunRow]:
-        async with use_session(self._sessions, session) as s:
-            rows = (
-                (
-                    await s.execute(
-                        select(EvaluationRunRow)
-                        .where(EvaluationRunRow.team_id == team_id)
-                        .order_by(EvaluationRunRow.created_at.desc())
-                    )
-                )
-                .scalars()
-                .all()
-            )
-        return list(rows)
-
-    async def list_runs_by_creator(
-        self,
-        created_by: str,
-        session: AsyncSession | None = None,
-    ) -> list[EvaluationRunRow]:
-        async with use_session(self._sessions, session) as s:
-            rows = (
-                (
-                    await s.execute(
-                        select(EvaluationRunRow)
-                        .where(EvaluationRunRow.created_by == created_by)
-                        .order_by(EvaluationRunRow.created_at.desc())
-                    )
-                )
-                .scalars()
-                .all()
-            )
-        return list(rows)
-
-    async def get_run_by_task_id(
-        self,
-        task_id: str,
-        session: AsyncSession | None = None,
-    ) -> EvaluationRunRow | None:
-        async with use_session(self._sessions, session) as s:
-            rows = (
-                (
-                    await s.execute(
-                        select(EvaluationRunRow)
-                        .where(EvaluationRunRow.task_id == task_id)
-                        .limit(1)
-                    )
-                )
-                .scalars()
-                .all()
-            )
-        return rows[0] if rows else None
 
     async def list_metrics_by_run(
         self,

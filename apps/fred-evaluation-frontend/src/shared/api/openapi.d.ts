@@ -262,91 +262,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/evaluation/v1/tasks": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Tasks */
-        get: operations["list_tasks_evaluation_v1_tasks_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/evaluation/v1/tasks/{task_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Task */
-        get: operations["get_task_evaluation_v1_tasks__task_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/evaluation/v1/tasks/{task_id}/latest": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Latest Event */
-        get: operations["get_latest_event_evaluation_v1_tasks__task_id__latest_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/evaluation/v1/tasks/{task_id}/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Stream Task Events */
-        get: operations["stream_task_events_evaluation_v1_tasks__task_id__events_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/evaluation/v1/tasks/{task_id}/cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Cancel Task */
-        post: operations["cancel_task_evaluation_v1_tasks__task_id__cancel_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/teams/{team_id}/evaluations": {
         parameters: {
             query?: never;
@@ -625,38 +540,6 @@ export interface components {
              */
             threshold: number;
         };
-        /**
-         * ErasureDetail
-         * @description Compact per-conversation erasure progress. Never carries conversation content.
-         *
-         *     Surfaces the governance view a platform/team admin needs: why the conversation
-         *     is being erased and how far the fan-out has got (`stores_ok`/`stores_total`).
-         *     The *when* lives on the task's ``scheduled_for`` (see ``TaskSummary``).
-         */
-        ErasureDetail: {
-            reason?: components["schemas"]["ErasureReason"] | null;
-            /**
-             * Stores Ok
-             * @default 0
-             */
-            stores_ok: number;
-            /**
-             * Stores Total
-             * @default 0
-             */
-            stores_total: number;
-            /**
-             * Attempts
-             * @default 0
-             */
-            attempts: number;
-        };
-        /**
-         * ErasureReason
-         * @description Why a conversation is being erased (CTRLP-12). Not the content — the trigger.
-         * @enum {string}
-         */
-        ErasureReason: "user_deleted" | "member_removed" | "idle_expired";
         /** EvaluationCase */
         EvaluationCase: {
             /** External Id */
@@ -723,26 +606,6 @@ export interface components {
          * @enum {string}
          */
         EvaluationCompleteness: "minimal" | "complete";
-        /**
-         * EvaluationDetail
-         * @description Compact campaign-level counters. Never carries inputs/outputs/explanations.
-         */
-        EvaluationDetail: {
-            /** Campaign Id */
-            campaign_id: string;
-            /** Completed */
-            completed: number;
-            /** Total */
-            total: number;
-            /** Passed */
-            passed: number;
-            /** Failed */
-            failed: number;
-            /** Execution Errors */
-            execution_errors: number;
-            /** Scoring Errors */
-            scoring_errors: number;
-        };
         /** EvaluationDetailResponse */
         EvaluationDetailResponse: {
             /** Evaluation Id */
@@ -840,8 +703,6 @@ export interface components {
             run_id: string;
             /** Evaluation Id */
             evaluation_id: string;
-            /** Task Id */
-            task_id: string | null;
             /** Created By */
             created_by: string;
             /** Target */
@@ -940,35 +801,6 @@ export interface components {
              */
             created_at: string;
         };
-        /** EvaluationTaskEvent */
-        EvaluationTaskEvent: {
-            /** Task Id */
-            task_id: string;
-            state: components["schemas"]["TaskState"];
-            /** Seq */
-            seq: number;
-            /**
-             * Timestamp
-             * Format: date-time
-             */
-            timestamp: string;
-            /** Progress */
-            progress?: number | null;
-            /** Step */
-            step?: string | null;
-            /** Error */
-            error?: string | null;
-            target?: components["schemas"]["TaskTarget"] | null;
-            /** Owner */
-            owner?: string | null;
-            /**
-             * Kind
-             * @default evaluation
-             * @constant
-             */
-            kind: "evaluation";
-            detail?: components["schemas"]["EvaluationDetail"] | null;
-        };
         /**
          * EvaluatorErrorDetail
          * @description The `detail` body of an evaluator error response — stable code + safe message.
@@ -1013,22 +845,6 @@ export interface components {
              */
             service: "fred-evaluation";
         };
-        /** IngestionDetail */
-        IngestionDetail: {
-            /** Processed */
-            processed: number;
-            /** Total */
-            total: number;
-            /** Failed */
-            failed: number;
-            /** Preview */
-            preview: number;
-            /** Vectorized */
-            vectorized: number;
-            /** Sql Indexed */
-            sql_indexed: number;
-            result?: components["schemas"]["RepairVectorMetadataResult"] | null;
-        };
         /** ManagedInstanceTarget */
         ManagedInstanceTarget: {
             /**
@@ -1049,114 +865,6 @@ export interface components {
             /** Requires Expected Output */
             requires_expected_output: boolean;
         };
-        /** MigrationDetail */
-        MigrationDetail: {
-            /** Step Id */
-            step_id: string;
-            /** Processed */
-            processed: number;
-            /** Total */
-            total: number;
-            /** Failed */
-            failed: number;
-            result?: components["schemas"]["MigrationResult"] | null;
-        };
-        /**
-         * MigrationResult
-         * @description Structured outcome of a platform import (AUTHZ-07 Step 3).
-         *
-         *     A typed public projection of `import_export/importer.py::MigrationReport`
-         *     (control-plane-internal) — converted via `importer.py::to_migration_result`,
-         *     never re-derived — so the terminal `succeeded` event and `GET /tasks` can
-         *     both carry it. A non-empty `warnings` list is what makes a partial
-         *     reconciliation distinguishable from full success; the state stays
-         *     `succeeded` either way (RFC TASK-EVENT-STREAM-RFC.md — no new TaskState).
-         */
-        MigrationResult: {
-            /** Import Id */
-            import_id: string;
-            /** Source Platform */
-            source_platform: string;
-            /**
-             * Identities Created
-             * @default 0
-             */
-            identities_created: number;
-            /**
-             * Users Processed
-             * @default 0
-             */
-            users_processed: number;
-            /** Users Skipped */
-            users_skipped?: string[];
-            /**
-             * Teams Imported
-             * @default 0
-             */
-            teams_imported: number;
-            /**
-             * Teams Skipped
-             * @default 0
-             */
-            teams_skipped: number;
-            /**
-             * Teams Provisioned
-             * @default 0
-             */
-            teams_provisioned: number;
-            /**
-             * Team Roles Granted
-             * @default 0
-             */
-            team_roles_granted: number;
-            /**
-             * Team Roles Skipped
-             * @default 0
-             */
-            team_roles_skipped: number;
-            /**
-             * Platform Roles Granted
-             * @default 0
-             */
-            platform_roles_granted: number;
-            /**
-             * Agents Imported
-             * @default 0
-             */
-            agents_imported: number;
-            /**
-             * Agents Skipped
-             * @default 0
-             */
-            agents_skipped: number;
-            /**
-             * Agents Gap
-             * @default 0
-             */
-            agents_gap: number;
-            /**
-             * Tags Imported
-             * @default 0
-             */
-            tags_imported: number;
-            /**
-             * Tags Skipped
-             * @default 0
-             */
-            tags_skipped: number;
-            /**
-             * Docs Imported
-             * @default 0
-             */
-            docs_imported: number;
-            /**
-             * Docs Skipped
-             * @default 0
-             */
-            docs_skipped: number;
-            /** Warnings */
-            warnings?: string[];
-        };
         /** ReadyResponse */
         ReadyResponse: {
             /**
@@ -1171,77 +879,6 @@ export interface components {
              * @constant
              */
             service: "fred-evaluation";
-        };
-        /**
-         * RepairVectorMetadataResult
-         * @description Structured outcome of the vector-metadata repair action (#2234, 3a).
-         *
-         *     Populated only on the terminal `succeeded`/`failed` event of
-         *     `RepairVectorMetadataWorkflow`, same convention as `MigrationResult` below --
-         *     a typed report an operator reads directly off the task, not just a pass/fail.
-         *
-         *     IMPORTANT scope limitation, by design (an urgent repair, not a full audit):
-         *     `eligible_with_vectors_and_content`/`repaired` mean the document_uid had *at
-         *     least one* real vector chunk in OpenSearch and *at least one* real object in
-         *     the content store -- there is no reliable expected chunk/object count to
-         *     compare against (it was never transported by the Kea restore), so this can
-         *     never prove *every* chunk or object of a document survived. Never present
-         *     this report, in UI text or logs, as having verified full completeness.
-         *
-         *     `failed_or_running_excluded` counts documents left untouched because some
-         *     processing stage reads `failed` or `in_progress` -- a stale `not_started`
-         *     flag and a real failure/stuck stage are not the same problem, and this
-         *     repair must never silently mark one `done` (clearing its error) just
-         *     because it happens to already have vectors/content present.
-         */
-        RepairVectorMetadataResult: {
-            /** Source Tag */
-            source_tag: string;
-            /**
-             * Metadata Documents
-             * @default 0
-             */
-            metadata_documents: number;
-            /**
-             * Already Done
-             * @default 0
-             */
-            already_done: number;
-            /**
-             * Eligible With Vectors And Content
-             * @default 0
-             */
-            eligible_with_vectors_and_content: number;
-            /**
-             * Repaired
-             * @default 0
-             */
-            repaired: number;
-            /**
-             * Missing Vectors
-             * @default 0
-             */
-            missing_vectors: number;
-            /**
-             * Missing Content
-             * @default 0
-             */
-            missing_content: number;
-            /**
-             * Tabular Excluded
-             * @default 0
-             */
-            tabular_excluded: number;
-            /**
-             * Failed Or Running Excluded
-             * @default 0
-             */
-            failed_or_running_excluded: number;
-            /**
-             * Errors
-             * @default 0
-             */
-            errors: number;
         };
         /** RunAnalysisResponse */
         RunAnalysisResponse: {
@@ -1270,8 +907,6 @@ export interface components {
             run_id: string;
             /** Evaluation Id */
             evaluation_id: string;
-            /** Task Id */
-            task_id: string | null;
             /** State */
             state: string;
         };
@@ -1418,78 +1053,6 @@ export interface components {
             name: string;
             /** Passed */
             passed: boolean | null;
-        };
-        /** TaskListResponse */
-        TaskListResponse: {
-            /** Tasks */
-            tasks: components["schemas"]["TaskSummary"][];
-        };
-        /** TaskLogDetail */
-        TaskLogDetail: {
-            /**
-             * Level
-             * @enum {string}
-             */
-            level: "info" | "warn" | "error";
-            /** Message */
-            message: string;
-        };
-        /**
-         * TaskState
-         * @enum {string}
-         */
-        TaskState: "pending" | "running" | "cancelling" | "succeeded" | "failed" | "cancelled";
-        /**
-         * TaskSummary
-         * @description Lightweight current-state snapshot returned by GET /tasks.
-         */
-        TaskSummary: {
-            /** Task Id */
-            task_id: string;
-            /** Kind */
-            kind: string;
-            state: components["schemas"]["TaskState"];
-            /** Progress */
-            progress?: number | null;
-            /** Step */
-            step?: string | null;
-            /** Error */
-            error?: string | null;
-            target?: components["schemas"]["TaskTarget"] | null;
-            /** Created By */
-            created_by?: string | null;
-            /** Team Id */
-            team_id?: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-            /** Scheduled For */
-            scheduled_for?: string | null;
-            /** Detail */
-            detail?: components["schemas"]["IngestionDetail"] | components["schemas"]["EvaluationDetail"] | components["schemas"]["TaskLogDetail"] | components["schemas"]["MigrationDetail"] | components["schemas"]["ErasureDetail"] | null;
-            /** Acknowledged At */
-            acknowledged_at?: string | null;
-            /** Acknowledged By */
-            acknowledged_by?: string | null;
-        };
-        /**
-         * TaskTarget
-         * @description The object a task is operating on (document, user, database, …).
-         */
-        TaskTarget: {
-            /** Type */
-            type: string;
-            /** Id */
-            id: string;
-            /** Label */
-            label: string;
         };
         /**
          * TeamAgentInstance
@@ -2234,165 +1797,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EvaluatorErrorResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_tasks_evaluation_v1_tasks_get: {
-        parameters: {
-            query?: {
-                scope?: "user" | "team";
-                team_id?: string | null;
-                exclude_terminal?: boolean;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TaskListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_task_evaluation_v1_tasks__task_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                task_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TaskSummary"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_latest_event_evaluation_v1_tasks__task_id__latest_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                task_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EvaluationTaskEvent"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    stream_task_events_evaluation_v1_tasks__task_id__events_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                task_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    cancel_task_evaluation_v1_tasks__task_id__cancel_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                task_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: string;
-                    };
                 };
             };
             /** @description Validation Error */

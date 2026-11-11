@@ -50,7 +50,6 @@ from fred_evaluation_backend.runs.models import EvaluationCaseRow
 from fred_evaluation_backend.runs.base import Base
 from fred_evaluation_backend.runs.schemas import ManagedInstanceTarget
 from fred_evaluation_backend.runs.store import RunStore
-from fred_evaluation_backend.tasks.models import TaskState, map_state
 from fred_evaluation_backend.workers import _activity_context
 from fred_evaluation_backend.workers.workflow import (
     RunCaseInput,
@@ -345,7 +344,6 @@ async def test_run_case_for_run_survives_setup_failure_and_run_still_reaches_ter
     row = await run_store.get_run(result.run_id)
     assert row.operational_state == "completed"  # terminal — never orphaned
     assert row.verdict == "failed"
-    assert map_state(row.operational_state) == TaskState.succeeded
     assert row.completed_at is not None
 
 
@@ -353,8 +351,7 @@ async def test_run_case_for_run_survives_setup_failure_and_run_still_reaches_ter
 async def test_mark_run_failed_forces_terminal_state_when_workflow_itself_blows_up():
     """Bug 2 (defense in depth): a workflow-level exception (e.g.
     `fetch_run_cases` exhausting its retries before any case could run)
-    must still leave the Run row in a terminal state, and that terminal
-    state must map onto the failed TaskState the frontend understands.
+    must still leave the Run row in the terminal `failed` state.
     """
     ds_store, run_store = await _make_stores()
     evaluation_id = await _seed_evaluation(ds_store, num_cases=2)
@@ -374,7 +371,6 @@ async def test_mark_run_failed_forces_terminal_state_when_workflow_itself_blows_
     row = await run_store.get_run(result.run_id)
     assert row.operational_state == "failed"
     assert row.verdict == "failed"
-    assert map_state(row.operational_state) == TaskState.failed
     assert row.completed_at is not None
 
 

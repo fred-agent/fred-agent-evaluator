@@ -273,23 +273,3 @@ async def test_run_aggregates_persist_metric_averages_and_analysis():
     row = await run_store.get_run(result.run_id)
     assert json.loads(row.metric_averages_json) == {"faithfulness": 0.9}
     assert json.loads(row.analysis_json)["analysis"]["summary"] == "ok"
-
-
-@pytest.mark.asyncio
-async def test_run_store_task_lookup_and_scopes():
-    ds_store, run_store = await _make_stores()
-    evaluation_id = await _seed_evaluation(ds_store)
-
-    first = await _start(evaluation_id, ds_store, run_store, instance="inst-9")
-    second = await _start(
-        evaluation_id, ds_store, run_store, instance="inst-42", by="bob"
-    )
-
-    assert (await run_store.get_run_by_task_id(first.task_id)).run_id == first.run_id
-    assert [r.run_id for r in await run_store.list_runs_by_creator("alice")] == [
-        first.run_id
-    ]
-    assert {r.run_id for r in await run_store.list_runs_by_team("team-1")} == {
-        first.run_id,
-        second.run_id,
-    }

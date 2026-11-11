@@ -64,7 +64,6 @@ class EvaluationRunRow(Base):
     )
     team_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     created_by: Mapped[str] = mapped_column(String, nullable=False)
-    task_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     target_kind: Mapped[str] = mapped_column(String(32), nullable=False)
     target_runtime_id: Mapped[str | None] = mapped_column(String, nullable=True)
     target_agent_id: Mapped[str | None] = mapped_column(String, nullable=True)
