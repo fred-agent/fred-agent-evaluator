@@ -6,7 +6,7 @@ from typing import Literal
 
 from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fred_core import build_log_store, get_config, initialize_user_security, log_setup
+from fred_core import get_config, initialize_user_security, log_setup
 from fred_core.common import read_env_bool
 from fred_core.kpi import KPIMiddleware
 from fred_core.scheduler import SchedulerBackend, TemporalClientProvider
@@ -43,15 +43,8 @@ def create_app() -> FastAPI:
     configuration = load_configuration()
     log_setup(
         service_name="fred-evaluation",
+        service_role="api",
         log_level=configuration.app.log_level,
-        # Generic diagnostic logs (OBSERVABILITY-AND-AUDIT.md §6). Hardcoding
-        # NullLogStore discarded them outright; the store now follows config,
-        # so a deployment that sets `storage.log_store: opensearch` gets them
-        # durable and explorable from OpenSearch Dashboards.
-        store=build_log_store(
-            log_store_config=configuration.storage.log_store,
-            opensearch_config=configuration.storage.opensearch,
-        ),
     )
 
     kpi_writer = start_kpi(configuration, service_name="fred-evaluation")
