@@ -36,9 +36,7 @@ async def execute_and_score_case(
     created_by: str,
     input: str,
     expected_output: str | None,
-    agent_id: str | None,
-    agent_instance_id: str | None = None,
-    session_id: str,
+    agent_instance_id: str,
     evaluate_url: str,
     team_id: str,
     token_provider: M2MTokenProvider | None = None,
@@ -49,7 +47,6 @@ async def execute_and_score_case(
     store: RunStore,
     agent_client: AgentClient,
     run_id: str,
-    agent_profile_overrides: dict[str, str] | None = None,
     kpi: BaseKPIWriter | None = None,
 ) -> None:
     tracer = get_tracer()
@@ -68,9 +65,7 @@ async def execute_and_score_case(
             created_by=created_by,
             input=input,
             expected_output=expected_output,
-            agent_id=agent_id,
             agent_instance_id=agent_instance_id,
-            session_id=session_id,
             evaluate_url=evaluate_url,
             team_id=team_id,
             token_provider=token_provider,
@@ -80,7 +75,6 @@ async def execute_and_score_case(
             metrics=metrics,
             store=store,
             agent_client=agent_client,
-            agent_profile_overrides=agent_profile_overrides,
             kpi=kpi or NoOpKPIWriter(),
         )
 
@@ -93,9 +87,7 @@ async def _execute_and_score_case_inner(
     run_id: str,
     input: str,
     expected_output: str | None,
-    agent_id: str | None,
-    agent_instance_id: str | None = None,
-    session_id: str,
+    agent_instance_id: str,
     evaluate_url: str,
     team_id: str,
     token_provider: M2MTokenProvider | None = None,
@@ -105,7 +97,6 @@ async def _execute_and_score_case_inner(
     metrics: list[str] | None = None,
     store: RunStore,
     agent_client: AgentClient,
-    agent_profile_overrides: dict[str, str] | None = None,
     kpi: BaseKPIWriter,
 ) -> None:
     from fred_deepeval_cli.core.evaluator import classify_outcome
@@ -131,14 +122,13 @@ async def _execute_and_score_case_inner(
     agent_started = time.perf_counter()
     try:
         eval_trace = await agent_client.evaluate(
+            created_by=created_by,
+            run_id=run_id,
             evaluate_url=evaluate_url,
             team_id=team_id,
-            agent_id=agent_id,
             agent_instance_id=agent_instance_id,
-            session_id=session_id,
             input=input,
             token_provider=token_provider,
-            agent_profile_overrides=agent_profile_overrides,
         )
     except Exception as exc:
         agent_ms = _elapsed_ms(agent_started)

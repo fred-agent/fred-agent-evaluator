@@ -50,13 +50,16 @@ class _ControlPlane:
     def __init__(self, member_of: frozenset[str] = frozenset({"team-1"})) -> None:
         self.member_of = member_of
 
-    async def get_team(self, *, team_id: str, auth):
-        return SimpleNamespace(
-            team_id=team_id, is_member=team_id in self.member_of, name=team_id
-        )
+    async def authorize_space(self, *, space_id: str, auth: object):
+        _ = space_id, auth
+        return SimpleNamespace(allowed=space_id in self.member_of)
+
+    async def get_space(self, *, space_id: str, auth: object):
+        _ = space_id, auth
+        return SimpleNamespace(name=space_id)
 
     async def prepare_managed_instance_execution(
-        self, *, team_id, agent_instance_id, auth, agent_model_override=None
+        self, *, team_id, agent_instance_id, auth
     ):
         if team_id not in self.member_of:
             request = httpx.Request("POST", "http://cp.test/prepare-execution")

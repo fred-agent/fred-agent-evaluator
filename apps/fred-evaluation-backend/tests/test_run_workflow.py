@@ -46,8 +46,8 @@ from fred_evaluation_backend.evaluations.store import EvaluationStore
 from fred_evaluation_backend.execution.outbound_auth import NoAuthentication
 from fred_evaluation_backend.runs import models as _run_models  # noqa: F401
 from fred_evaluation_backend.runs import service
-from fred_evaluation_backend.runs.models import EvaluationCaseRow
 from fred_evaluation_backend.runs.base import Base
+from fred_evaluation_backend.runs.models import EvaluationCaseRow
 from fred_evaluation_backend.runs.schemas import ManagedInstanceTarget
 from fred_evaluation_backend.runs.store import RunStore
 from fred_evaluation_backend.workers import _activity_context
@@ -79,34 +79,26 @@ class _FakeCase:
 class _FakeControlPlaneOK:
     m2m_token_provider = None
 
+    async def authorize_space(self, *, space_id: str, auth: object):
+        _ = space_id, auth
+        return SimpleNamespace(allowed=True)
+
     async def prepare_managed_instance_execution(
         self,
         *,
         team_id,
         agent_instance_id,
         auth,
-        agent_model_override: str | None = None,
     ):
         return SimpleNamespace(
             agent_instance_id=agent_instance_id,
             evaluate_url="http://agent/evaluate",
-            agent_profile_overrides=None,
         )
 
 
-class _FakeControlPlaneAlwaysForbidden:
-    """Simulates the real-world 403 that broke every case of a run."""
-
-    m2m_token_provider = None
-
-    async def prepare_managed_instance_execution(
-        self,
-        *,
-        team_id,
-        agent_instance_id,
-        auth,
-        agent_model_override: str | None = None,
-    ):
+class _ForbiddenAgentClient:
+    async def evaluate(self, **kwargs: object):
+        _ = kwargs
         raise PermissionError("403 Forbidden: service token rejected")
 
 
@@ -116,18 +108,18 @@ class _FakeAgentClient:
         *,
         evaluate_url,
         team_id,
-        agent_id,
-        agent_instance_id=None,
-        session_id,
+        agent_instance_id,
+        created_by: str,
+        run_id: str,
         input,
         token_provider=None,
-        agent_profile_overrides: dict[str, str] | None = None,
     ):
+        _ = created_by, run_id
         from fred_sdk.contracts.eval import EvalTrace
 
         return EvalTrace(
-            session_id=session_id,
-            agent_id=agent_id or "agent-1",
+            session_id="pod-generated-session",
+            agent_id="agent-1",
             input=input,
             latency_ms=10,
             output="the answer",
@@ -295,23 +287,9 @@ async def test_run_case_for_run_updates_progress_incrementally_not_only_at_the_e
 
 @pytest.mark.asyncio
 async def test_run_case_for_run_survives_setup_failure_and_run_still_reaches_terminal_state():
-    """Bug 2 (the reported scenario): every case's setup fails (403).
-
-    Before the fix, `prepare_managed_instance_execution` raising was
-    unhandled inside `run_case_for_run`; once Temporal's retries were
-    exhausted it propagated out of the workflow's `asyncio.gather`,
-    skipping `finalize_run` and leaving the Run non-terminal forever.
-
-    The activity must now absorb the failure as an ordinary per-case error
-    (matching how agent-call/scoring failures already behave), and the run
-    must still be able to reach `finalize_run` and end up terminal.
-    """
+    """A runtime refusal must persist case failures and allow finalization."""
     ds_store, run_store = await _make_stores()
     evaluation_id = await _seed_evaluation(ds_store, num_cases=2)
-    # Run creation succeeds (the instance exists and is resolvable) — the 403
-    # only shows up later, at execution time, e.g. because the service token
-    # expired between scheduling and running. That's what `_execute_run`'s
-    # own `cp_client` (wired via the activity context) simulates below.
     result = await _start_run(
         evaluation_id, ds_store, run_store, cp_client=_FakeControlPlaneOK()
     )
@@ -319,8 +297,8 @@ async def test_run_case_for_run_survives_setup_failure_and_run_still_reaches_ter
 
     _init_activity_context(
         run_store,
-        cp_client=_FakeControlPlaneAlwaysForbidden(),
-        agent_client=_FakeAgentClient(),
+        cp_client=_FakeControlPlaneOK(),
+        agent_client=_ForbiddenAgentClient(),
     )
     await mark_run_started(result.run_id)
 
@@ -485,17 +463,30 @@ async def test_scoring_a_case_clears_metrics_left_by_a_previous_attempt():
 
 
 @pytest.mark.asyncio
-async def test_case_setup_failure_is_logged_with_type_code_and_traceback(caplog):
+async def test_case_setup_failure_is_logged_with_type_code_and_traceback(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+):
     ds_store, run_store = await _make_stores()
     evaluation_id = await _seed_evaluation(ds_store, num_cases=1)
     result = await _start_run(
         evaluation_id, ds_store, run_store, cp_client=_FakeControlPlaneOK()
     )
+    get_run = run_store.get_run
+
+    async def missing_snapshot_url(run_id: str):
+        row = await get_run(run_id)
+        assert row is not None
+        snapshot = cast(dict[str, object], json.loads(row.snapshot_json))
+        del snapshot["evaluate_url"]
+        row.snapshot_json = json.dumps(snapshot)
+        return row
+
+    monkeypatch.setattr(run_store, "get_run", missing_snapshot_url)
     case = (await run_store.list_cases_by_run(result.run_id, limit=10))[0]
     _init_activity_context(
         run_store,
-        cp_client=_FakeControlPlaneAlwaysForbidden(),
-        agent_client=_FakeAgentClient(),
+        cp_client=_FakeControlPlaneOK(),
+        agent_client=_ForbiddenAgentClient(),
     )
 
     with caplog.at_level("INFO"):
@@ -503,8 +494,8 @@ async def test_case_setup_failure_is_logged_with_type_code_and_traceback(caplog)
 
     failure = next(r for r in caplog.records if "case_setup_failed" in r.getMessage())
     assert failure.exc_info is not None
-    assert "exception_type=PermissionError" in failure.getMessage()
+    assert "exception_type=ValueError" in failure.getMessage()
     assert any("event=eval_case_done" in r.getMessage() for r in caplog.records)
     detail = await run_store.get_case(case.case_id)
     assert detail is not None and detail.execution_error is not None
-    assert detail.execution_error.startswith("[unknown] PermissionError: 403")
+    assert "evaluate_url" in detail.execution_error

@@ -3,8 +3,8 @@ by id.
 
 Those ids are global, so authentication alone would let any caller read,
 cancel or delete another team's run by knowing its id. Each helper loads the
-resource first, then asks the Control Plane whether the caller belongs to the
-resource's *own* team — never to a team the caller names — exactly as
+resource first, then asks the Control Plane whether the caller has run_evaluations on the
+resource's *own* space (stored as team_id) — never to a team the caller names — exactly as
 `evaluations.service.delete_evaluation` already does.
 
 The team-scoped application surface (`hosted/`) has its own gates and does not
@@ -31,7 +31,7 @@ from fred_evaluation_backend.runs.store import RunStore
 async def require_team_member(
     request: Request, team_id: str, *, cp_client: ControlPlaneClient
 ) -> None:
-    """403 unless the caller belongs to `team_id` (Control Plane, caller's token)."""
+    """Require run_evaluations on `team_id` with the caller's token."""
     configuration = request.app.dependency_overrides.get(get_config, get_config)()
     await resolve_team_membership(
         team_id=team_id,

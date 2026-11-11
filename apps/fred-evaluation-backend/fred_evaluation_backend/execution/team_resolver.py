@@ -33,16 +33,11 @@ async def resolve_team_membership(
     control_plane_client: ControlPlaneClient,
     auth: OutboundAuth,
 ) -> None:
-    """Authorize a team-scoped action that has no execution target (evaluations).
-
-    Run creation validates team scope as a side effect of the target's own
-    `prepare-execution` call. Evaluation catalog operations have no target, so this calls
-    Control Plane's `GET /teams/{team_id}` directly with the caller's
-    propagated JWT and raises the same target-neutral error vocabulary
-    (`evaluator_errors`) on either a boundary failure or a non-member.
-    """
+    """Require run_evaluations on the space stored under the legacy team_id name."""
     try:
-        membership = await control_plane_client.get_team(team_id=team_id, auth=auth)
+        decision = await control_plane_client.authorize_space(
+            space_id=team_id, auth=auth
+        )
     except _BOUNDARY_FAILURES as exc:
         raise map_control_plane_error(
             exc,
@@ -51,12 +46,14 @@ async def resolve_team_membership(
             target=f"team={team_id}",
         ) from exc
 
-    if not membership.is_member:
-        logger.info("[TEAM-RESOLVER] team=%s caller is not a member — denying", team_id)
+    if not decision.allowed:
+        logger.info(
+            "[TEAM-RESOLVER] team=%s caller cannot run evaluations — denying", team_id
+        )
         raise HTTPException(
             status_code=403,
             detail=EvaluatorErrorDetail(
                 code="target_forbidden",
-                message="You do not have permission to use the selected team.",
+                message="You do not have permission to run evaluations in the selected space.",
             ).model_dump(),
         )

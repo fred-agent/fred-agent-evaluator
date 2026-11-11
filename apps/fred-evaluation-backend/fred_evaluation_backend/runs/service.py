@@ -12,10 +12,12 @@ from fred_evaluation_backend.evaluations.schemas import EvaluationCase
 from fred_evaluation_backend.evaluations.store import EvaluationStore
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
 from fred_evaluation_backend.execution.evaluator_errors import (
+    EvaluatorErrorDetail,
     evaluation_not_found_error,
 )
 from fred_evaluation_backend.execution.outbound_auth import OutboundAuth
 from fred_evaluation_backend.execution.runtime_resolver import resolve_managed_instance
+from fred_evaluation_backend.execution.team_resolver import resolve_team_membership
 from fred_evaluation_backend.runs.models import EvaluationRunRow
 from fred_evaluation_backend.runs.schemas import (
     CustomMetricSpecInput,
@@ -62,6 +64,14 @@ async def start_run(
     metrics: list[str],
     custom_metrics: list[CustomMetricSpecInput],
 ) -> RunCreatedResponse:
+    if agent_model_override is not None:
+        raise HTTPException(
+            status_code=422,
+            detail=EvaluatorErrorDetail(
+                code="target_invalid",
+                message="Agent model overrides are not supported on Weaver yet.",
+            ).model_dump(),
+        )
     evaluation = await evaluation_store.get_evaluation(evaluation_id)
     if evaluation is None or evaluation.team_id != team_id:
         raise evaluation_not_found_error()
@@ -70,14 +80,10 @@ async def start_run(
         for c in json.loads(evaluation.cases_json or "[]")
     ]
 
-    # NOT validated eagerly with agent_model_override: this call authenticates
-    # as the interactive caller (resolve_interactive_auth), but the Control
-    # Plane only honors agent_model_override for the worker's service identity
-    # (ServiceAuthentication) — passing it here would 403 every override
-    # unconditionally, before the run even starts. The override is validated
-    # for real at case execution time instead (workflow.py / runner.py, which
-    # do use ServiceAuthentication), surfacing as a per-case execution error.
-    await resolve_managed_instance(
+    await resolve_team_membership(
+        team_id=team_id, control_plane_client=control_plane_client, auth=auth
+    )
+    preparation = await resolve_managed_instance(
         team_id=team_id,
         agent_instance_id=target.agent_instance_id,
         control_plane_client=control_plane_client,
@@ -93,6 +99,7 @@ async def start_run(
         evaluation_name=evaluation.name,
         evaluation_version=evaluation.version,
         target=target,
+        evaluate_url=preparation.evaluate_url,
         profile=profile,
         judge_profile_id=judge_profile_id,
         agent_model_override=agent_model_override,
@@ -355,10 +362,10 @@ async def build_run_report(
     team_name: str | None = None
     if control_plane_client is not None and auth is not None:
         try:
-            membership = await control_plane_client.get_team(
-                team_id=evaluation_row.team_id, auth=auth
+            space = await control_plane_client.get_space(
+                space_id=evaluation_row.team_id, auth=auth
             )
-            team_name = membership.name
+            team_name = space.name
         except Exception:
             logger.warning(
                 "[REPORT] could not resolve team name for %s", evaluation_row.team_id

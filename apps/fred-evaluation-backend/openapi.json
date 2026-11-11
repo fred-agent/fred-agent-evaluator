@@ -3643,15 +3643,7 @@
             "title": "Created By"
           },
           "target": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ManagedInstanceTarget"
-              },
-              {
-                "$ref": "#/components/schemas/RuntimeAgentTarget"
-              }
-            ],
-            "title": "Target"
+            "$ref": "#/components/schemas/ManagedInstanceTarget"
           },
           "profile": {
             "type": "string",
@@ -4286,15 +4278,18 @@
             "title": "Evaluation Version"
           },
           "target": {
+            "$ref": "#/components/schemas/ManagedInstanceTarget"
+          },
+          "evaluate_url": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ManagedInstanceTarget"
+                "type": "string"
               },
               {
-                "$ref": "#/components/schemas/RuntimeAgentTarget"
+                "type": "null"
               }
             ],
-            "title": "Target"
+            "title": "Evaluate Url"
           },
           "resolved_target_config": {
             "anyOf": [
@@ -4383,7 +4378,8 @@
                 "type": "null"
               }
             ],
-            "title": "Agent Model Override"
+            "title": "Agent Model Override",
+            "description": "Unavailable on Weaver: non-null overrides are rejected with 422."
           }
         },
         "additionalProperties": false,
@@ -4394,31 +4390,6 @@
         ],
         "title": "RunSpec",
         "description": "What to run an evaluation against, and how to score it."
-      },
-      "RuntimeAgentTarget": {
-        "properties": {
-          "kind": {
-            "type": "string",
-            "const": "runtime_agent",
-            "title": "Kind"
-          },
-          "runtime_id": {
-            "type": "string",
-            "title": "Runtime Id"
-          },
-          "agent_id": {
-            "type": "string",
-            "title": "Agent Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "kind",
-          "runtime_id",
-          "agent_id"
-        ],
-        "title": "RuntimeAgentTarget",
-        "description": "Historical target kind \u2014 no longer accepted on creation (EVAL-04)."
       },
       "StartRunRequest": {
         "properties": {
@@ -4449,7 +4420,8 @@
                 "type": "null"
               }
             ],
-            "title": "Agent Model Override"
+            "title": "Agent Model Override",
+            "description": "Unavailable on Weaver: non-null overrides are rejected with 422."
           },
           "team_id": {
             "type": "string",

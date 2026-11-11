@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
+from typing import override
 
 import httpx
 import pytest
@@ -57,8 +58,10 @@ def _evaluation_row(*, evaluation_id: str = EVALUATION_ID, team_id: str = "team-
 class _FakeStore:
     def __init__(self) -> None:
         self.created_cases: list[dict[str, object]] = []
+        self.created_runs: list[dict[str, object]] = []
 
-    async def create_run(self, **kwargs):
+    async def create_run(self, **kwargs: object):
+        self.created_runs.append(kwargs)
         return None
 
     async def create_case(self, **kwargs):
@@ -82,13 +85,16 @@ class _RecordingControlPlaneClient:
     def __init__(self) -> None:
         self.received_auths: list[object] = []
 
+    async def authorize_space(self, *, space_id: str, auth: object):
+        _ = space_id, auth
+        return SimpleNamespace(allowed=True)
+
     async def prepare_managed_instance_execution(
         self,
         *,
         team_id,
         agent_instance_id,
         auth,
-        agent_model_override: str | None = None,
     ):
         self.received_auths.append(auth)
         return SimpleNamespace(
@@ -98,19 +104,8 @@ class _RecordingControlPlaneClient:
             evaluate_url="http://runtime.test/agents/evaluate",
         )
 
-    async def prepare_runtime_agent_execution(
-        self, *, team_id, runtime_id, agent_id, auth
-    ):
-        self.received_auths.append(auth)
-        return SimpleNamespace(
-            runtime_id=runtime_id,
-            agent_id=agent_id,
-            team_id=team_id,
-            evaluate_url="http://runtime.test/agents/evaluate",
-        )
 
-
-class _ForbiddenControlPlaneClient:
+class _ForbiddenControlPlaneClient(_RecordingControlPlaneClient):
     """Fake ControlPlaneClient whose prepare_* calls always raise an upstream 403.
 
     Raises the real `httpx.HTTPStatusError` `resolve_managed_instance` classifies,
@@ -118,22 +113,17 @@ class _ForbiddenControlPlaneClient:
     by a hand-written test assertion.
     """
 
+    @override
     async def prepare_managed_instance_execution(
         self,
         *,
         team_id,
         agent_instance_id,
         auth,
-        agent_model_override: str | None = None,
     ):
         request = httpx.Request("POST", "http://cp.test/prepare-execution")
         response = httpx.Response(403, request=request, json={"detail": "forbidden"})
         raise httpx.HTTPStatusError("403 Forbidden", request=request, response=response)
-
-    async def prepare_runtime_agent_execution(
-        self, *, team_id, runtime_id, agent_id, auth
-    ):
-        raise NotImplementedError
 
 
 def _build_app(
@@ -376,3 +366,29 @@ async def test_run_copies_cases_from_the_referenced_evaluation() -> None:
         ("q1", "a1"),
         ("q2", "a2"),
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("override_model", ["chat.mistral.medium", ""])
+async def test_model_override_is_rejected_before_preparation_or_persistence(
+    override_model: str,
+):
+    cp = _RecordingControlPlaneClient()
+    store = _FakeStore()
+    app = _build_app(security_enabled=True, cp_client=cp, store=store)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            f"/evaluations/{EVALUATION_ID}/runs",
+            json={**RUN_BODY, "agent_model_override": override_model},
+            headers={"Authorization": "Bearer alice-token"},
+        )
+    assert response.status_code == 422
+    assert response.json()["detail"] == {
+        "code": "target_invalid",
+        "message": "Agent model overrides are not supported on Weaver yet.",
+    }
+    assert cp.received_auths == []
+    assert store.created_runs == []
+    assert store.created_cases == []

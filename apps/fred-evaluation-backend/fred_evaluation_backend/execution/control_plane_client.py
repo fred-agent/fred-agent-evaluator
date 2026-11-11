@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import logging
-from urllib.parse import quote
+from urllib.parse import quote, urljoin, urlsplit
 
 import httpx
 from fred_core import M2MBearerAuth, M2MTokenProvider
-from pydantic import BaseModel
+from pydantic import BaseModel, StrictBool
 
 from fred_evaluation_backend.execution.outbound_auth import (
     NoAuthentication,
@@ -26,46 +26,30 @@ class ControlPlaneInvalidResponseError(Exception):
     """
 
 
-# RUNTIME-07 rev.2: prepare-execution no longer returns a signed execution_grant.
-# Authorization happens at the runtime pod via the caller's JWT + OpenFGA. These
-# preparations therefore only carry routing (evaluate_url) and the team scope.
-#
-# EVAL-04: `runtime_agent` is no longer an accepted target at run
-# creation (creation is managed-instance-only). This preparation type and
-# the client method below are kept because the worker (workers/workflow.py,
-# workers/runner.py) still executes legacy rows created before EVAL-04 with
-# `target_kind == "runtime_agent"` — removing them would break in-flight
-# execution of pre-existing work, not just tidy up unused code.
-class RuntimeAgentExecutionPreparation(BaseModel):
+class ControlPlaneEvaluationUnsupportedError(Exception):
+    """The selected runtime does not expose a synchronous evaluation endpoint."""
+
+
+class _ExecutionRouting(BaseModel):
+    agent_instance_id: str
     runtime_id: str
-    agent_id: str
-    team_id: str
-    evaluate_url: str
+    space_id: str
+    execute_url: str | None
 
 
 class ManagedInstanceExecutionPreparation(BaseModel):
     agent_instance_id: str
     runtime_id: str
-    team_id: str
+    space_id: str
     evaluate_url: str
-    # Client-forwarded to the pod as-is (fred_sdk.contracts.context.RuntimeContext
-    # .agent_profile_overrides) — the pod never re-fetches routing policy itself.
-    # None when the Control Plane response omits it (no team policy, no override).
-    agent_profile_overrides: dict[str, str] | None = None
 
 
-class TeamMembership(BaseModel):
-    """Whether the caller belongs to a team — no execution target involved.
+class SpaceAuthorization(BaseModel):
+    allowed: StrictBool
 
-    Used for evaluation-catalog endpoints, which (unlike runs) have no agent/runtime
-    target whose own `prepare-execution` call already enforces team scope.
-    """
 
-    team_id: str
-    is_member: bool
-    # The Control Plane returns the team's display name; keep it so callers that
-    # archive or present a result are not left holding an opaque id.
-    name: str | None = None
+class SpaceDetails(BaseModel):
+    name: str
 
 
 class TeamAgentInstance(BaseModel):
@@ -74,6 +58,11 @@ class TeamAgentInstance(BaseModel):
     agent_instance_id: str
     display_name: str
     role: str | None = None
+
+
+class _AgentInstancePage(BaseModel):
+    items: list[TeamAgentInstance]
+    next_cursor: str | None
 
 
 class TeamModelProfile(BaseModel):
@@ -144,16 +133,14 @@ class ControlPlaneClient:
         *,
         headers: dict[str, str],
         http_auth: httpx.Auth | None,
-        params: dict[str, str] | None = None,
+        json: dict[str, str] | None = None,
     ) -> httpx.Response:
         # httpx's `post()` convenience method doesn't accept `auth=None` (only its
         # lower-level `request()` does) — omit the kwarg instead, which is
         # equivalent here since these clients never carry a default auth.
         if http_auth is not None:
-            return await client.post(
-                url, headers=headers, auth=http_auth, params=params
-            )
-        return await client.post(url, headers=headers, params=params)
+            return await client.post(url, headers=headers, auth=http_auth, json=json)
+        return await client.post(url, headers=headers, json=json)
 
     @staticmethod
     async def _get(
@@ -167,122 +154,110 @@ class ControlPlaneClient:
             return await client.get(url, headers=headers, auth=http_auth)
         return await client.get(url, headers=headers)
 
-    async def prepare_runtime_agent_execution(
-        self,
-        *,
-        team_id: str,
-        runtime_id: str,
-        agent_id: str,
-        auth: OutboundAuth,
-    ) -> RuntimeAgentExecutionPreparation:
-        url = (
-            f"{self._base_url}/teams/{team_id}"
-            f"/runtimes/{runtime_id}/agents/{agent_id}/prepare-execution"
-        )
-        headers, http_auth = self._build_request(auth)
-        logger.info(
-            "[CP-CLIENT] prepare_runtime_agent_execution team=%s runtime=%s agent=%s",
-            team_id,
-            runtime_id,
-            agent_id,
-        )
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await self._post(
-                client, url, headers=headers, http_auth=http_auth
-            )
-            response.raise_for_status()
-            try:
-                data = response.json()
-                evaluate_url = data.get("evaluate_url", "")
-                if evaluate_url.startswith("/") and self._runtime_base_url:
-                    data = {
-                        **data,
-                        "evaluate_url": f"{self._runtime_base_url}{evaluate_url}",
-                    }
-                return RuntimeAgentExecutionPreparation.model_validate(data)
-            except (KeyError, TypeError, ValueError, AttributeError) as exc:
-                raise ControlPlaneInvalidResponseError(
-                    f"Malformed prepare_runtime_agent_execution response: {type(exc).__name__}"
-                ) from exc
-
     async def prepare_managed_instance_execution(
         self,
         *,
         team_id: str,
         agent_instance_id: str,
         auth: OutboundAuth,
-        agent_model_override: str | None = None,
     ) -> ManagedInstanceExecutionPreparation:
+        # Weaver preparation is an admitted-user route, never a worker route.
+        if isinstance(auth, ServiceAuthentication):
+            raise RuntimeError("prepare-execution requires the API caller's identity.")
         url = (
-            f"{self._base_url}/teams/{team_id}"
-            f"/agent-instances/{agent_instance_id}/prepare-execution"
+            f"{self._base_url}/spaces/{quote(team_id, safe='')}"
+            f"/agent-instances/{quote(agent_instance_id, safe='')}/prepare-execution"
         )
         headers, http_auth = self._build_request(auth)
         logger.info(
-            "[CP-CLIENT] prepare_managed_instance_execution team=%s instance=%s",
+            "[CP-CLIENT] prepare_managed_instance_execution space=%s instance=%s",
             team_id,
             agent_instance_id,
         )
-        params = (
-            {"agent_model_override": agent_model_override}
-            if agent_model_override is not None
-            else None
-        )
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await self._post(
-                client, url, headers=headers, http_auth=http_auth, params=params
+                client, url, headers=headers, http_auth=http_auth
             )
-            response.raise_for_status()
+            _ = response.raise_for_status()
             try:
-                data = response.json()
-                execute_url = data["execute_url"]
-                if execute_url.startswith("/") and self._runtime_base_url:
-                    execute_url = f"{self._runtime_base_url}{execute_url}"
-                evaluate_url = execute_url.replace(
-                    "/agents/execute", "/agents/evaluate"
+                data = _ExecutionRouting.model_validate(response.json())
+                execute_url = data.execute_url
+                if execute_url is None:
+                    raise ControlPlaneEvaluationUnsupportedError(
+                        "This runtime has no synchronous execute URL; select a Python agent instance that supports evaluation."
+                    )
+                parts = urlsplit(execute_url)
+                if not parts.scheme and not self._runtime_base_url:
+                    raise RuntimeError(
+                        "control_plane.runtime_base_url is required for relative execution URLs."
+                    )
+                if (
+                    not parts.path.endswith("/agents/execute")
+                    or parts.query
+                    or parts.fragment
+                ):
+                    raise ValueError("Unexpected execution URL")
+                evaluate_url = urljoin(
+                    self._runtime_base_url + "/",
+                    execute_url.removesuffix("/agents/execute") + "/agents/evaluate",
                 )
-                return ManagedInstanceExecutionPreparation(
-                    agent_instance_id=agent_instance_id,
-                    runtime_id=data["runtime_id"],
-                    team_id=str(data["team_id"]),
+                if (
+                    urlsplit(evaluate_url).scheme not in {"http", "https"}
+                    or not urlsplit(evaluate_url).netloc
+                ):
+                    raise ValueError("Relative execution URL requires runtime_base_url")
+                preparation = ManagedInstanceExecutionPreparation(
+                    agent_instance_id=data.agent_instance_id,
+                    runtime_id=data.runtime_id,
+                    space_id=data.space_id,
                     evaluate_url=evaluate_url,
-                    agent_profile_overrides=data.get("agent_profile_overrides"),
                 )
+                if (
+                    preparation.space_id != team_id
+                    or preparation.agent_instance_id != agent_instance_id
+                ):
+                    raise ValueError("Preparation does not match the requested target")
+                return preparation
             except (KeyError, TypeError, ValueError, AttributeError) as exc:
                 raise ControlPlaneInvalidResponseError(
                     f"Malformed prepare_managed_instance_execution response: {type(exc).__name__}"
                 ) from exc
 
-    async def get_team(
-        self,
-        *,
-        team_id: str,
-        auth: OutboundAuth,
-    ) -> TeamMembership:
-        """Check whether the caller belongs to `team_id` — no execution target.
+    async def authorize_space(
+        self, *, space_id: str, auth: OutboundAuth
+    ) -> SpaceAuthorization:
+        headers, http_auth = self._build_request(auth)
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await self._post(
+                client,
+                f"{self._base_url}/authorize/space",
+                headers=headers,
+                http_auth=http_auth,
+                json={"space_id": space_id, "permission": "run_evaluations"},
+            )
+            _ = response.raise_for_status()
+            try:
+                return SpaceAuthorization.model_validate(response.json())
+            except (TypeError, ValueError) as exc:
+                raise ControlPlaneInvalidResponseError(
+                    "Malformed authorize_space response"
+                ) from exc
 
-        Reuses the caller's propagated JWT the same way `prepare_*_execution`
-        does; this is the evaluation-catalog domain's team-scoping check, since evaluations
-        have no agent/runtime target to piggyback authorization on.
-        """
-        url = f"{self._base_url}/teams/{team_id}"
+    async def get_space(self, *, space_id: str, auth: OutboundAuth) -> SpaceDetails:
         headers, http_auth = self._build_request(auth)
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await self._get(
-                client, url, headers=headers, http_auth=http_auth
+                client,
+                f"{self._base_url}/spaces/{quote(space_id, safe='')}",
+                headers=headers,
+                http_auth=http_auth,
             )
-            response.raise_for_status()
+            _ = response.raise_for_status()
             try:
-                data = response.json()
-                raw_name = data.get("name")
-                return TeamMembership(
-                    team_id=team_id,
-                    is_member=bool(data["is_member"]),
-                    name=str(raw_name) if raw_name else None,
-                )
-            except (KeyError, TypeError, ValueError, AttributeError) as exc:
+                return SpaceDetails.model_validate(response.json())
+            except (TypeError, ValueError) as exc:
                 raise ControlPlaneInvalidResponseError(
-                    f"Malformed get_team response: {type(exc).__name__}"
+                    "Malformed get_space response"
                 ) from exc
 
     async def list_team_application_ids(
@@ -319,27 +294,34 @@ class ControlPlaneClient:
         team_id: str,
         auth: OutboundAuth,
     ) -> list[TeamAgentInstance]:
-        """The team's managed agent instances, as the caller sees them."""
-        url = f"{self._base_url}/teams/{quote(team_id, safe='')}/agent-instances"
+        """All pages of managed instances visible in the Weaver space."""
+        url = f"{self._base_url}/spaces/{quote(team_id, safe='')}/agent-instances"
         headers, http_auth = self._build_request(auth)
+        items: list[TeamAgentInstance] = []
+        cursors: set[str] = set()
         async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await self._get(
-                client, url, headers=headers, http_auth=http_auth
-            )
-            response.raise_for_status()
-            try:
-                return [
-                    TeamAgentInstance(
-                        agent_instance_id=str(item["agent_instance_id"]),
-                        display_name=str(item["display_name"]),
-                        role=str(item["role"]) if item.get("role") else None,
+            while True:
+                response = await self._get(
+                    client, url, headers=headers, http_auth=http_auth
+                )
+                _ = response.raise_for_status()
+                try:
+                    data = _AgentInstancePage.model_validate(response.json())
+                    items.extend(data.items)
+                    cursor = data.next_cursor
+                    if cursor is None:
+                        return items
+                    if not cursor or cursor in cursors:
+                        raise ValueError("Invalid or repeated pagination cursor")
+                    cursors.add(cursor)
+                    url = (
+                        f"{self._base_url}/spaces/{quote(team_id, safe='')}/agent-instances"
+                        f"?after={quote(cursor, safe='')}"
                     )
-                    for item in response.json()
-                ]
-            except (KeyError, TypeError, ValueError, AttributeError) as exc:
-                raise ControlPlaneInvalidResponseError(
-                    f"Malformed list_team_agent_instances response: {type(exc).__name__}"
-                ) from exc
+                except (KeyError, TypeError, ValueError, AttributeError) as exc:
+                    raise ControlPlaneInvalidResponseError(
+                        "Malformed list_team_agent_instances response"
+                    ) from exc
 
     async def list_team_model_profiles(
         self,
@@ -347,25 +329,6 @@ class ControlPlaneClient:
         team_id: str,
         auth: OutboundAuth,
     ) -> list[TeamModelProfile]:
-        """Chat model profiles the team may use, e.g. for `agent_model_override`."""
-        url = (
-            f"{self._base_url}/teams/{quote(team_id, safe='')}"
-            "/routing-policy/available-models"
-        )
-        headers, http_auth = self._build_request(auth)
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await self._get(
-                client, url, headers=headers, http_auth=http_auth
-            )
-            response.raise_for_status()
-            try:
-                return [
-                    TeamModelProfile(
-                        profile_id=str(item["profile_id"]), name=str(item["name"])
-                    )
-                    for item in response.json()["profiles"]
-                ]
-            except (KeyError, TypeError, ValueError, AttributeError) as exc:
-                raise ControlPlaneInvalidResponseError(
-                    f"Malformed list_team_model_profiles response: {type(exc).__name__}"
-                ) from exc
+        """Disabled until Weaver model offers and model_choice are supported."""
+        _ = team_id, auth
+        return []

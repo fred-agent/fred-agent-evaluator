@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import uuid
 
 from fred_core.kpi import BaseKPIWriter, NoOpKPIWriter
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -11,9 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from fred_evaluation_backend.config.models import EvaluationConfig
 from fred_evaluation_backend.execution.agent_client import AgentClient
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
-from fred_evaluation_backend.execution.outbound_auth import ServiceAuthentication
 from fred_evaluation_backend.model.factory import build_judge_model
 from fred_evaluation_backend.model.judge_calls import classify
+from fred_evaluation_backend.runs.models import EvaluationRunRow
 from fred_evaluation_backend.runs.schemas import RunSnapshot
 from fred_evaluation_backend.runs.store import RunStore
 from fred_evaluation_backend.workers.activities import (
@@ -89,7 +88,7 @@ class RunRunner:
         finally:
             self._running.discard(run_id)
 
-    async def _execute_run(self, run) -> None:
+    async def _execute_run(self, run: EvaluationRunRow) -> None:
         from fred_deepeval_cli.core.models import CustomMetricSpec
 
         run_id = run.run_id
@@ -97,31 +96,13 @@ class RunRunner:
         # it from the workflow payload — so both engines pace a given run identically,
         # and a config change never re-paces a run that is already under way.
         snapshot = RunSnapshot.model_validate_json(run.snapshot_json)
+        if not snapshot.evaluate_url:
+            raise ValueError(
+                "Run snapshot has no evaluate_url; create a new run on Weaver."
+            )
+        evaluate_url = snapshot.evaluate_url
         max_concurrency = max(1, (snapshot.execution or {}).get("max_concurrency", 1))
         limiter = asyncio.Semaphore(max_concurrency)
-
-        try:
-            prep = await self._cp_client.prepare_managed_instance_execution(
-                team_id=run.team_id,
-                agent_instance_id=run.target_instance_id,
-                auth=ServiceAuthentication(),
-                agent_model_override=run.agent_model_override,
-            )
-            evaluate_url = prep.evaluate_url
-        except Exception as exc:
-            logger.error("[RUNNER] run=%s cannot prepare execution: %s", run_id, exc)
-            await self._store.update_run_aggregates(
-                run_id,
-                completed_cases=0,
-                passed_cases=0,
-                failed_cases=0,
-                insufficient_cases=0,
-                execution_error_cases=run.total_cases,
-                scoring_error_cases=0,
-                verdict="failed",
-                operational_state="error",
-            )
-            return
 
         judge_profile = self._config.worker.judge_profiles.get(run.judge_profile_id)
         judge = None
@@ -152,9 +133,7 @@ class RunRunner:
                         created_by=run.created_by,
                         input=case.input,
                         expected_output=case.expected_output,
-                        agent_id=run.target_agent_id,
-                        agent_instance_id=prep.agent_instance_id,
-                        session_id=str(uuid.uuid4()),
+                        agent_instance_id=snapshot.target.agent_instance_id,
                         evaluate_url=evaluate_url,
                         team_id=run.team_id,
                         token_provider=self._cp_client.m2m_token_provider,
@@ -164,7 +143,6 @@ class RunRunner:
                         metrics=metrics,
                         store=self._store,
                         agent_client=self._agent_client,
-                        agent_profile_overrides=prep.agent_profile_overrides,
                         kpi=self._kpi,
                     )
                 except Exception as exc:

@@ -12,9 +12,7 @@ Owns three things, all producing the same envelope:
 Messages are safe and actionable — never built from the raw target UUID, never
 echoing upstream response bodies, bearer tokens, or Authorization headers.
 
-The vocabulary is target-neutral: the resolver serves both `runtime_agent` and
-`managed_instance` targets, so codes describe the failure ("forbidden", "not
-found") rather than the target kind — one mapping, not one per target type.
+Codes describe the boundary failure independently of the resource involved.
 """
 
 from __future__ import annotations
@@ -30,6 +28,7 @@ from pydantic import BaseModel
 from starlette.responses import JSONResponse, Response
 
 from fred_evaluation_backend.execution.control_plane_client import (
+    ControlPlaneEvaluationUnsupportedError,
     ControlPlaneInvalidResponseError,
 )
 
@@ -59,6 +58,7 @@ ControlPlaneFailure = (
     | httpx.TimeoutException
     | httpx.TransportError
     | ControlPlaneInvalidResponseError
+    | ControlPlaneEvaluationUnsupportedError
 )
 
 
@@ -129,6 +129,9 @@ _UPSTREAM_STATUS_MAP: dict[int, _Mapping] = {
 
 def _mapping_for(exc: ControlPlaneFailure) -> tuple[_Mapping, str]:
     """Return (mapping, log_category) for a known Control Plane boundary failure."""
+    if isinstance(exc, ControlPlaneEvaluationUnsupportedError):
+        return _Mapping(422, "target_invalid", str(exc)), "evaluation_unsupported"
+
     if isinstance(exc, httpx.HTTPStatusError):
         status = exc.response.status_code
         mapping = _UPSTREAM_STATUS_MAP.get(status)

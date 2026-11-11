@@ -15,22 +15,13 @@ class ManagedInstanceTarget(BaseModel):
     agent_instance_id: str
 
 
-class RuntimeAgentTarget(BaseModel):
-    """Historical target kind — no longer accepted on creation (EVAL-04)."""
-
-    kind: Literal["runtime_agent"]
-    runtime_id: str
-    agent_id: str
-
-
-EvaluationTarget = ManagedInstanceTarget | RuntimeAgentTarget
-
-
 class RunSnapshot(BaseModel):
     schema_version: Literal["1"] = "1"
     evaluation_name: str
     evaluation_version: str
-    target: EvaluationTarget
+    target: ManagedInstanceTarget
+    # Older reports remain readable; only newly prepared runs are executable.
+    evaluate_url: str | None = None
     resolved_target_config: dict[str, str] | None = None
     profile: str
     judge_profile_id: str
@@ -65,10 +56,10 @@ class RunSpec(BaseModel):
     target: ManagedInstanceTarget
     metrics: list[str] = Field(min_length=1)
     custom_metrics: list[CustomMetricSpecInput] = Field(default_factory=list)
-    # Forces the target agent's chat model for this run only — never written to
-    # the team's persisted routing policy. Must be one of the team's
-    # `can_use`-enabled profiles; the Control Plane rejects anything else.
-    agent_model_override: str | None = None
+    agent_model_override: str | None = Field(
+        default=None,
+        description="Unavailable on Weaver: non-null overrides are rejected with 422.",
+    )
 
     @field_validator("metrics")
     @classmethod
@@ -100,7 +91,7 @@ class EvaluationRun(BaseModel):
     # The authenticated identity that launched the run — surfaced in the frontend's
     # "Run information" panel as its author.
     created_by: str
-    target: EvaluationTarget
+    target: ManagedInstanceTarget
     profile: str
     judge_profile_id: str
     agent_model_override: str | None

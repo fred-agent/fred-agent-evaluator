@@ -79,8 +79,9 @@ class _FakeControlPlane:
             raise self.failure
         return frozenset(self.grants.get(team_id, set()))
 
-    async def get_team(self, *, team_id: str, auth):
-        return SimpleNamespace(team_id=team_id, is_member=True, name=team_id)
+    async def authorize_space(self, *, space_id: str, auth: object):
+        _ = space_id, auth
+        return SimpleNamespace(allowed=True)
 
     async def list_team_agent_instances(self, *, team_id: str, auth):
         self.choices_auth.append(auth)
@@ -92,12 +93,19 @@ class _FakeControlPlane:
             )
         ]
 
-    async def list_team_model_profiles(self, *, team_id: str, auth):
+    async def list_team_model_profiles(
+        self, *, team_id: str, auth: object
+    ) -> list[TeamModelProfile]:
+        _ = team_id
         self.choices_auth.append(auth)
-        return [TeamModelProfile(profile_id="mistral-small", name="models.small")]
+        return []
+
+    async def get_space(self, *, space_id: str, auth: object):
+        _ = space_id, auth
+        return SimpleNamespace(name=space_id)
 
     async def prepare_managed_instance_execution(
-        self, *, team_id, agent_instance_id, auth, agent_model_override=None
+        self, *, team_id, agent_instance_id, auth
     ):
         return SimpleNamespace(
             agent_instance_id=agent_instance_id,
@@ -452,7 +460,7 @@ async def test_the_choices_for_starting_a_run_come_from_the_control_plane():
     assert agents.json() == [
         {"agent_instance_id": "i-1", "display_name": "Support", "role": "Answers"}
     ]
-    assert models.json() == [{"profile_id": "mistral-small", "name": "models.small"}]
+    assert models.json() == []
     by_id = {m["metric_id"]: m["requires_expected_output"] for m in metrics.json()}
     assert by_id == {
         "answer_relevancy": False,
@@ -483,25 +491,19 @@ async def test_control_plane_client_reads_agent_instances_and_model_profiles(
 
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append(request)
-        if request.url.path.endswith("/agent-instances"):
-            return httpx.Response(
-                200,
-                json=[
+        assert request.url.path.endswith("/agent-instances")
+        page = 2 if request.url.params.get("after") else 1
+        return httpx.Response(
+            200,
+            json={
+                "items": [
                     {
-                        "agent_instance_id": "i-1",
-                        "team_id": "team-1",
-                        "template_id": "t",
+                        "agent_instance_id": f"i-{page}",
                         "display_name": "Support",
                         "role": "Answers",
                     }
                 ],
-            )
-        return httpx.Response(
-            200,
-            json={
-                "profiles": [
-                    {"profile_id": "p", "capability_id": "c", "name": "models.p"}
-                ]
+                "next_cursor": "cursor/with+symbols" if page == 1 else None,
             },
         )
 
@@ -517,13 +519,14 @@ async def test_control_plane_client_reads_agent_instances_and_model_profiles(
 
     assert agents == [
         TeamAgentInstance(
-            agent_instance_id="i-1", display_name="Support", role="Answers"
+            agent_instance_id=f"i-{page}", display_name="Support", role="Answers"
         )
+        for page in (1, 2)
     ]
-    assert models == [TeamModelProfile(profile_id="p", name="models.p")]
+    assert models == []
     assert [r.url.raw_path for r in seen] == [
-        b"/control-plane/v1/teams/team%201/agent-instances",
-        b"/control-plane/v1/teams/team%201/routing-policy/available-models",
+        b"/control-plane/v1/spaces/team%201/agent-instances",
+        b"/control-plane/v1/spaces/team%201/agent-instances?after=cursor%2Fwith%2Bsymbols",
     ]
     assert all(r.headers["authorization"] == BEARER for r in seen)
 

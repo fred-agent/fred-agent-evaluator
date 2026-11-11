@@ -14,10 +14,10 @@ import httpx
 import pytest
 from fred_core.kpi import KPIWriter
 from fred_core.kpi.prometheus_kpi_store import PrometheusKPIStore
-from fred_deepeval_cli.core import scorer
-from fred_deepeval_cli.core.models import EvaluationMetricResult
 from prometheus_client import REGISTRY
 
+from fred_deepeval_cli.core import scorer
+from fred_deepeval_cli.core.models import EvaluationMetricResult
 from fred_evaluation_backend.config.models import EvaluationConfig
 from fred_evaluation_backend.telemetry import kpi as kpi_module
 from fred_evaluation_backend.workers.activities import execute_and_score_case
@@ -52,7 +52,7 @@ class _Agent:
         from fred_sdk.contracts.eval import EvalTrace
 
         return EvalTrace(
-            session_id=kwargs["session_id"],
+            session_id="pod-generated-session",
             agent_id="agent-1",
             input=kwargs["input"],
             latency_ms=10,
@@ -67,8 +67,7 @@ async def _run_case(*, store, agent, judge, kpi):
         created_by="alice",
         input="question",
         expected_output=None,
-        agent_id="agent-1",
-        session_id="s-1",
+        agent_instance_id="inst-1",
         evaluate_url="http://agent/evaluate",
         team_id="team-1",
         profile="default",

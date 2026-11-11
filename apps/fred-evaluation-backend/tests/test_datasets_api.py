@@ -105,13 +105,15 @@ class _InMemoryRunStore:
 
 
 class _MemberControlPlaneClient:
-    async def get_team(self, *, team_id: str, auth):
-        return SimpleNamespace(team_id=team_id, is_member=True)
+    async def authorize_space(self, *, space_id: str, auth: object):
+        _ = space_id, auth
+        return SimpleNamespace(allowed=True)
 
 
 class _NonMemberControlPlaneClient:
-    async def get_team(self, *, team_id: str, auth):
-        return SimpleNamespace(team_id=team_id, is_member=False)
+    async def authorize_space(self, *, space_id: str, auth: object):
+        _ = space_id, auth
+        return SimpleNamespace(allowed=False)
 
 
 def _build_app(

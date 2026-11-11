@@ -33,13 +33,16 @@ from fred_evaluation_backend.runs.store import RunStore
 
 
 class _FakeControlPlane:
+    async def authorize_space(self, *, space_id: str, auth: object):
+        _ = space_id, auth
+        return SimpleNamespace(allowed=True)
+
     async def prepare_managed_instance_execution(
         self,
         *,
         team_id,
         agent_instance_id,
         auth,
-        agent_model_override: str | None = None,
     ):
         return SimpleNamespace(
             agent_instance_id=agent_instance_id,
@@ -111,6 +114,7 @@ async def test_start_run_persists_config_snapshot_and_cases_on_run_id():
     assert json.loads(run_row.metrics_json) == ["answer_relevancy"]
     assert run_row.custom_metrics_json is None
     snapshot = json.loads(run_row.snapshot_json)
+    assert snapshot["evaluate_url"] == "http://agent/evaluate"
     assert snapshot["evaluation_name"] == "usage-arxivai"
     assert snapshot["evaluation_version"] == "v1"
 
@@ -273,3 +277,40 @@ async def test_run_aggregates_persist_metric_averages_and_analysis():
     row = await run_store.get_run(result.run_id)
     assert json.loads(row.metric_averages_json) == {"faithfulness": 0.9}
     assert json.loads(row.analysis_json)["analysis"]["summary"] == "ok"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [200, 404, 503])
+async def test_report_resolves_current_space_name_best_effort(
+    monkeypatch: pytest.MonkeyPatch, status: int
+) -> None:
+    import httpx
+
+    from fred_evaluation_backend.execution.control_plane_client import (
+        ControlPlaneClient,
+    )
+    from fred_evaluation_backend.execution.outbound_auth import UserAuthentication
+    from tests.test_control_plane_client_auth import patch_transport
+
+    ds_store, run_store = await _make_stores()
+    evaluation_id = await _seed_evaluation(ds_store)
+    result = await _start(evaluation_id, ds_store, run_store, instance="inst-1")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/spaces/team-1"
+        assert request.headers["authorization"] == "Bearer report-reader"
+        return httpx.Response(
+            status, json={"id": "team-1", "name": "Current space name"}
+        )
+
+    patch_transport(monkeypatch, handler)
+    report = await service.build_run_report(
+        result.run_id,
+        store=run_store,
+        evaluation_store=ds_store,
+        control_plane_client=ControlPlaneClient(base_url="http://cp.test"),
+        auth=UserAuthentication(authorization_header="Bearer report-reader"),
+    )
+    assert report.evaluation.team_name == (
+        "Current space name" if status == 200 else None
+    )

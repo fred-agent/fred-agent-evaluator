@@ -95,8 +95,8 @@ async def main() -> None:
 
     kpi = start_kpi(configuration, service_name="fred-evaluation-worker")
     engine = create_async_engine_from_config(configuration.storage.postgres)
-    # The worker never impersonates a user (RFC EVAL-AUTH §3/§9): it always
-    # authenticates to the Control Plane as its own M2M service identity.
+    # Runtime calls use the worker's M2M identity and assert the run creator
+    # through Weaver delegation. The user's bearer token is never persisted.
     m2m_token_provider = build_m2m_token_provider(configuration.security)
     cp_client = ControlPlaneClient(
         base_url=configuration.control_plane.base_url,

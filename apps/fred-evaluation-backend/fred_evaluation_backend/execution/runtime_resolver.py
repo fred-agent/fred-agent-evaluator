@@ -6,6 +6,7 @@ import httpx
 
 from fred_evaluation_backend.execution.control_plane_client import (
     ControlPlaneClient,
+    ControlPlaneEvaluationUnsupportedError,
     ControlPlaneInvalidResponseError,
     ManagedInstanceExecutionPreparation,
 )
@@ -24,6 +25,7 @@ _BOUNDARY_FAILURES = (
     httpx.TimeoutException,
     httpx.TransportError,
     ControlPlaneInvalidResponseError,
+    ControlPlaneEvaluationUnsupportedError,
 )
 
 
@@ -37,10 +39,8 @@ async def resolve_managed_instance(
     """
     Resolve a managed_instance target into an execution preparation.
 
-    Never called with an `agent_model_override`: this is the interactive-auth
-    path (`start_run`'s eager validation), and the Control Plane only honors
-    that field for the worker's service identity. See the real, service-authenticated
-    call in `workers/workflow.py` / `workers/runner.py` for where it's actually used.
+    Called once by the API with the user's identity. The resulting URL is
+    frozen in the run snapshot; workers never call this browser-only route.
 
     Only known Control Plane boundary failures are classified (never a blanket
     422) — see `evaluator_errors.map_control_plane_error`. Anything else

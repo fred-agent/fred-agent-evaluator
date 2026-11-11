@@ -18,45 +18,38 @@ class AgentClient:
         *,
         evaluate_url: str,
         team_id: str,
-        agent_id: str | None,
-        agent_instance_id: str | None = None,
-        session_id: str,
+        agent_instance_id: str,
+        created_by: str,
+        run_id: str,
         input: str,
         token_provider: M2MTokenProvider | None = None,
-        agent_profile_overrides: dict[str, str] | None = None,
     ) -> EvalTrace:
-        # RUNTIME-07 rev.2: no signed grant. The runtime authorizes via the caller's
-        # JWT (the worker's M2M token) + pod-side OpenFGA, scoped to runtime_context.team_id.
+        if token_provider is None:
+            raise RuntimeError(
+                "Weaver evaluation requires the worker's M2M token provider."
+            )
         headers = {"Content-Type": "application/json"}
-        # When M2M is configured the bearer token is injected by M2MBearerAuth;
-        # otherwise fall back to a dev token (local stacks run agents without auth).
-        auth = M2MBearerAuth(token_provider) if token_provider else None
-        if auth is None:
-            headers["Authorization"] = "Bearer dev"
-        runtime_context: dict[str, object] = {"team_id": team_id}
-        # Client-forwarded, same channel real chat turns use (fred_sdk.contracts.context
-        # .RuntimeContext.agent_profile_overrides): the pod never re-fetches routing
-        # policy itself, it only reads what this request carries.
-        if agent_profile_overrides:
-            runtime_context["agent_profile_overrides"] = agent_profile_overrides
-        body: dict = {
-            "session_id": session_id,
+        auth = M2MBearerAuth(token_provider)
+        body = {
+            "agent_instance_id": agent_instance_id,
             "input": input,
-            "runtime_context": runtime_context,
+            "runtime_context": {
+                "space_id": team_id,
+                "team_id": team_id,
+                "user_id": created_by,
+            },
         }
-        if agent_instance_id:
-            body["agent_instance_id"] = agent_instance_id
-        elif agent_id:
-            body["agent_id"] = agent_id
+        # No session_id: an existing conversation would need Control Plane validation.
+        params = {"person": created_by, "run": run_id, "agent": agent_instance_id}
         logger.info(
-            "[AGENT-CLIENT] POST %s agent=%s session=%s",
+            "[AGENT-CLIENT] POST %s instance=%s run=%s",
             evaluate_url,
-            agent_id,
-            session_id,
+            agent_instance_id,
+            run_id,
         )
         async with httpx.AsyncClient(timeout=self._timeout) as client:
             response = await client.post(
-                evaluate_url, headers=headers, json=body, auth=auth
+                evaluate_url, headers=headers, json=body, params=params, auth=auth
             )
             response.raise_for_status()
             return EvalTrace.model_validate(response.json())

@@ -705,8 +705,7 @@ export interface components {
             evaluation_id: string;
             /** Created By */
             created_by: string;
-            /** Target */
-            target: components["schemas"]["ManagedInstanceTarget"] | components["schemas"]["RuntimeAgentTarget"];
+            target: components["schemas"]["ManagedInstanceTarget"];
             /** Profile */
             profile: string;
             /** Judge Profile Id */
@@ -986,8 +985,9 @@ export interface components {
             evaluation_name: string;
             /** Evaluation Version */
             evaluation_version: string;
-            /** Target */
-            target: components["schemas"]["ManagedInstanceTarget"] | components["schemas"]["RuntimeAgentTarget"];
+            target: components["schemas"]["ManagedInstanceTarget"];
+            /** Evaluate Url */
+            evaluate_url?: string | null;
             /** Resolved Target Config */
             resolved_target_config?: {
                 [key: string]: string;
@@ -1013,23 +1013,11 @@ export interface components {
             metrics: string[];
             /** Custom Metrics */
             custom_metrics?: components["schemas"]["CustomMetricSpecInput"][];
-            /** Agent Model Override */
-            agent_model_override?: string | null;
-        };
-        /**
-         * RuntimeAgentTarget
-         * @description Historical target kind — no longer accepted on creation (EVAL-04).
-         */
-        RuntimeAgentTarget: {
             /**
-             * Kind
-             * @constant
+             * Agent Model Override
+             * @description Unavailable on Weaver: non-null overrides are rejected with 422.
              */
-            kind: "runtime_agent";
-            /** Runtime Id */
-            runtime_id: string;
-            /** Agent Id */
-            agent_id: string;
+            agent_model_override?: string | null;
         };
         /**
          * StartRunRequest
@@ -1042,7 +1030,10 @@ export interface components {
             metrics: string[];
             /** Custom Metrics */
             custom_metrics?: components["schemas"]["CustomMetricSpecInput"][];
-            /** Agent Model Override */
+            /**
+             * Agent Model Override
+             * @description Unavailable on Weaver: non-null overrides are rejected with 422.
+             */
             agent_model_override?: string | null;
             /** Team Id */
             team_id: string;

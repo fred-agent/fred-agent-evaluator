@@ -245,10 +245,7 @@ export function EvaluationPage({ evaluationId }: { evaluationId: string }) {
                 label: t("runs.target"),
                 size: "minmax(10rem, 1fr)",
                 cellRenderer: (row) => {
-                  const id =
-                    row.target.kind === "managed_instance"
-                      ? row.target.agent_instance_id
-                      : row.target.agent_id;
+                  const id = row.target.agent_instance_id;
                   return (
                     <div>
                       {agentNames.get(id) ?? id}
@@ -322,15 +319,7 @@ export function EvaluationPage({ evaluationId }: { evaluationId: string }) {
                       color="primary"
                       variant="text"
                       size="small"
-                      title={
-                        row.target.kind === "runtime_agent"
-                          ? t("ui.historicalTarget")
-                          : undefined
-                      }
-                      disabled={
-                        busyRows.has(row.run_id) ||
-                        row.target.kind !== "managed_instance"
-                      }
+                      disabled={busyRows.has(row.run_id)}
                       onClick={() => void rerun(row)}
                     >
                       {t("ui.rerun")}

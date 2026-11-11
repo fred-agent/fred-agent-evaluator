@@ -189,3 +189,29 @@ async def test_error_logs_never_contain_the_bearer_token(
 
     assert "secret-user-token" not in caplog.text
     assert "Bearer" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_null_execute_url_is_an_explicit_422(monkeypatch: MonkeyPatch) -> None:
+    _patch_transport(
+        monkeypatch,
+        lambda _: httpx.Response(
+            200,
+            json={
+                "execute_url": None,
+                "runtime_id": "embedded",
+                "space_id": "space-1",
+                "agent_instance_id": "inst-1",
+            },
+        ),
+    )
+    with pytest.raises(HTTPException) as exc:
+        _ = await resolve_managed_instance(
+            team_id="space-1",
+            agent_instance_id="inst-1",
+            control_plane_client=ControlPlaneClient(base_url="http://cp.test"),
+            auth=AUTH,
+        )
+    assert exc.value.status_code == 422
+    assert parse_error_detail(exc.value).code == "target_invalid"
+    assert "no synchronous execute URL" in parse_error_detail(exc.value).message

@@ -146,8 +146,7 @@ async def run_case_for_run(payload: RunCaseInput) -> None:
     - agent-call and scoring failures are already handled inside
       `execute_and_score_case` (it writes the case as `error` and returns);
     - a failure in the setup done *here* — resolving the run/case rows or
-      preparing the managed-instance execution (e.g. an auth error from the
-      Control Plane) — used to propagate as an unhandled activity exception.
+      reading the frozen execution snapshot — used to propagate as an unhandled activity exception.
       Once retries were exhausted that took the whole workflow down before
       `finalize_run` ever ran, leaving the Run stuck `pending` in the DB
       forever even though Temporal itself reached a terminal state for the
@@ -155,13 +154,11 @@ async def run_case_for_run(payload: RunCaseInput) -> None:
       `error` outcome as any other case failure.
     """
     import json
-    import uuid
 
     from fred_deepeval_cli.core.models import CustomMetricSpec
-
-    from fred_evaluation_backend.execution.outbound_auth import ServiceAuthentication
     from fred_evaluation_backend.model.factory import build_judge_model
     from fred_evaluation_backend.model.judge_calls import classify
+    from fred_evaluation_backend.runs.schemas import RunSnapshot
     from fred_evaluation_backend.workers._activity_context import (
         get_agent_client,
         get_config,
@@ -187,12 +184,11 @@ async def run_case_for_run(payload: RunCaseInput) -> None:
         assert run is not None
         assert case is not None
 
-        prep = await cp_client.prepare_managed_instance_execution(
-            team_id=run.team_id,
-            agent_instance_id=run.target_instance_id,
-            auth=ServiceAuthentication(),
-            agent_model_override=run.agent_model_override,
-        )
+        snapshot = RunSnapshot.model_validate_json(run.snapshot_json)
+        if not snapshot.evaluate_url:
+            raise ValueError(
+                "Run snapshot has no evaluate_url; create a new run on Weaver."
+            )
 
         judge_profile = config.worker.judge_profiles.get(run.judge_profile_id)
         judge = (
@@ -213,10 +209,8 @@ async def run_case_for_run(payload: RunCaseInput) -> None:
             created_by=run.created_by,
             input=case.input,
             expected_output=case.expected_output,
-            agent_id=run.target_agent_id,
-            agent_instance_id=prep.agent_instance_id,
-            session_id=str(uuid.uuid4()),
-            evaluate_url=prep.evaluate_url,
+            agent_instance_id=snapshot.target.agent_instance_id,
+            evaluate_url=snapshot.evaluate_url,
             team_id=run.team_id,
             token_provider=cp_client.m2m_token_provider,
             profile=run.profile,
@@ -225,7 +219,6 @@ async def run_case_for_run(payload: RunCaseInput) -> None:
             metrics=metrics,
             store=store,
             agent_client=agent_client,
-            agent_profile_overrides=prep.agent_profile_overrides,
             kpi=kpi,
         )
     except Exception as exc:

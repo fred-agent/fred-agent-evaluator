@@ -69,7 +69,7 @@ class _UnreachedControlPlaneClient:
     async def prepare_managed_instance_execution(self, **kwargs: object) -> object:
         raise AssertionError("route body reached — auth should have failed first")
 
-    async def prepare_runtime_agent_execution(self, **kwargs: object) -> object:
+    async def authorize_space(self, **_kwargs: object) -> object:
         raise AssertionError("route body reached — auth should have failed first")
 
 

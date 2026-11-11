@@ -53,6 +53,7 @@ export function run(overrides: Partial<EvaluationRun> = {}): EvaluationRun {
       evaluation_name: "golden-set",
       evaluation_version: "v2",
       target: { kind: "managed_instance", agent_instance_id: "agent-1" },
+      evaluate_url: "http://runtime.test/agents/evaluate",
       resolved_target_config: null,
       profile: "auto",
       judge_profile_id: "mistral-small",

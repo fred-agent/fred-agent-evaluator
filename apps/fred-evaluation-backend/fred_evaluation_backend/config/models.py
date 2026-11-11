@@ -64,8 +64,8 @@ class AppConfig(BaseModel):
 
 class ControlPlaneConfig(BaseModel):
     base_url: str = "http://localhost:8222/control-plane/v1"
-    # Base URL used to resolve relative evaluate_url paths returned by prepare-execution.
-    # In prod this is empty (ingress handles routing). In local dev, set to http://localhost:8000.
+    # Worker-reachable origin for relative prepare-execution URLs (e.g. http://localhost:8000).
+    # Required when the Control Plane returns a relative route, including behind ingress.
     runtime_base_url: str = ""
 
 
