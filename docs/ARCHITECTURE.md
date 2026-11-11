@@ -80,8 +80,8 @@ Librairie Python publiée sur PyPI.
    les cas de l'evaluation, les copie dans `EvaluationCaseRow`, persiste le run
    (`created_by` + `team_id`) avec son `RunSnapshot`, retourne 202
 2. Worker détecte le run `pending` (poll mémoire) ou reçoit le workflow Temporal
-3. Worker appelle Control Plane → obtient `evaluate_url` (pas de `execution_grant` signé : RUNTIME-07 rev.2 — l'autorisation se fait au niveau du pod runtime via le JWT de l'appelant + OpenFGA)
-4. Worker `POST /agents/evaluate` → fred-runtime exécute l'agent → retourne `EvalTrace`
+3. Worker lit `evaluate_url` dans le snapshot, résolue par l'API avec le jeton utilisateur avant la persistance du run
+4. Worker `POST /agents/evaluate?person=...&run=...&agent=...` avec son jeton M2M → admission déléguée Weaver → exécution Python → `EvalTrace`
 5. Worker passe `EvalTrace` à `fred-deepeval-cli` → scores calculés
 6. Worker persiste résultats en DB, émet events SSE
 7. Frontend reçoit updates via `GET /runs/{run_id}/events`
@@ -121,11 +121,11 @@ implicite (`execution/outbound_auth.py`) :
   Keycloak. L'API ne construit **aucun** client M2M (`main.py`).
 - **Worker** (étapes 2-4, Temporal ou boucle mémoire) : agit sous sa **propre
   identité de service** (`ServiceAuthentication`, client Keycloak
-  `fred-evaluation-worker`, `main_worker.py`). Il n'impersonne jamais un
-  utilisateur.
+  `fred-evaluation-worker`, `main_worker.py`). Il affirme le créateur du run via la délégation Weaver ; les droits de cette
+  personne restent vérifiés lors de l'admission.
 
 Le token utilisateur ne franchit **jamais** la frontière worker : le payload
 Temporal (`RunInput`) ne porte que `run_id` ; la ligne de run
 persiste `created_by` + `team_id` (ancrage de légitimité), pas de credential ;
-l'autorisation d'exécution est ré-évaluée à l'instant T via l'identité propre
-du worker (jamais un instantané figé de l'utilisateur créateur).
+le pod fait vérifier la personne déléguée au Control Plane à chaque admission.
+Le worker ne rappelle jamais la route de préparation réservée aux utilisateurs.

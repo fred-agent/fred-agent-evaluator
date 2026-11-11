@@ -2,29 +2,36 @@
 
 ## Règles fondamentales
 
-1. **Le frontend ne soumet jamais d'URL** — seulement des identifiants (`runtime_id`, `agent_instance_id`). Les URLs sont résolues par le Control Plane.
+1. **Le frontend ne soumet jamais d'URL** — seulement des identifiants (`agent_instance_id`). Les URLs sont résolues par le Control Plane.
 2. **L'API ne score jamais** — elle utilise DeepEval/LiteLLM pour le modèle d'analyse des résultats. Le scoring des cas via `fred-deepeval-cli` reste réservé au worker (`[scoring]`).
 3. **Le worker n'expose pas d'HTTP** — il accède directement à la DB.
 4. **Chaque cas est persisté indépendamment** — un crash du worker ne doit pas effacer les résultats déjà calculés.
 5. **`fred-deepeval-cli` est la seule dépendance locale au repo** — `fred-core`, `fred-sdk` et `fred-runtime` sont publiées sur PyPI (planchers dans `pyproject.toml`). Le `uv.lock` commité les résout sur PyPI ; pour travailler sur un fred non publié, `make dev-local` avec `FRED_REPO` (sans valeur par défaut) installe votre checkout par-dessus.
 6. **L'API et le worker n'utilisent jamais la même identité sortante** (RFC `EVAL-AUTH`, issue #33) — voir §Identity below.
 
+## Weaver scope
+
+`team_id` in the API and database stores a Weaver **space UUID**. The name is
+retained for this increment; no database migration or column rename is needed.
+Only managed Python agent instances can be evaluated. The Control Plane owns
+space permissions and runtime routing; the runtime admits each delegated turn.
+
 ## Identity: API-user vs worker-service (RFC `EVAL-AUTH`)
 
-Every outbound call to the Control Plane passes an explicit `OutboundAuth`
+Every API call to the Control Plane passes an explicit `OutboundAuth`
 (`execution/outbound_auth.py`) — there is no default, so no call site can
 silently pick the wrong identity:
 
 | Component | Identity used | `OutboundAuth` variant |
 |---|---|---|
 | API (`main.py`, interactive `POST /evaluations`, `POST /evaluations/{id}/runs`) | the caller's own bearer token, propagated verbatim | `UserAuthentication` (security enabled) / `NoAuthentication` (local dev, security disabled) |
-| Worker (`main_worker.py`, Temporal activities and the in-memory `CampaignRunner`) | the worker's own M2M service identity (`fred-evaluation-worker` Keycloak client) | `ServiceAuthentication` |
+| Worker (`main_worker.py`, Temporal activities and polling `RunRunner`) | the worker's M2M identity (`fred-evaluation-worker` Keycloak client), calling the runtime directly | `M2MBearerAuth` |
 
 Rules this enforces:
 
 - `main.py` never builds an M2M token provider — the API's `ControlPlaneClient` has none, so a call that (by mistake) requested `ServiceAuthentication` fails fast with `RuntimeError` instead of silently sending an unauthenticated or wrong-identity request.
-- The user's bearer token is **request-scoped only**. It lives in the `UserAuthentication` value passed to a single call — never on `ControlPlaneClient` (which only holds connection config + the worker's M2M provider), never in Temporal (`RunInput` carries only `run_id`), never in the `evaluation_run` table (which stores `created_by` + `team_id`, not a credential).
-- A missing/malformed `Authorization` header fails closed with 401. That check is fred-core's own `get_current_user` dependency (resolved before any route body runs) — the evaluator normalizes its unstructured error into its own envelope (see below). With security disabled (local dev), the API explicitly uses `NoAuthentication` rather than falling back to the worker's M2M identity.
+- The user's bearer token is **request-scoped only**. It lives in the `UserAuthentication` value passed to a single call — never on `ControlPlaneClient` (which only holds connection config + the worker's M2M provider), never in Temporal (`RunInput` carries `run_id` and `max_concurrency`), never in the `evaluation_run` table (which stores `created_by` + `team_id`, not a credential).
+- A missing/malformed `Authorization` header fails closed with 401. That check is fred-core's own `authenticate_request` dependency (resolved before any route body runs) — the evaluator normalizes its unstructured error into its own envelope (see below). With security disabled (local dev), the API explicitly uses `NoAuthentication` rather than falling back to the worker's M2M identity.
 
 ## Stable error codes and the one public envelope
 
@@ -37,7 +44,7 @@ Rules this enforces:
    `RuntimeError`) is *not* caught here and propagates as a real server error;
 2. normalizes fred-core's own unstructured 401/403 `HTTPException`s (e.g. `{"detail":
    "No authentication token provided"}`) into the same envelope. fred-core's
-   `get_current_user` dependency runs before any route body, so the evaluator's
+   `authenticate_request` dependency runs before any route body, so the evaluator's
    own resolvers never see that failure — `main.py` registers
    `normalize_unstructured_auth_error` as the app's `HTTPException` handler to
    close that gap at the API boundary. It never touches an already-structured
@@ -51,8 +58,7 @@ every status below:
 {"detail": {"code": "target_forbidden", "message": "..."}}
 ```
 
-The vocabulary is target-neutral — the resolver serves both `runtime_agent`
-and `managed_instance`, so codes describe the failure, not the target kind:
+Codes describe boundary failures independently of the resource involved:
 
 | Condition | HTTP status | `code` |
 |---|---|---|
@@ -94,7 +100,7 @@ ligne à la création d'un run — les cas viennent toujours de l'evaluation.
 | POST | `/evaluations` | 201 | Créer une evaluation immuable — `{team_id, name, cases}` requis, `{version, author, source_filename}` optionnels (`origin: upload \| manual`, 1 à 200 cas). Version déclarée = identité (409 si doublon) ; sinon assignée par le serveur. 409 aussi si `(team, name, version)` existe déjà. |
 | DELETE | `/evaluations/{id}` | 204 | Supprimer une evaluation **et tous ses runs** (cas, métriques, events). Refusé en 409 si un run est en cours. |
 | GET | `/evaluations` | 200 | Lister (param: `team_id`) — id, nom, version, auteur, origin, complétude, nombre de cas, `created_at` |
-| POST | `/evaluations/{id}/runs` | 202 | Démarrer un run — `{team_id, target, metrics, custom_metrics, agent_model_override}` (`extra: forbid`). Cible **`managed_instance` uniquement** (`runtime_agent` retiré de la création, conservé en lecture pour l'historique). `metrics` (obligatoire, non vide) est la sélection manuelle des métriques DeepEval à calculer ; `custom_metrics` (optionnel) porte les critères GEval. `agent_model_override` (optionnel) force le modèle de chat de l'agent cible pour ce run uniquement — jamais persisté côté Control Plane, jamais l'équivalent de la politique de routage d'équipe. Judge et concurrence restent fixés côté serveur et figés dans un `RunSnapshot`. |
+| POST | `/evaluations/{id}/runs` | 202 | Démarrer un run — `{team_id, target, metrics, custom_metrics, agent_model_override}` (`extra: forbid`). Cible **`managed_instance` uniquement** (`runtime_agent` supprimé du contrat). `metrics` (obligatoire, non vide) est la sélection manuelle des métriques DeepEval à calculer ; `custom_metrics` (optionnel) porte les critères GEval. `agent_model_override` est désactivé sur Weaver : toute valeur non nulle est refusée en 422 explicite avant préparation ou persistance. Judge et concurrence restent fixés côté serveur et figés dans un `RunSnapshot`. |
 | GET | `/evaluations/{id}/runs` | 200 | Lister les runs d'une evaluation (paginé, `offset`/`limit`/`sort`) |
 | GET | `/evaluations/{id}/runs/summary` | 200 | Agrégats sur *tous* les runs de l'evaluation (running/completed/cases/erreurs critiques) — indépendant de la pagination, pour les KPI du dashboard |
 | GET | `/runs/{run_id}` | 200 | Détail d'un run + agrégats |
@@ -108,23 +114,35 @@ ligne à la création d'un run — les cas viennent toujours de l'evaluation.
 | GET | `/telemetry` | 200 | Config Langfuse (activé/désactivé) |
 | GET | `/telemetry/session/{run_id}` | 200 | Lien de session Langfuse si disponible |
 
-**Autorisation par équipe.** Les identifiants de run et d'evaluation sont
-globaux : toute route qui en nomme un charge d'abord la ressource, puis
-demande au Control Plane (`GET /teams/{team_id}`, jeton de l'appelant) si
-l'appelant appartient à l'équipe **de la ressource** — jamais à une équipe
-qu'il désigne lui-même (`runs/access.py`). Non-membre : 403 `target_forbidden`,
-ressource intacte. `tests/test_run_access.py` parcourt toutes ces routes automatiquement.
+**Autorisation par espace.** Les identifiants de run et d'evaluation sont
+globaux : toute route `/evaluation/v1` qui en nomme un charge d'abord la ressource,
+puis demande au Control Plane `POST /authorize/space` avec
+`{"space_id": team_id, "permission": "run_evaluations"}` et le jeton de l'appelant.
+Le scope vient de la ressource, jamais d'une équipe arbitraire désignée par le
+client. `allowed: false` donne 403 `target_forbidden`, sans modification.
+Une réponse HTTP 404 du Control Plane donne 404 `target_not_found`.
+Dans le checkout Weaver examiné, `api.rs::probe` convertit aussi `NotFound` et
+`Forbidden` en `200 {"allowed": false}` ; l'évaluateur ne déduit pas l'existence
+ou l'appartenance d'un espace à partir d'un refus.
+`tests/test_run_access.py` parcourt automatiquement les routes concernées.
+La création d'un run vérifie aussi `run_evaluations` : `prepare-execution`
+vérifie `read`, ce qui ne suffit pas pour autoriser une évaluation.
 
 Il n'existe pas de `GET /evaluations/{id}` ce cycle — la liste transporte déjà
 tout ce dont l'écran de sélection a besoin, et le démarrage d'un run charge les
 cas de l'evaluation côté serveur (pas via l'API publique).
 
 Ce cycle **(EVAL-04, première version)** ne couvre que les runs sur agent managé
-(`managed_instance`). Sont volontairement différés : cible `runtime_agent` à la
-création, sélection du profil judge, réglages de concurrence/timeout, CSV, et
+(`managed_instance`). Sont volontairement différés : cible `runtime_agent` (sans équivalent Weaver), sélection du profil judge, réglages de concurrence/timeout, CSV, et
 un écran de gestion des evaluations indépendant du démarrage d'un run.
 
 ## Surface de l'application Fred (`evaluation`)
+
+**Point ouvert Weaver :** `list_team_application_ids` et `hosted/entitlement.py`
+conservent leur contrat `/teams/{team_id}/applications`. L'hébergement et les
+droits applicatifs Weaver sont un autre chantier. Cette surface ne constitue
+pas une intégration Weaver validée ; utiliser `/evaluation/v1` pour le test décrit
+plus bas. Les routes `/teams` ci-dessous sont celles de l'évaluateur historique.
 
 L'UI de l'evaluator est une application Fred : Fred l'affiche dans un iframe
 (`/apps/evaluation/`) et relaie ses appels via sa gateway, qui retire le
@@ -143,7 +161,7 @@ reçoit donc `/teams/{team_id}/...` **sans** `/evaluation/v1` : ces routes
 | GET | `/teams/{team_id}/runs/{run_id}/cases`, `…/cases/{case_id}`, `…/report` | idem |
 | POST | `/teams/{team_id}/runs/{run_id}/cancel`, `…/analyze` | idem |
 | GET | `/teams/{team_id}/agent-instances` | — (agents de l'équipe, lus au Control Plane avec le jeton de l'appelant) |
-| GET | `/teams/{team_id}/model-profiles` | — (modèles `can_use` de l'équipe, pour `agent_model_override`) |
+| GET | `/teams/{team_id}/model-profiles` | — (liste vide sur Weaver ; choix du modèle différé) |
 | GET | `/teams/{team_id}/metrics` | — (métriques intégrées ; `requires_expected_output`) |
 
 Règles :
@@ -178,39 +196,61 @@ live in `runs/metrics_catalog.py` (API layer, zero `deepeval` dependency):
 `contextual_recall` selected on a case with no `expected_output` are reported
 with verdict `"skipped"` rather than erroring.
 
-## Agent model override + traceability (run-scoped, no operation dimension)
+## Execution preparation and worker delegation (Weaver)
 
-`StartRunRequest.agent_model_override: str | None` forces the target agent's
-chat model for this run only. It is threaded, unvalidated on this side, to the
-Control Plane's `prepare-execution` as a query param — the Control Plane is
-the sole authority on whether the profile is `can_use`-enabled for the team,
-and rejects (422) if not. Never persisted by the Control Plane, never visible
-in the team's routing policy. No per-operation variant — see `fred`'s own
-model-routing simplification (2026-08-17) for why that dimension was dropped
-there first.
+The API calls `resolve_managed_instance` once in `start_run`, with the caller's
+request-scoped token. It sends
+`POST /spaces/{space_id}/agent-instances/{agent_instance_id}/prepare-execution`
+without query parameters. Weaver accepts only `session_id`, the paired
+`model_source_id` / `model_upstream_id`, and `reasoning`; none is needed here.
+The route requires an admitted user and cannot be called with a worker identity.
 
-**Not validated eagerly at run creation.** `start_run`'s `resolve_managed_instance`
-call authenticates as the interactive caller (`resolve_interactive_auth`), but
-the Control Plane only honors `agent_model_override` for the worker's service
-identity (`ServiceAuthentication`) — forwarding it on that call would 403
-every override unconditionally, before the run even starts (found live,
-2026-09-14). The override is validated for real only at case execution time,
-by the worker (`workers/workflow.py` / `workers/runner.py`, both
-service-authenticated); an invalid override surfaces as that case's execution
-error, not a run-creation failure.
+The response uses `space_id`, `runtime_id` and `agent_instance_id`. An absent
+`execute_url` (JSON null, e.g. the embedded Rust executor) is a clear 422
+`target_invalid`: choose a Python instance with synchronous execution support.
+The API replaces the final `/agents/execute` with `/agents/evaluate`, resolves
+relative paths against `control_plane.runtime_base_url`, and freezes the absolute
+`evaluate_url` in `RunSnapshot` / `snapshot_json`. Absolute URLs keep the authority
+returned by the Control Plane. The frontend never chooses a destination.
 
-Both execution engines read `EvaluationRunRow.agent_model_override` directly
-and forward it to `prepare_managed_instance_execution` — `workers/workflow.py`
-(Temporal) and `workers/runner.py` (polling). Keep them in sync; nothing
-enforces it structurally.
+Both workers read this snapshot and **never call prepare-execution**. They send:
 
-`EvaluationCaseResponse.actual_model_name` is ground truth, not an echo of the
-request: it is `EvalTrace.model_name`, read from the LLM provider's own
-response metadata by the runtime pod. It can differ from
-`EvaluationRun.agent_model_override` if a higher-precedence Control Plane
-policy (platform binding, pod static override) silently won — compare the two
-rather than trusting the override was honored. `GET /runs/{run_id}/report`
-surfaces both.
+```text
+POST {evaluate_url}?person={created_by}&run={run_id}&agent={agent_instance_id}
+Authorization: Bearer <worker M2M token>
+```
+
+The JSON body carries `agent_instance_id`, `input`, and
+`runtime_context: {space_id: team_id, team_id: team_id, user_id: created_by}`.
+The canonical `space_id` is mandatory on Weaver; the legacy `team_id` is also
+sent as the same scope. Query `person` and `agent` must match the body's user
+and instance. No `session_id` is sent: the pod creates its own evaluation
+session; a supplied id would be checked as an existing conversation.
+
+The worker service token needs `fred-delegation:delegation_caller` (and the
+corresponding audience/scope mapping). This permits trusted identity assertion;
+it does not grant the person access to content. The runtime performs fresh
+admission through the Control Plane. User credentials never reach storage or
+Temporal. There is no `Bearer dev` fallback: a fabricated token cannot establish
+trusted delegation; absent M2M configuration fails before any runtime request.
+
+Older managed-instance snapshots without `evaluate_url` remain readable as
+reports, but cannot execute on Weaver. Workers record an explicit failure asking
+for a new run, without attempting browser preparation. `runtime_agent` targets
+and their preparation client have been removed; no historical-target execution
+or snapshot backfill is provided.
+
+## Agent model choice (open)
+
+Weaver model offers come from preparation's `models` field. A future model
+selection must use `runtime_context.model_choice: {source_id, upstream_model_id}`.
+Legacy `agent_model_override` / `agent_profile_overrides` are not sent to Weaver.
+For this increment every non-null override (including an empty string) is
+rejected at run creation with 422 `target_invalid`, and `list_team_model_profiles`
+returns `[]` without a Control Plane call. The database column is retained.
+`actual_model_name` remains the runtime's observed model, not a requested value.
+
+## Metric traceability
 
 `StartRunRequest.custom_metrics: list[CustomMetricSpecInput]` carries
 GEval-scored, user-authored criteria (`name`, `criteria`, `parameters`,
@@ -220,7 +260,7 @@ worker-side (`fred_deepeval_cli.core.models.CustomMetricSpec`),
 so an unknown parameter name surfaces as a per-case scoring error, not a
 run-creation error.
 
-Both fields are persisted verbatim (`metrics_json`, `custom_metrics_json` on
+`metrics` and `custom_metrics` are persisted verbatim (`metrics_json`, `custom_metrics_json` on
 `EvaluationRunRow`) and read back by the worker (Temporal `workflow.py` and
 the in-memory `runner.py`) to build the metric list passed to
 `fred_deepeval_cli.core.scorer.score_trace(metrics=..., custom_metrics=...)`.
@@ -288,3 +328,146 @@ cd apps/fred-evaluation-backend
 make run          # API sur :8336
 make run-worker   # Worker
 ```
+
+## Test manuel contre la stack Docker Weaver
+
+Procédure à exécuter par le développeur : elle n'est pas une preuve de validation
+bout en bout. Elle suppose le Control Plane avec `GET /spaces/{id}`, un pod Python
+et les services Docker déjà disponibles. Le rapport lit le **nom courant** via
+cette nouvelle route, champ `Space.name`, avec le jeton du lecteur. L'UUID reste
+la référence ; un échec de lecture du nom laisse `team_name: null` sans faire
+échouer le rapport. Aucun parcours de `/me/spaces` ne sert de repli.
+
+1. Choisir un utilisateur admis (CGU acceptées), disposant de `run_evaluations`
+   et de `read` sur l'espace, et une instance Python exécutable dans cet espace.
+   `analyst` accorde ces deux permissions dans la matrice actuelle ; `owner`
+   seul n'accorde pas `read`. L'instance doit avoir un modèle utilisable sans
+   override, et le pod doit accepter la délégation du worker.
+2. Vérifier la configuration Keycloak effectivement déployée :
+   `fred-evaluation-worker` est un client confidentiel avec service account,
+   rôle `fred-delegation:delegation_caller` et audience `fred-delegation` dans
+   son jeton. Le commit de deployment-factory ne prouve pas à lui seul que la
+   configuration a été appliquée au realm en cours.
+3. Dans `apps/fred-evaluation-backend`, créer un fichier local de configuration
+   à partir de `config/configuration.yaml`. Adapter ces sections, en conservant
+   un profil judge valide et sa clé fournisseur :
+
+```yaml
+storage:
+  postgres:
+    sqlite_path: /tmp/fred-evaluator-weaver/evaluation.sqlite3
+security:
+  user:
+    enabled: true
+    realm_url: http://keycloak:8080/realms/app
+    client_id: app
+  m2m:
+    enabled: true
+    realm_url: http://keycloak:8080/realms/app
+    client_id: fred-evaluation-worker
+    secret_env_var: KEYCLOAK_EVAL_WORKER_CLIENT_SECRET
+control_plane:
+  base_url: http://localhost:8222/control-plane/v1
+  runtime_base_url: http://localhost:8000
+scheduler:
+  backend: memory
+observability:
+  tracer: logging
+```
+
+L'issuer de l'exemple correspond au profil prod Weaver du Control Plane. Utiliser
+le nom réellement accepté par la stack pour les deux blocs de sécurité et pour
+obtenir les jetons ; `keycloak` / `app-keycloak` doivent résoudre depuis l'hôte
+si ces noms sont employés. `runtime_base_url` doit être joignable **par le worker**
+et compléter la route publique renvoyée par préparation : `:8000` pour
+`/fred/agents/v2/...`, ou `:8010` pour un pod samples qui publie
+`/samples/agents/v1/...`. Pour plusieurs pods à URL relative, utiliser leur
+origine commune de gateway. Une URL absolue fournie par Weaver reste inchangée.
+
+4. Charger les secrets dans chaque terminal, sans modifier les dépendances :
+
+```bash
+cd ~/Work/common/fred-agent-evaluator/apps/fred-evaluation-backend
+export CONFIG_FILE="$PWD/config/configuration_weaver_local.yaml"
+export ENV_FILE="$PWD/config/.env"
+read -rsp 'Secret du client fred-evaluation-worker : ' KEYCLOAK_EVAL_WORKER_CLIENT_SECRET
+printf '\n'
+export KEYCLOAK_EVAL_WORKER_CLIENT_SECRET
+# Charger aussi la clé du judge choisi (MISTRAL_API_KEY dans le profil fourni).
+mkdir -p /tmp/fred-evaluator-weaver
+.venv/bin/python -m alembic upgrade head
+.venv/bin/python -m uvicorn fred_evaluation_backend.main:create_app --factory --host 127.0.0.1 --port 8336
+```
+
+Dans un second terminal, avec le même `CONFIG_FILE`, `ENV_FILE` et les mêmes
+secrets :
+
+```bash
+.venv/bin/python -m fred_evaluation_backend.main_worker
+```
+
+Ces commandes utilisent le venv avec l'overlay Weaver installé. Elles n'exécutent
+aucun `uv sync`. Pour Temporal, remplacer `scheduler` par `backend: temporal` et
+`temporal: {host: localhost:7233, namespace: default, task_queue: evaluation}`
+dans les deux processus ; la commande worker reste identique.
+
+5. Obtenir un jeton de la personne. Le client public `app` du template Keycloak
+   local autorise le password grant ; si le realm déployé le désactive ou exige
+   MFA, utiliser la connexion navigateur habituelle et son jeton utilisateur.
+   Ne pas utiliser un jeton de service pour créer le run.
+
+```bash
+export KC_REALM=http://keycloak:8080/realms/app
+read -rp 'Utilisateur : ' EVAL_USERNAME
+read -rsp 'Mot de passe : ' EVAL_PASSWORD
+printf '\n'
+TOKEN=$(printf '%s' "$EVAL_PASSWORD" | curl --fail-with-body -sS \
+  "$KC_REALM/protocol/openid-connect/token" \
+  --data-urlencode grant_type=password --data-urlencode client_id=app \
+  --data-urlencode "username=$EVAL_USERNAME" --data-urlencode 'password@-' \
+  | jq -er .access_token)
+unset EVAL_PASSWORD
+export CP=http://localhost:8222/control-plane/v1
+export EVAL=http://localhost:8336/evaluation/v1
+curl --fail-with-body -sS "$CP/me/spaces" -H "Authorization: Bearer $TOKEN" | jq .
+export SPACE_ID='<UUID choisi>'
+curl --fail-with-body -sS "$CP/spaces/$SPACE_ID/agent-instances" \
+  -H "Authorization: Bearer $TOKEN" | jq .
+# Si next_cursor est non nul, lire la suite avec --get --data-urlencode "after=$CURSOR".
+export INSTANCE_ID='<agent_instance_id Python choisi>'
+```
+
+6. Créer l'évaluation puis lancer un run sans override :
+
+```bash
+EVALUATION_ID=$(jq -n --arg space "$SPACE_ID" \
+  '{team_id:$space,name:"weaver-smoke",origin:"manual",cases:[{input:"Présente-toi en une phrase."}]}' \
+  | curl --fail-with-body -sS "$EVAL/evaluations" \
+    -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' --data-binary @- \
+  | jq -er .evaluation_id)
+RUN_ID=$(jq -n --arg space "$SPACE_ID" --arg instance "$INSTANCE_ID" \
+  '{team_id:$space,target:{kind:"managed_instance",agent_instance_id:$instance},metrics:["answer_relevancy"]}' \
+  | curl --fail-with-body -sS "$EVAL/evaluations/$EVALUATION_ID/runs" \
+    -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' --data-binary @- \
+  | jq -er .run_id)
+curl --fail-with-body -sS "$EVAL/runs/$RUN_ID" \
+  -H "Authorization: Bearer $TOKEN" | jq '{operational_state,verdict,snapshot}'
+```
+
+Vérifier `snapshot.evaluate_url`, puis consulter le run jusqu'à son état terminal.
+`completed` ne suffit pas : contrôler le verdict, les erreurs d'exécution et de
+scoring ainsi que la présence des résultats de métriques. Une URL nulle de la
+préparation doit refuser la création en 422, avant tout run en base.
+
+7. Lire et archiver le rapport, avec un jeton utilisateur encore valide :
+
+```bash
+curl --fail-with-body -sS "$EVAL/runs/$RUN_ID/report" \
+  -H "Authorization: Bearer $TOKEN" > /tmp/weaver-evaluation-report.json
+jq . /tmp/weaver-evaluation-report.json
+```
+
+Pour diagnostiquer un 403 du pod, vérifier le rôle de délégation, l'audience,
+la personne créatrice, l'instance et les droits actuels de cette personne.
+Ne pas désactiver la sécurité pour faire réussir le test. La sélection de modèle
+et la surface applicative hébergée restent les points ouverts décrits plus haut.
