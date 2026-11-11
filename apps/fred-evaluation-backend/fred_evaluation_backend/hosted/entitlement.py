@@ -15,7 +15,8 @@ from typing import Annotated
 
 import httpx
 from fastapi import Depends, Request
-from fred_core import KeycloakUser, get_config, get_current_user
+from fred_core import KeycloakUser, get_config
+from fred_core.security.oidc import authenticate_request
 from fred_core.common.team_id import PERSONAL_TEAM_ALIAS
 
 from fred_evaluation_backend.execution.control_plane_client import (
@@ -52,7 +53,7 @@ def get_control_plane_client(request: Request) -> ControlPlaneClient:
 async def require_entitled(
     team_id: str,
     request: Request,
-    user: Annotated[KeycloakUser, Depends(get_current_user)],
+    user: Annotated[KeycloakUser, Depends(authenticate_request)],
     cp_client: Annotated[ControlPlaneClient, Depends(get_control_plane_client)],
 ) -> OutboundAuth:
     """Admit the request only if `team_id` is granted this application.

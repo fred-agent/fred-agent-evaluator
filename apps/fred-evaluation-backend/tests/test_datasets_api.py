@@ -15,7 +15,8 @@ from types import SimpleNamespace
 import httpx
 import pytest
 from fastapi import FastAPI, HTTPException
-from fred_core import KeycloakUser, get_config, get_current_user
+from fred_core import KeycloakUser, get_config
+from fred_core.security.oidc import authenticate_request
 
 from fred_evaluation_backend.evaluations.api import (
     _get_control_plane_client,
@@ -122,7 +123,7 @@ def _build_app(
     app = FastAPI()
     app.include_router(build_evaluation_catalog_router())
     app.add_exception_handler(HTTPException, normalize_unstructured_auth_error)
-    app.dependency_overrides[get_current_user] = lambda: KeycloakUser(
+    app.dependency_overrides[authenticate_request] = lambda: KeycloakUser(
         uid="alice", username="alice", roles=[], email="alice@test.example"
     )
     app.dependency_overrides[get_config] = lambda: SimpleNamespace(

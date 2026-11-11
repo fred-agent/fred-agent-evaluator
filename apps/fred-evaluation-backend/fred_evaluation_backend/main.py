@@ -11,7 +11,6 @@ from fred_core.common import read_env_bool
 from fred_core.kpi import KPIMiddleware
 from fred_core.scheduler import SchedulerBackend, TemporalClientProvider
 from fred_core.sql import create_async_engine_from_config
-from fred_core.users.store.postgres_user_store import init_user_store
 from pydantic import BaseModel
 
 from fred_evaluation_backend.config.loader import load_configuration
@@ -52,7 +51,6 @@ def create_app() -> FastAPI:
     initialize_user_security(configuration.security.user)
     docs_enabled = read_env_bool("PRODUCTION_FASTAPI_DOCS_ENABLED", default=True)
     engine = create_async_engine_from_config(configuration.storage.postgres)
-    init_user_store(engine)
 
     # The API acts on behalf of the interactive caller (RFC EVAL-AUTH §3): every
     # outbound Control Plane call carries the caller's own bearer token, never a
@@ -118,7 +116,7 @@ def create_app() -> FastAPI:
     # Grafana by construction.
     app.add_middleware(KPIMiddleware, kpi=lambda: kpi_writer)
 
-    # fred-core's auth dependencies (get_current_user) run before any route body
+    # fred-core's auth dependencies (authenticate_request) run before any route body
     # and raise their own unstructured HTTPException on failure — normalize those
     # (and only those) into the evaluator's one public error envelope.
     app.add_exception_handler(HTTPException, normalize_unstructured_auth_error)

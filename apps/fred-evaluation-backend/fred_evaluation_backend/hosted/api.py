@@ -28,7 +28,8 @@ from collections.abc import Awaitable
 from typing import Annotated, Any, TypeVar
 
 from fastapi import APIRouter, Depends, Query, Request, Response
-from fred_core import KeycloakUser, get_current_user
+from fred_core import KeycloakUser
+from fred_core.security.oidc import authenticate_request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -88,7 +89,7 @@ def _get_run_store(request: Request) -> RunStore:
 
 
 Entitled = Annotated[OutboundAuth, Depends(require_entitled)]
-CurrentUser = Annotated[KeycloakUser, Depends(get_current_user)]
+CurrentUser = Annotated[KeycloakUser, Depends(authenticate_request)]
 Evaluations = Annotated[EvaluationStore, Depends(_get_evaluation_store)]
 Runs = Annotated[RunStore, Depends(_get_run_store)]
 ControlPlane = Annotated[ControlPlaneClient, Depends(get_control_plane_client)]

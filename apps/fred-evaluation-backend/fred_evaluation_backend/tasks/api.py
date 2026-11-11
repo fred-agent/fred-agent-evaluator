@@ -5,7 +5,8 @@ from typing import Annotated, AsyncGenerator, Literal
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
-from fred_core import KeycloakUser, get_current_user
+from fred_core import KeycloakUser
+from fred_core.security.oidc import authenticate_request
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
@@ -44,7 +45,7 @@ def build_tasks_router(prefix: str = "") -> APIRouter:
     @router.get("/tasks", response_model=TaskListResponse)
     async def list_tasks(
         request: Request,
-        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        user: Annotated[KeycloakUser, Depends(authenticate_request)],
         store: Annotated[RunStore, Depends(_get_evaluation_store)],
         cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
         scope: Literal["user", "team"] = Query("team"),
@@ -67,7 +68,7 @@ def build_tasks_router(prefix: str = "") -> APIRouter:
     async def get_task(
         task_id: str,
         request: Request,
-        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        user: Annotated[KeycloakUser, Depends(authenticate_request)],
         store: Annotated[RunStore, Depends(_get_evaluation_store)],
         cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> TaskSummary:
@@ -78,7 +79,7 @@ def build_tasks_router(prefix: str = "") -> APIRouter:
     async def get_latest_event(
         task_id: str,
         request: Request,
-        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        user: Annotated[KeycloakUser, Depends(authenticate_request)],
         store: Annotated[RunStore, Depends(_get_evaluation_store)],
         cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> EvaluationTaskEvent:
@@ -89,7 +90,7 @@ def build_tasks_router(prefix: str = "") -> APIRouter:
     async def stream_task_events(
         task_id: str,
         request: Request,
-        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        user: Annotated[KeycloakUser, Depends(authenticate_request)],
         store: Annotated[RunStore, Depends(_get_evaluation_store)],
         cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> StreamingResponse:
@@ -118,7 +119,7 @@ def build_tasks_router(prefix: str = "") -> APIRouter:
     async def cancel_task(
         task_id: str,
         request: Request,
-        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        user: Annotated[KeycloakUser, Depends(authenticate_request)],
         store: Annotated[RunStore, Depends(_get_evaluation_store)],
         cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> dict[str, str]:

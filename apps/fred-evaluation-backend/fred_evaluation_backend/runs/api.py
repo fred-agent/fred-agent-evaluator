@@ -10,7 +10,8 @@ from typing import Annotated, Any, AsyncGenerator
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
-from fred_core import KeycloakUser, get_config, get_current_user
+from fred_core import KeycloakUser, get_config
+from fred_core.security.oidc import authenticate_request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -273,7 +274,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         evaluation_id: str,
         body: StartRunRequest,
         request: Request,
-        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        user: Annotated[KeycloakUser, Depends(authenticate_request)],
         store: Annotated[RunStore, Depends(_get_run_store)],
         evaluation_store: Annotated[
             EvaluationStore, Depends(_get_evaluation_catalog_store)
@@ -303,7 +304,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     async def list_runs(
         evaluation_id: str,
         request: Request,
-        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        user: Annotated[KeycloakUser, Depends(authenticate_request)],
         store: Annotated[RunStore, Depends(_get_run_store)],
         evaluation_store: Annotated[
             EvaluationStore, Depends(_get_evaluation_catalog_store)
@@ -333,7 +334,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     async def get_runs_summary(
         evaluation_id: str,
         request: Request,
-        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        user: Annotated[KeycloakUser, Depends(authenticate_request)],
         store: Annotated[RunStore, Depends(_get_run_store)],
         evaluation_store: Annotated[
             EvaluationStore, Depends(_get_evaluation_catalog_store)
@@ -352,7 +353,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     async def get_run(
         run_id: str,
         request: Request,
-        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        user: Annotated[KeycloakUser, Depends(authenticate_request)],
         store: Annotated[RunStore, Depends(_get_run_store)],
         cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> EvaluationRun:
@@ -363,7 +364,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     async def list_run_cases(
         run_id: str,
         request: Request,
-        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        user: Annotated[KeycloakUser, Depends(authenticate_request)],
         store: Annotated[RunStore, Depends(_get_run_store)],
         cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
         offset: int = Query(default=0, ge=0),
@@ -379,7 +380,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         run_id: str,
         case_id: str,
         request: Request,
-        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        user: Annotated[KeycloakUser, Depends(authenticate_request)],
         store: Annotated[RunStore, Depends(_get_run_store)],
         cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> EvaluationCaseResponse:
@@ -398,7 +399,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     async def get_run_report(
         run_id: str,
         request: Request,
-        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        user: Annotated[KeycloakUser, Depends(authenticate_request)],
         store: Annotated[RunStore, Depends(_get_run_store)],
         evaluation_store: Annotated[
             EvaluationStore, Depends(_get_evaluation_catalog_store)
@@ -422,7 +423,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     async def stream_run_events(
         run_id: str,
         request: Request,
-        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        user: Annotated[KeycloakUser, Depends(authenticate_request)],
         store: Annotated[RunStore, Depends(_get_run_store)],
         cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> StreamingResponse:
@@ -455,7 +456,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     async def cancel_run(
         run_id: str,
         request: Request,
-        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        user: Annotated[KeycloakUser, Depends(authenticate_request)],
         store: Annotated[RunStore, Depends(_get_run_store)],
         cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> dict:
@@ -467,7 +468,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     async def delete_run(
         run_id: str,
         request: Request,
-        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        user: Annotated[KeycloakUser, Depends(authenticate_request)],
         store: Annotated[RunStore, Depends(_get_run_store)],
         cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> Response:
@@ -480,7 +481,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
         run_id: str,
         request: Request,
         store: Annotated[RunStore, Depends(_get_run_store)],
-        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        user: Annotated[KeycloakUser, Depends(authenticate_request)],
         cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> TelemetrySessionResponse:
         _ = await authorize_run(request, run_id, store=store, cp_client=cp_client)
@@ -519,7 +520,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     @router.get("/telemetry", response_model=TelemetryInfoResponse)
     async def get_telemetry(
         request: Request,
-        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        user: Annotated[KeycloakUser, Depends(authenticate_request)],
     ) -> TelemetryInfoResponse:
         config = request.app.dependency_overrides.get(get_config, get_config)()
         langfuse_session_url = await _resolve_langfuse_session_url(config)
@@ -536,7 +537,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
     async def analyze_run(
         run_id: str,
         request: Request,
-        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        user: Annotated[KeycloakUser, Depends(authenticate_request)],
         store: Annotated[RunStore, Depends(_get_run_store)],
         cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> RunAnalysisResponse:

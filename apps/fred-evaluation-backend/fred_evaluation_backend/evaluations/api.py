@@ -4,7 +4,8 @@ import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, Response
-from fred_core import KeycloakUser, get_config, get_current_user
+from fred_core import KeycloakUser, get_config
+from fred_core.security.oidc import authenticate_request
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from fred_evaluation_backend.evaluations import service
@@ -52,7 +53,7 @@ def build_evaluation_catalog_router(prefix: str = "") -> APIRouter:
     async def create_evaluation(
         body: CreateEvaluationRequest,
         request: Request,
-        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        user: Annotated[KeycloakUser, Depends(authenticate_request)],
         store: Annotated[EvaluationStore, Depends(_get_evaluation_catalog_store)],
         cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
     ) -> EvaluationDetailResponse:
@@ -78,7 +79,7 @@ def build_evaluation_catalog_router(prefix: str = "") -> APIRouter:
     )
     async def list_evaluations(
         request: Request,
-        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        user: Annotated[KeycloakUser, Depends(authenticate_request)],
         store: Annotated[EvaluationStore, Depends(_get_evaluation_catalog_store)],
         cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],
         team_id: str = Query(...),
@@ -121,7 +122,7 @@ def build_evaluation_catalog_router(prefix: str = "") -> APIRouter:
     async def delete_evaluation(
         evaluation_id: str,
         request: Request,
-        user: Annotated[KeycloakUser, Depends(get_current_user)],
+        user: Annotated[KeycloakUser, Depends(authenticate_request)],
         store: Annotated[EvaluationStore, Depends(_get_evaluation_catalog_store)],
         run_store: Annotated[RunStore, Depends(_get_run_store)],
         cp_client: Annotated[ControlPlaneClient, Depends(_get_control_plane_client)],

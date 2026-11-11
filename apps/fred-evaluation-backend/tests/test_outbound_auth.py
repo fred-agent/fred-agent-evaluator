@@ -1,7 +1,7 @@
 """Interactive-request auth resolution (EVAL-AUTH RFC §3 / §9).
 
 `resolve_interactive_auth` is only ever called from a route that also depends
-on fred-core's `get_current_user`, which FastAPI resolves first and which
+on fred-core's `authenticate_request`, which FastAPI resolves first and which
 already fails closed on a missing/malformed Authorization header (normalized
 into this app's error envelope at the API boundary — see
 `test_auth_error_normalization.py` for that production-route proof). So this

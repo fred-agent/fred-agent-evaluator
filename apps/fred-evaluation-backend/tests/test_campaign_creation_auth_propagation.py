@@ -15,7 +15,8 @@ from types import SimpleNamespace
 import httpx
 import pytest
 from fastapi import FastAPI, HTTPException
-from fred_core import KeycloakUser, get_config, get_current_user
+from fred_core import KeycloakUser, get_config
+from fred_core.security.oidc import authenticate_request
 
 from fred_evaluation_backend.execution.evaluator_errors import (
     normalize_unstructured_auth_error,
@@ -147,7 +148,7 @@ def _build_app(
     # Mirrors main.py's create_app() wiring — proves a real Control Plane 403
     # (already-structured) passes through this handler unchanged.
     app.add_exception_handler(HTTPException, normalize_unstructured_auth_error)
-    app.dependency_overrides[get_current_user] = lambda: KeycloakUser(
+    app.dependency_overrides[authenticate_request] = lambda: KeycloakUser(
         uid="alice", username="alice", roles=[], email="alice@test.example"
     )
     app.dependency_overrides[get_config] = lambda: SimpleNamespace(

@@ -56,7 +56,7 @@ def resolve_interactive_auth(
     - Security enabled: the caller's raw `Authorization` header, verbatim.
 
     This is only ever called from a route that also depends on fred-core's
-    `get_current_user`, which FastAPI resolves first and which already rejects
+    `authenticate_request`, which FastAPI resolves first and which already rejects
     a missing/malformed header (its own `HTTPException`, normalized into this
     app's error envelope at the API boundary — see
     `evaluator_errors.normalize_unstructured_auth_error`). So by the time this

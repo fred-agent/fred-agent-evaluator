@@ -256,9 +256,9 @@ async def normalize_unstructured_auth_error(
     """Translate an unstructured 401/403 `HTTPException` into the evaluator's
     one canonical error envelope, at the evaluator's own API boundary.
 
-    fred-core's `get_current_user` dependency runs *before* any route body and
+    fred-core's `authenticate_request` dependency runs *before* any route body and
     raises its own `HTTPException` with a bare string `detail` (e.g. "No
-    authentication token provided", "user_not_accept_gcu") on failure — this
+    authentication token provided") on failure — this
     app's resolvers never see it, so it can't be normalized upstream. This is
     the one place that gap is closed; fred-core's own authentication decisions
     are untouched, and its `WWW-Authenticate` header (etc.) is preserved.

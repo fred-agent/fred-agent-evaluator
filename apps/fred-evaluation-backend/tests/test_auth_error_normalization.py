@@ -1,7 +1,7 @@
 """Evaluator boundary translation of fred-core's unstructured auth failures.
 
-`fred_core.get_current_user` runs as a route dependency, resolved by FastAPI
-*before* any route body — so a failure there never reaches this app's own
+`fred_core.security.oidc.authenticate_request` runs as a route dependency,
+resolved by FastAPI *before* any route body — so a failure there never reaches this app's own
 resolvers or error mapping (`execution/evaluator_errors.py`). It raises a
 plain `HTTPException(detail="...")` (a bare string, e.g. "No authentication
 token provided"), which would otherwise violate this API's one documented
@@ -21,7 +21,8 @@ from typing import Callable
 import httpx
 import pytest
 from fastapi import FastAPI, HTTPException
-from fred_core import get_config, get_current_user, get_user_store
+from fred_core import get_config
+from fred_core.security.oidc import authenticate_request
 from pytest import MonkeyPatch
 
 from fred_evaluation_backend.execution.evaluator_errors import (
@@ -73,7 +74,7 @@ class _UnreachedControlPlaneClient:
 
 
 def _build_app(
-    *, override_get_current_user: Callable[..., object] | None = None
+    *, override_authenticate_request: Callable[..., object] | None = None
 ) -> FastAPI:
     app = FastAPI()
     app.include_router(build_evaluations_router())
@@ -81,10 +82,7 @@ def _build_app(
     app.add_exception_handler(HTTPException, normalize_unstructured_auth_error)
     app.dependency_overrides[get_config] = lambda: SimpleNamespace(
         security=SimpleNamespace(user=SimpleNamespace(enabled=True)),
-        app=SimpleNamespace(gcu_version=None),
     )
-    # get_current_user's own sub-dependency — unrelated to what's under test here.
-    app.dependency_overrides[get_user_store] = lambda: None
     app.dependency_overrides[_get_run_store] = lambda: _FakeStore()
     app.dependency_overrides[_get_evaluation_catalog_store] = lambda: (
         _FakeEvaluationStore()
@@ -92,8 +90,8 @@ def _build_app(
     app.dependency_overrides[_get_control_plane_client] = lambda: (
         _UnreachedControlPlaneClient()
     )
-    if override_get_current_user is not None:
-        app.dependency_overrides[get_current_user] = override_get_current_user
+    if override_authenticate_request is not None:
+        app.dependency_overrides[authenticate_request] = override_authenticate_request
     return app
 
 
@@ -101,7 +99,7 @@ def _build_app(
 async def test_missing_authorization_header_hits_the_real_boundary_and_returns_structured_401(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """get_current_user is NOT overridden — this is fred-core's real dependency,
+    """authenticate_request is NOT overridden — this is fred-core's real dependency,
     which raises `HTTPException(401, "No authentication token provided")`."""
     monkeypatch.setattr("fred_core.security.oidc.KEYCLOAK_ENABLED", True)
     app = _build_app()
@@ -146,7 +144,7 @@ async def test_unstructured_403_from_auth_dependency_returns_structured_access_f
         # a fred-core auth dependency raises.
         raise HTTPException(status_code=403, detail="user_not_whitelisted")
 
-    app = _build_app(override_get_current_user=_raise_unstructured_403)
+    app = _build_app(override_authenticate_request=_raise_unstructured_403)
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
@@ -176,7 +174,7 @@ async def test_already_structured_evaluator_error_passes_through_unchanged() -> 
             ).model_dump(),
         )
 
-    app = _build_app(override_get_current_user=_raise_structured)
+    app = _build_app(override_authenticate_request=_raise_structured)
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
