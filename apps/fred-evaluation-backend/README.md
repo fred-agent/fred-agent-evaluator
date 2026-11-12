@@ -58,8 +58,9 @@ CONFIG_FILE="./config/configuration_prod.yaml"  # Docker Compose / production-li
 This production-like profile assumes the evaluator processes run on the host and
 use the ports exposed by `fred-deployment-factory`: PostgreSQL on
 `localhost:5432`, Control Plane on `localhost:8222`, runtime ingress on
-`localhost:8000`, and Temporal on `localhost:7233`. The factory maps
-`app-keycloak` to the local Keycloak endpoint during Compose setup.
+`localhost:8000`, and Temporal on `localhost:7233` (namespace `fred-weaver`).
+Tokens are issued by `http://keycloak:8080/realms/app`, a name the factory maps
+to the local Keycloak endpoint.
 
 With that line present, use the ordinary commands:
 

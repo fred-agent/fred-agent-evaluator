@@ -331,144 +331,144 @@ make run-worker   # Worker
 
 ## Test manuel contre la stack Docker Weaver
 
-Procédure à exécuter par le développeur : elle n'est pas une preuve de validation
-bout en bout. Elle suppose un pod Python et les services Docker déjà disponibles.
-Le rapport lit le **nom courant** de l'espace dans `GET /me/spaces`, avec le jeton
-du lecteur : cette liste contient chaque espace où il détient un rôle direct, ce
-qui est le cas de quiconque peut évaluer. L'UUID reste la référence ; un espace
-absent de la liste ou un échec de lecture laisse `team_name: null` sans faire
-échouer le rapport.
+Procédure validée de bout en bout le 2026-11-11 sur la stack Docker Weaver de
+`fred-deployment-factory` (branche `weaver`), avec Fred lancé depuis son checkout
+(`make fred-json`). L'évaluateur suit le même usage que les composants Fred :
+`config/configuration_prod.yaml` et son compagnon `config/.env`, dans ce dépôt.
 
-1. Choisir un utilisateur admis (CGU acceptées), disposant de `run_evaluations`
-   et de `read` sur l'espace, et une instance Python exécutable dans cet espace.
-   `analyst` accorde ces deux permissions dans la matrice actuelle ; `owner`
-   seul n'accorde pas `read`. L'instance doit avoir un modèle utilisable sans
-   override, et le pod doit accepter la délégation du worker.
-2. Vérifier la configuration Keycloak effectivement déployée :
-   `fred-evaluation-worker` est un client confidentiel avec service account,
-   rôle `fred-delegation:delegation_caller` et audience `fred-delegation` dans
-   son jeton. Le commit de deployment-factory ne prouve pas à lui seul que la
-   configuration a été appliquée au realm en cours.
-3. Dans `apps/fred-evaluation-backend`, créer un fichier local de configuration
-   à partir de `config/configuration.yaml`. Adapter ces sections, en conservant
-   un profil judge valide et sa clé fournisseur :
+### Ce que la stack doit fournir
 
-```yaml
-storage:
-  postgres:
-    sqlite_path: /tmp/fred-evaluator-weaver/evaluation.sqlite3
-security:
-  user:
-    enabled: true
-    realm_url: http://keycloak:8080/realms/app
-    client_id: app
-  m2m:
-    enabled: true
-    realm_url: http://keycloak:8080/realms/app
-    client_id: fred-evaluation-worker
-    secret_env_var: KEYCLOAK_EVAL_WORKER_CLIENT_SECRET
-control_plane:
-  base_url: http://localhost:8222/control-plane/v1
-  runtime_base_url: http://localhost:8000
-scheduler:
-  backend: memory
-observability:
-  tracer: logging
-```
+`make docker-up` prépare tout ce dont l'évaluateur a besoin :
 
-L'issuer de l'exemple correspond au profil prod Weaver du Control Plane. Utiliser
-le nom réellement accepté par la stack pour les deux blocs de sécurité et pour
-obtenir les jetons ; `keycloak` / `app-keycloak` doivent résoudre depuis l'hôte
-si ces noms sont employés. `runtime_base_url` doit être joignable **par le worker**
-et compléter la route publique renvoyée par préparation : `:8000` pour
-`/fred/agents/v2/...`, ou `:8010` pour un pod samples qui publie
-`/samples/agents/v1/...`. Pour plusieurs pods à URL relative, utiliser leur
-origine commune de gateway. Une URL absolue fournie par Weaver reste inchangée.
+- la base PostgreSQL `evaluation`, son utilisateur `evaluation` (mot de passe
+  local `Azerty123_`) et le schéma `evaluation` qui lui appartient. Les
+  bibliothèques Fred 5 exigent que chaque application déclare son schéma ;
+- le client Keycloak confidentiel `fred-evaluation-worker` (secret local
+  `Azerty123_`), avec le rôle `fred-delegation:delegation_caller`, l'audience
+  `fred-delegation` et le claim `client_id` qui le fait reconnaître comme compte
+  de service ;
+- Temporal sur `localhost:7233`, namespace `fred-weaver`.
 
-4. Charger les secrets dans chaque terminal, sans modifier les dépendances :
+Côté Fred, le pod `fred-agents` doit accepter les appels délégués
+(`security.delegation.accept_delegated_calls: true` et
+`service_accounts_only: true` dans son `configuration_prod.yaml`), et un tour sans
+conversation, comme `/agents/evaluate`, garde son état en mémoire. Les deux sont
+dans la branche `weaver` de Fred.
+
+### Ce qu'il faut choisir dans Weaver
+
+- Un utilisateur qui a accepté les CGU et qui est **Analyst** sur l'espace :
+  c'est le seul rôle qui a à la fois `read` (exigé par `prepare-execution`) et
+  `run_evaluations`. `owner` seul n'accorde pas `read`.
+- Une instance d'agent **Python** (runtime `fred-agents`) dans cet espace, avec
+  un modèle utilisable sans override. Les agents Rust n'exposent pas
+  `/agents/evaluate`.
+
+### 1. Configurer l'évaluateur
+
+`config/configuration_prod.yaml` est déjà aligné sur cette stack : Keycloak
+`http://keycloak:8080/realms/app` (l'émetteur accepté par le Control Plane),
+PostgreSQL `localhost:5432` base et schéma `evaluation`, Temporal namespace
+`fred-weaver`, tracer `logging`. Il ne reste qu'à créer `config/.env` :
 
 ```bash
 cd ~/Work/common/fred-agent-evaluator/apps/fred-evaluation-backend
-export CONFIG_FILE="$PWD/config/configuration_weaver_local.yaml"
-export ENV_FILE="$PWD/config/.env"
-read -rsp 'Secret du client fred-evaluation-worker : ' KEYCLOAK_EVAL_WORKER_CLIENT_SECRET
-printf '\n'
-export KEYCLOAK_EVAL_WORKER_CLIENT_SECRET
-# Charger aussi la clé du judge choisi (MISTRAL_API_KEY dans le profil fourni).
-mkdir -p /tmp/fred-evaluator-weaver
-.venv/bin/python -m alembic upgrade head
-.venv/bin/python -m uvicorn fred_evaluation_backend.main:create_app --factory --host 127.0.0.1 --port 8336
+cp config/.env.template config/.env
+chmod 600 config/.env
 ```
 
-Dans un second terminal, avec le même `CONFIG_FILE`, `ENV_FILE` et les mêmes
-secrets :
+et à y remplir trois valeurs :
 
-```bash
-.venv/bin/python -m fred_evaluation_backend.main_worker
+```dotenv
+MISTRAL_API_KEY="<la clé Mistral, la même que celle de fred-agents>"
+KEYCLOAK_EVAL_WORKER_CLIENT_SECRET="Azerty123_"
+FRED_POSTGRES_PASSWORD="Azerty123_"
 ```
 
-Ces commandes utilisent le venv avec l'overlay Weaver installé. Elles n'exécutent
-aucun `uv sync`. Pour Temporal, remplacer `scheduler` par `backend: temporal` et
-`temporal: {host: localhost:7233, namespace: default, task_queue: evaluation}`
-dans les deux processus ; la commande worker reste identique.
+### 2. Lancer l'API puis le worker
 
-5. Obtenir un jeton de la personne. Le client public `app` du template Keycloak
-   local autorise le password grant ; si le realm déployé le désactive ou exige
-   MFA, utiliser la connexion navigateur habituelle et son jeton utilisateur.
-   Ne pas utiliser un jeton de service pour créer le run.
+Chacun dans son terminal, car les deux restent au premier plan. Ces cibles
+n'exécutent aucun `uv sync` et conservent l'overlay `make dev-local`.
 
 ```bash
-export KC_REALM=http://keycloak:8080/realms/app
-read -rp 'Utilisateur : ' EVAL_USERNAME
-read -rsp 'Mot de passe : ' EVAL_PASSWORD
-printf '\n'
-TOKEN=$(printf '%s' "$EVAL_PASSWORD" | curl --fail-with-body -sS \
-  "$KC_REALM/protocol/openid-connect/token" \
-  --data-urlencode grant_type=password --data-urlencode client_id=app \
-  --data-urlencode "username=$EVAL_USERNAME" --data-urlencode 'password@-' \
-  | jq -er .access_token)
-unset EVAL_PASSWORD
+make run-prod          # migrations Alembic, puis API sur :8336
+make run-worker-prod   # worker Temporal, file evaluation
+```
+
+L'API doit répondre sur `http://localhost:8336/evaluation/v1/ready`. Le worker
+doit afficher `Connecting to Temporal at localhost:7233 (namespace=fred-weaver,
+queue=evaluation)` puis `Temporal evaluation worker ready.`
+
+### 3. Obtenir le jeton de la personne
+
+Le client public `app` autorise le password grant. Ne jamais créer un run avec
+un jeton de service.
+
+```bash
+read -rsp 'Mot de passe : ' PW; printf '\n'
+TOKEN=$(curl -sS http://keycloak:8080/realms/app/protocol/openid-connect/token \
+  -d grant_type=password -d client_id=app -d username=<utilisateur> \
+  --data-urlencode "password=$PW" | jq -r .access_token)
+unset PW
 export CP=http://localhost:8222/control-plane/v1
 export EVAL=http://localhost:8336/evaluation/v1
-curl --fail-with-body -sS "$CP/me/spaces" -H "Authorization: Bearer $TOKEN" | jq .
-export SPACE_ID='<UUID choisi>'
-curl --fail-with-body -sS "$CP/spaces/$SPACE_ID/agent-instances" \
-  -H "Authorization: Bearer $TOKEN" | jq .
-# Si next_cursor est non nul, lire la suite avec --get --data-urlencode "after=$CURSOR".
-export INSTANCE_ID='<agent_instance_id Python choisi>'
+curl -sS "$CP/me/spaces" -H "Authorization: Bearer $TOKEN" | jq .
+export SPACE_ID='<UUID de l’espace, rôle analyst>'
+export INSTANCE_ID='<agent_instance_id Python de cet espace>'
 ```
 
-6. Créer l'évaluation puis lancer un run sans override :
+Le jeton expire en quelques minutes : relancer ce bloc avant chaque étape si
+l'API répond 401.
+
+### 4. Créer l'évaluation, lancer un run
 
 ```bash
 EVALUATION_ID=$(jq -n --arg space "$SPACE_ID" \
   '{team_id:$space,name:"weaver-smoke",origin:"manual",cases:[{input:"Présente-toi en une phrase."}]}' \
-  | curl --fail-with-body -sS "$EVAL/evaluations" \
-    -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' --data-binary @- \
-  | jq -er .evaluation_id)
+  | curl -sS "$EVAL/evaluations" -H "Authorization: Bearer $TOKEN" \
+      -H 'Content-Type: application/json' --data-binary @- | jq -r .evaluation_id)
 RUN_ID=$(jq -n --arg space "$SPACE_ID" --arg instance "$INSTANCE_ID" \
   '{team_id:$space,target:{kind:"managed_instance",agent_instance_id:$instance},metrics:["answer_relevancy"]}' \
-  | curl --fail-with-body -sS "$EVAL/evaluations/$EVALUATION_ID/runs" \
-    -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' --data-binary @- \
-  | jq -er .run_id)
-curl --fail-with-body -sS "$EVAL/runs/$RUN_ID" \
-  -H "Authorization: Bearer $TOKEN" | jq '{operational_state,verdict,snapshot}'
+  | curl -sS "$EVAL/evaluations/$EVALUATION_ID/runs" -H "Authorization: Bearer $TOKEN" \
+      -H 'Content-Type: application/json' --data-binary @- | jq -r .run_id)
+curl -sS "$EVAL/runs/$RUN_ID" -H "Authorization: Bearer $TOKEN" \
+  | jq '{operational_state,verdict,snapshot}'
 ```
 
-Vérifier `snapshot.evaluate_url`, puis consulter le run jusqu'à son état terminal.
-`completed` ne suffit pas : contrôler le verdict, les erreurs d'exécution et de
-scoring ainsi que la présence des résultats de métriques. Une URL nulle de la
-préparation doit refuser la création en 422, avant tout run en base.
+`snapshot.evaluate_url` doit valoir
+`http://localhost:8000/fred/agents/v2/agents/evaluate`. Une URL nulle de la
+préparation refuse la création en 422, avant tout run en base. `completed` ne
+suffit pas : contrôler le verdict, les erreurs d'exécution et de scoring et les
+résultats de métriques. Sur le smoke de référence (instance sans capacité), le
+cas réussit (`outcome: success`), le juge rend un score `answer_relevancy` et,
+sans seuil, le cas est `insufficient` et le run `inconclusive`.
 
-7. Lire et archiver le rapport, avec un jeton utilisateur encore valide :
+### 5. Lire le rapport
 
 ```bash
-curl --fail-with-body -sS "$EVAL/runs/$RUN_ID/report" \
-  -H "Authorization: Bearer $TOKEN" > /tmp/weaver-evaluation-report.json
-jq . /tmp/weaver-evaluation-report.json
+curl -sS "$EVAL/runs/$RUN_ID/report" -H "Authorization: Bearer $TOKEN" \
+  > /tmp/weaver-evaluation-report.json
+jq '.evaluation | {team_id, team_name}' /tmp/weaver-evaluation-report.json
 ```
 
-Pour diagnostiquer un 403 du pod, vérifier le rôle de délégation, l'audience,
-la personne créatrice, l'instance et les droits actuels de cette personne.
+Le rapport lit le **nom courant** de l'espace dans `GET /me/spaces`, avec le
+jeton du lecteur, et le place dans `evaluation.team_name`. L'UUID reste la
+référence ; un espace absent de la liste ou un échec de lecture laisse
+`team_name: null` sans faire échouer le rapport.
+
+### Diagnostiquer un échec
+
+L'erreur d'un cas est dans `execution_error` (`GET $EVAL/runs/$RUN_ID/cases`) ;
+le motif d'un refus du pod est dans son log, événement `[SECURITY]`.
+
+| Symptôme | Cause |
+| --- | --- |
+| 403, pod `accept_delegated_calls=False` au démarrage | le pod n'accepte pas les appels délégués |
+| 403, `delegation.grant.rejected` `caller_not_allowed` | le jeton du worker n'a pas le rôle, l'audience ou le claim `client_id` |
+| 403 `delegation_target_mismatch` | `agent` ne correspond pas à l'instance appelée |
+| `IntegrityError` `…_conversation_fk` | le pod enregistre un tour sans conversation en base (Fred antérieur au correctif) |
+| `An explicit owning PostgreSQL schema is required` | `storage.postgres.schema` absent, ou fred-pod antérieur au correctif |
+
 Ne pas désactiver la sécurité pour faire réussir le test. La sélection de modèle
-et la surface applicative hébergée restent les points ouverts décrits plus haut.
+et la surface applicative hébergée (iframe dans Fred) restent les points ouverts
+décrits plus haut.
