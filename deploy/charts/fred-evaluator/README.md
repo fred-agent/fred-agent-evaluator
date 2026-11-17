@@ -2,7 +2,7 @@
 
 The `evaluation` application of [Fred](https://github.com/ThalesGroup/fred): evaluate
 agents against versioned test sets. It runs next to an existing Fred platform, in any
-namespace, and Fred shows it to the teams a platform admin enables it for.
+namespace, and Weaver exposes it according to the SQL registration and organization policy.
 
 ## TL;DR
 
@@ -16,10 +16,11 @@ kubectl -n fred-apps create secret generic fred-evaluator-secrets \
 helm install evaluator oci://ghcr.io/fred-agent/fred-evaluator-helm/fred-evaluator \
   --version <version> -n fred-apps \
   --set ui.hostOrigin=https://fred.example.com \
+  --set configuration.storage.postgres.schema=evaluation \
   --set secret.existingSecret=fred-evaluator-secrets
 ```
 
-The install prints the two blocks to add to Fred's configuration (see
+The install prints the upstreams to register through Weaver administration (see
 [Register and enable](#register-and-enable-in-fred)). Chart `X.Y.Z` runs images `vX.Y.Z`.
 
 ## What it deploys
@@ -33,8 +34,8 @@ The install prints the two blocks to add to Fred's configuration (see
 | `ConfigMap <release>-ui-config` | the UI's `config.json` (`ui.hostOrigin`) |
 | `Secret <release>-secret` | only with `secret.create: true` |
 
-Nothing is exposed and there is no Ingress: Fred's frontend gateway reaches the UI and
-the API inside the cluster.
+Nothing is exposed and there is no Ingress: Fred's Control Plane reaches the UI and
+the API inside the cluster through its fixed frontend gateway routes.
 
 ## Prerequisites
 
@@ -43,11 +44,17 @@ default Fred install (`postgres`, `keycloak`, `temporal:7233`, `control-plane-ba
 `fred-agents`).
 
 - **PostgreSQL**: a database `evaluation` owned by a user `evaluation`. The API creates
-  and migrates the schema itself.
+  and migrates the schema itself. On Weaver, set
+  `configuration.storage.postgres.schema: evaluation`; initialization creates that
+  owning schema in the migration transaction before the Alembic version table.
 - **Keycloak**, realm `app`: users sign in through the platform's `app` client, and the
   worker needs its own confidential client `fred-evaluation-worker`, with a service
-  account holding the client role `app/service_agent` and nothing else.
-- **Temporal**: the worker polls the task queue `evaluation`.
+  account holding `app/service_agent`. Weaver additionally requires the existing
+  `fred-delegation/delegation_caller` role (including its audience) and the
+  `client_id: fred-evaluation-worker` claim on service tokens. This is trust to
+  assert the run creator, never a business permission. Use `security.profile: c3`
+  and `security.delegation.act_for_people: true` with current Fred libraries.
+- **Temporal**: the worker polls `evaluation` in its release line namespace (`fred-weaver` for Weaver); set `configuration.scheduler.temporal.namespace`.
 - **A judge model**: the defaults use Mistral through LiteLLM (`MISTRAL_API_KEY`); any
   LiteLLM provider works, see `configuration.worker.judge_profiles` and
   `configuration.analysis`.
@@ -112,15 +119,18 @@ validates it at startup, and a pod that fails to start says which key is wrong.
 
 ## Register and enable in Fred
 
-Fred knows an application only through its own configuration. `helm install` prints both
-blocks with this release's service names filled in (`helm get notes <release>` prints them
-again):
+On Weaver, `helm install` (or `helm get notes <release>`) prints the full UI and API
+upstreams. A platform administrator creates the `evaluation` registration disabled
+in **Admin > Applications**, with `entry_permission: run_evaluations`, checks it,
+then enables it. The UI upstream includes
+`/apps/evaluation/`; the API upstream ends at `/`. Control Plane stores this in SQL;
+no per-application Helm values or Fred restart is needed.
 
-1. in the Fred chart's values, an `application_sources` entry for the Control Plane and a
-   `FRONTEND_APPLICATIONS_JSON` entry for the frontend gateway, both with
-   `app_id: evaluation`; restart the Control Plane and the frontend;
-2. a platform admin opens **Admin > Features**, filters **app**, and enables `evaluation`
-   for the teams that should see it. Until then, no team does.
+An organization Owner authorizes the application for their organization. Local
+space policy can restrict this offer further. Personal spaces are excluded, and
+application availability never substitutes for `run_evaluations` or
+`manage_evaluation_corpus` permissions. Swift retains its existing Helm
+registration and team-grant workflow.
 
 ## Upgrade and uninstall
 
@@ -133,7 +143,7 @@ OpenAI-compatible endpoint).
 ## Local development
 
 [fred-deployment-factory](https://github.com/fred-agent/fred-deployment-factory) installs
-this chart on a local k3d instance: `make k3d-app APP=fred-evaluator` the published release,
+this chart on a local k3d instance: `make k3d-app FRED=weaver APP=fred-evaluator` the published release,
 `DIR=../fred-agent-evaluator` added to build the images from a checkout (its
-`deploy/k3d/build`). Its `k3d-apps/fred-evaluator/values.yaml` is an example of a real
+`deploy/k3d/build`). Its `k3d-apps/fred-evaluator/values-weaver.yaml` is an example of a real
 instance's values.

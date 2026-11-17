@@ -18,5 +18,4 @@ export type RunCreated = Schemas["RunCreatedResponse"];
 export type RunAnalysis = Schemas["RunAnalysisResponse"];
 export type RunReport = Schemas["RunReportResponse"];
 export type AgentInstance = Schemas["TeamAgentInstance"];
-export type ModelProfile = Schemas["TeamModelProfile"];
 export type MetricChoice = Schemas["MetricChoice"];

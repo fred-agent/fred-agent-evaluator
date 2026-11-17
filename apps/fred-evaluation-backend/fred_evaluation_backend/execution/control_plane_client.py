@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Literal
 from urllib.parse import quote, urljoin, urlsplit
 
 import httpx
@@ -42,6 +43,16 @@ class ManagedInstanceExecutionPreparation(BaseModel):
     runtime_id: str
     space_id: str
     evaluate_url: str
+
+
+SpacePermission = Literal["run_evaluations", "manage_evaluation_corpus"]
+
+
+class SpaceApplication(BaseModel):
+    logical_name: str
+
+
+_SPACE_APPLICATIONS = TypeAdapter(list[SpaceApplication])
 
 
 class SpaceAuthorization(BaseModel):
@@ -234,7 +245,11 @@ class ControlPlaneClient:
                 ) from exc
 
     async def authorize_space(
-        self, *, space_id: str, auth: OutboundAuth
+        self,
+        *,
+        space_id: str,
+        auth: OutboundAuth,
+        permission: SpacePermission = "run_evaluations",
     ) -> SpaceAuthorization:
         headers, http_auth = self._build_request(auth)
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -243,7 +258,7 @@ class ControlPlaneClient:
                 f"{self._base_url}/authorize/space",
                 headers=headers,
                 http_auth=http_auth,
-                json={"space_id": space_id, "permission": "run_evaluations"},
+                json={"space_id": space_id, "permission": permission},
             )
             _ = response.raise_for_status()
             try:
@@ -286,15 +301,14 @@ class ControlPlaneClient:
         team_id: str,
         auth: OutboundAuth,
     ) -> frozenset[str]:
-        """The Fred applications `team_id` may use, as the caller sees them.
+        """Logical names of applications effectively offered to this Weaver space.
 
-        One call answers both halves of the hosted-app entitlement: the Control
-        Plane refuses a non-member (403) and lists only applications granted to
-        the team.
+        The registry UUID identifies the application resource; its logical name
+        identifies the hosted service. Business permissions are checked separately.
         """
         # Encoded: the id comes from a request path, and must name one team
         # segment, never reshape the Control Plane URL.
-        url = f"{self._base_url}/teams/{quote(team_id, safe='')}/applications"
+        url = f"{self._base_url}/spaces/{quote(team_id, safe='')}/applications"
         headers, http_auth = self._build_request(auth)
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await self._get(
@@ -302,7 +316,8 @@ class ControlPlaneClient:
             )
             response.raise_for_status()
             try:
-                return frozenset(str(item["id"]) for item in response.json()["items"])
+                applications = _SPACE_APPLICATIONS.validate_python(response.json())
+                return frozenset(item.logical_name for item in applications)
             except (KeyError, TypeError, ValueError, AttributeError) as exc:
                 raise ControlPlaneInvalidResponseError(
                     f"Malformed list_team_applications response: {type(exc).__name__}"

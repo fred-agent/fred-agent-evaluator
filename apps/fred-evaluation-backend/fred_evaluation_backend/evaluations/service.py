@@ -44,6 +44,7 @@ async def create_evaluation(
 ) -> EvaluationDetailResponse:
     await resolve_team_membership(
         team_id=request.team_id,
+        permission="manage_evaluation_corpus",
         control_plane_client=control_plane_client,
         auth=auth,
     )
@@ -203,6 +204,7 @@ async def delete_evaluation(
     # caller does not get to name the team they are deleting from.
     await resolve_team_membership(
         team_id=row.team_id,
+        permission="manage_evaluation_corpus",
         control_plane_client=control_plane_client,
         auth=auth,
     )

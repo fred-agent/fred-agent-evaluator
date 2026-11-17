@@ -85,8 +85,10 @@ class _RecordingControlPlaneClient:
     def __init__(self) -> None:
         self.received_auths: list[object] = []
 
-    async def authorize_space(self, *, space_id: str, auth: object):
-        _ = space_id, auth
+    async def authorize_space(
+        self, *, space_id: str, auth: object, permission: str = "run_evaluations"
+    ):
+        _ = space_id, auth, permission
         return SimpleNamespace(allowed=True)
 
     async def prepare_managed_instance_execution(

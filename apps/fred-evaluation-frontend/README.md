@@ -20,24 +20,26 @@ URL, so links and reloads land on the same screen.
 | (root)                      | evaluations with debounced search, sorting, server pagination and confirmed deletion    |
 | `evaluations/new`           | JSON import or manual cases, with validation and creation feedback                      |
 | `evaluations/<id>`          | evaluation KPIs, sorted/paginated runs, rerun, delete and case previews                 |
-| `evaluations/<id>/runs/new` | agent, built-in and custom G-Eval metrics, optional model and recap                     |
+| `evaluations/<id>/runs/new` | agent, built-in and custom G-Eval metrics and recap                                     |
 | `runs/<id>`                 | live progress, outcome cards, metric averages, analysis, metadata and actions           |
 | `runs/<id>/cases/<case-id>` | full case drawer, metric explanations, errors, structural checks and JSON copy/download |
 
-Known limits: model profiles show their id, since their display name is an
-i18n key of Fred's own frontend; the analysis waits up to 3 minutes, but a
-shorter timeout on Fred's gateway would still cut it.
+Weaver evaluates managed Python instances only. The agent's configured model is
+used for new runs and reruns; per-run model choice and `runtime_agent` targets
+remain deferred. Analysis waits up to 3 minutes, subject to the proxy timeout.
 
 ## How it talks to Fred and to the backend
 
 - **Context**: the team, locale, theme and route come from the host
-  (`fred:context`); the UI never reads them from its own URL.
+  (`fred:context`); `team.id` is the Weaver organization/team/project space UUID.
+  The UI never reads it from its own URL. Personal spaces have no applications.
 - **API**: `client.request("evaluations")` — a path relative to the team. The
   host adds `/app-services/evaluation/teams/<team id>/` and the user's token;
   this code never sees a token or an upstream address.
 - **Backend surface**: the `/teams/{team_id}/...` routes of
   `fred-evaluation-backend` (`hosted/`), which check that the team is granted
-  the application and that every run or evaluation belongs to it. See
+  the application, holds `run_evaluations` (or `manage_evaluation_corpus` for
+  corpus mutations), and that every run or evaluation belongs to it. See
   `docs/DEVELOPER_CONTRACT.md` § "Surface de l'application Fred".
 - **Types**: `src/shared/api/openapi.d.ts` is generated from the backend's
   `openapi.json` (`make generate-api`); `make code-quality` fails when it lags.
@@ -49,7 +51,7 @@ shorter timeout on Fred's gateway would still cut it.
 ## Deploy on Kubernetes
 
 The `fred-evaluator` chart deploys this UI with the API and the worker, and
-`helm install` prints the exact Fred registration: see
+the deployment guide describes registry registration: see
 `docs/DEPLOYMENT_GUIDE.md` (deploy, register, enable — the same for every Fred
 application). The image is `make docker-build`; its `config.json` is mounted
 at run time.
@@ -68,39 +70,22 @@ make run   # :5181 — creates public/config.json from config.example.json once
 uses (`http://localhost:5173` locally). Messages from any other origin are
 ignored.
 
-Register the application on the Fred side (configuration, no code):
+Register it through Fred's application administration (Control Plane SQL):
 
-1. Fred frontend gateway — `apps/frontend/.env` in the Fred checkout, one more
-   entry in the list:
+- Logical name `evaluation`, entry permission `run_evaluations`.
+- UI base URL `http://127.0.0.1:5181/apps/evaluation/` and API base URL
+  `http://127.0.0.1:8336/` for local development. Use addresses reachable from
+  the Control Plane process; Kubernetes installation uses service DNS instead.
+- Enable the application and its `application:<registry UUID>` offer through
+  the existing organization/local capability governance.
 
-   ```dotenv
-   FRONTEND_ENABLE_APPLICATIONS=true
-   FRONTEND_APPLICATIONS_JSON='[..., {"app_id":"evaluation","ui_upstream":"http://127.0.0.1:5181","service_upstream":"http://127.0.0.1:8336","service_required":true}]'
-   ```
+The host and proxy resolve the current registration dynamically; no
+`FRONTEND_APPLICATIONS_JSON` or `platform.application_sources` registration
+is needed. Analyst/Owner business rights remain required independently of the
+application offer. The API checks the same scope using the caller token.
 
-2. Control Plane — `platform.application_sources` in its configuration
-   (`frontend.feature_flags.enableApplications: true` must be set):
-
-   ```yaml
-   - app_id: evaluation
-     ui_prefix: /apps/evaluation
-     version: 0.1.0
-     icon: fact_check
-     display_name:
-       en: "Evaluation"
-       fr: "Évaluation"
-     description:
-       en: "Evaluate agents against versioned test sets."
-       fr: "Évaluer les agents sur des jeux de tests versionnés."
-     enabled: true
-   ```
-
-3. Enable it: Admin > Features, filter "app", enable `evaluation` for a
-   collaborative team (this writes the `app:evaluation` grant). Personal
-   spaces get no applications.
-
-Restart the Fred frontend and the Control Plane to reload both halves. The
-`app_id` must match exactly in both places; nothing cross-checks them.
+The [developer contract](../../docs/DEVELOPER_CONTRACT.md#surface-de-lapplication-fred-evaluation)
+records local k3d browser/worker acceptance and its verification limits.
 
 ## Commands
 
@@ -124,26 +109,5 @@ npm ci --no-audit --no-fund
 
 The lockfile is maintained with npm 11.
 
-## Validate unpublished UI alpha.3 locally
-
-Build the actual package in the Fred producer checkout, then install the archive
-in this frontend without changing its manifest or lockfile:
-
-```bash
-make -C /path/to/fred/libs/frontend pack-ui
-npm ci --no-audit --no-fund
-npx --yes npm@11 install --no-save --package-lock=false --no-audit --no-fund \
-  /path/to/fred/libs/frontend/target/archives/fred-oss-ui-0.1.0-alpha.3.tgz
-npm run typecheck
-npm test
-npm run build
-```
-
-Run `make run` to inspect it in Fred. After replacing a tarball with the same
-version, restart Vite with `npm run dev -- --port 5181 --strictPort --force`
-to refresh its prebundled dependency cache. Reinstall the tarball after `npm ci`,
-which restores the published alpha.2 tree. No local link or tarball reference
-belongs in a committed manifest or lockfile. The boundary check validates the
-committed registry coordinates, not the locally installed tarball. Final release
-acceptance requires exact published alpha.3 in the manifest, lockfile and boundary
-checker; this stays pending until publication.
+The committed UI libraries are published `0.1.0-alpha.4` packages; no local
+link or tarball reference belongs in the manifest or lockfile.

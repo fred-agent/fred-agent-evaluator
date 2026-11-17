@@ -21,7 +21,10 @@ import pytest
 from fred_core import M2MAuthConfig, M2MTokenProvider
 from fred_pod.security.backend_to_backend_auth import TokenLease
 
-from fred_evaluation_backend.execution.control_plane_client import ControlPlaneClient
+from fred_evaluation_backend.execution.control_plane_client import (
+    ControlPlaneClient,
+    SpacePermission,
+)
 from fred_evaluation_backend.execution.outbound_auth import (
     NoAuthentication,
     ServiceAuthentication,
@@ -312,8 +315,13 @@ async def test_space_authorization_rejects_malformed_decisions(
 @pytest.mark.parametrize(
     "status,allowed,expected", [(200, False, 403), (404, False, 404), (200, True, None)]
 )
+@pytest.mark.parametrize("permission", ["run_evaluations", "manage_evaluation_corpus"])
 async def test_space_permission_decision(
-    monkeypatch: pytest.MonkeyPatch, status: int, allowed: bool, expected: int | None
+    monkeypatch: pytest.MonkeyPatch,
+    status: int,
+    allowed: bool,
+    expected: int | None,
+    permission: SpacePermission,
 ) -> None:
     import json
 
@@ -326,7 +334,7 @@ async def test_space_permission_decision(
         assert request.url.path == "/authorize/space"
         assert json.loads(request.content) == {
             "space_id": "space-1",
-            "permission": "run_evaluations",
+            "permission": permission,
         }
         assert request.headers["authorization"] == "Bearer caller-token"
         return httpx.Response(status, json={"allowed": allowed})
@@ -336,11 +344,17 @@ async def test_space_permission_decision(
     auth = UserAuthentication(authorization_header="Bearer caller-token")
     if expected is None:
         await resolve_team_membership(
-            team_id="space-1", control_plane_client=client, auth=auth
+            team_id="space-1",
+            control_plane_client=client,
+            auth=auth,
+            permission=permission,
         )
     else:
         with pytest.raises(HTTPException) as exc:
             await resolve_team_membership(
-                team_id="space-1", control_plane_client=client, auth=auth
+                team_id="space-1",
+                control_plane_client=client,
+                auth=auth,
+                permission=permission,
             )
         assert exc.value.status_code == expected

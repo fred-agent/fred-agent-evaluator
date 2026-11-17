@@ -20,7 +20,6 @@ import type {
   AgentInstance,
   EvaluationDetail,
   MetricChoice,
-  ModelProfile,
   RunSpec,
 } from "../../shared/api/schemas";
 import { LoadFailure } from "./LoadFailure";
@@ -32,7 +31,6 @@ import styles from "./RunCreatePage.module.css";
 interface Choices {
   evaluation: EvaluationDetail;
   agents: AgentInstance[];
-  models: ModelProfile[];
   metrics: MetricChoice[];
 }
 
@@ -81,7 +79,6 @@ function RunForm({
           : [],
       ),
   );
-  const [model, setModel] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [customRows, setCustomRows] = useState<CustomRow[]>([]);
   const completeRows = customRows.filter(
@@ -125,7 +122,7 @@ function RunForm({
         target: { kind: "managed_instance", agent_instance_id: agentId },
         metrics: [...metrics].sort(),
         custom_metrics: customMetrics,
-        agent_model_override: model || null,
+        agent_model_override: null,
       });
       toast.showSuccess({ summary: t("ui.started") });
       go(`runs/${created.run_id}`);
@@ -165,20 +162,6 @@ function RunForm({
                 label: agent.display_name,
                 description: agent.role ?? undefined,
               }))}
-            />
-            <Select
-              label={t("runCreate.model")}
-              size="small"
-              value={model}
-              onChange={setModel}
-              options={[
-                { key: "", value: "", label: t("runCreate.teamDefault") },
-                ...choices.models.map((profile) => ({
-                  key: profile.profile_id,
-                  value: profile.profile_id,
-                  label: profile.profile_id,
-                })),
-              ]}
             />
           </div>
         </section>
@@ -332,7 +315,7 @@ function RunForm({
           </div>
           <div>
             <dt>{t("runCreate.model")}</dt>
-            <dd>{model || t("runCreate.teamDefault")}</dd>
+            <dd>{t("runCreate.teamDefault")}</dd>
           </div>
           <div>
             <dt>{t("runCreate.metrics")}</dt>
@@ -385,13 +368,12 @@ export function RunCreatePage({ evaluationId }: { evaluationId: string }) {
   const go = useAppNavigate();
   const api = useEvaluationApi();
   const load = useCallback(async (): Promise<Choices> => {
-    const [evaluation, agents, models, metrics] = await Promise.all([
+    const [evaluation, agents, metrics] = await Promise.all([
       api.getEvaluation(evaluationId),
       api.listAgentInstances(),
-      api.listModelProfiles(),
       api.listMetrics(),
     ]);
-    return { evaluation, agents, models, metrics };
+    return { evaluation, agents, metrics };
   }, [api, evaluationId]);
   const { state, retry } = useLoad(load);
 

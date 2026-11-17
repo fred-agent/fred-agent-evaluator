@@ -9,7 +9,6 @@ import type {
   EvaluationRunList,
   EvaluationRunSummary,
   MetricChoice,
-  ModelProfile,
   RunAnalysis,
   RunCaseList,
   RunCase,
@@ -125,8 +124,6 @@ export function createEvaluationApi(service: ApplicationService) {
       required(service.request<RunReport>(`runs/${id(runId)}/report`)),
     listAgentInstances: () =>
       required(service.request<AgentInstance[]>("agent-instances")),
-    listModelProfiles: () =>
-      required(service.request<ModelProfile[]>("model-profiles")),
     listMetrics: () => required(service.request<MetricChoice[]>("metrics")),
   };
 }

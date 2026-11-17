@@ -140,7 +140,7 @@ const en = {
     metrics: "Metrics",
     needsExpectedOutput: "needs an expected output on every case",
     model: "Model",
-    teamDefault: "Team default",
+    teamDefault: "Agent configuration",
     starting: "Starting…",
   },
   cases: {
@@ -357,7 +357,7 @@ const fr: typeof en = {
     metrics: "Métriques",
     needsExpectedOutput: "exige une réponse attendue sur chaque cas",
     model: "Modèle",
-    teamDefault: "Modèle de l'équipe",
+    teamDefault: "Modèle configuré pour l'agent",
     starting: "Lancement…",
   },
   cases: {

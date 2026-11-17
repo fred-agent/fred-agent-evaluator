@@ -92,7 +92,7 @@ describe("list and run workflows", () => {
     ).toBeInTheDocument();
   });
 
-  it("reruns the original target, metrics, custom metrics and model", async () => {
+  it("reruns the original target and metrics with the current agent model", async () => {
     const source = run({
       operational_state: "completed",
       metrics: ["faithfulness"],
@@ -126,7 +126,7 @@ describe("list and run workflows", () => {
       target: source.target,
       metrics: source.metrics,
       custom_metrics: source.custom_metrics,
-      agent_model_override: source.agent_model_override,
+      agent_model_override: null,
     });
   });
 

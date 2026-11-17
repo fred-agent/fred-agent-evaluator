@@ -1,49 +1,26 @@
 {{- $ns := .Release.Namespace -}}
-{{- $ui := printf "http://%s-ui.%s.svc.cluster.local:%v" .Release.Name $ns .Values.ui.port -}}
-{{- $api := printf "http://%s-api.%s.svc.cluster.local:%v" .Release.Name $ns .Values.api.port -}}
-The `evaluation` application is deployed in namespace {{ $ns }}.
+{{- $ui := printf "http://%s-ui.%s.svc.cluster.local:%v/apps/evaluation/" .Release.Name $ns .Values.ui.port -}}
+{{- $api := printf "http://%s-api.%s.svc.cluster.local:%v/" .Release.Name $ns .Values.api.port -}}
+The evaluation application is deployed in namespace {{ $ns }}.
 
-Fred knows an application only through its own configuration, the same way for
-every application: register it there (Helm values of the Fred chart), then
-enable it. `app_id` is written twice and must be `evaluation` in both.
+On Weaver, a platform administrator opens Admin > Applications and registers:
+  Logical name: evaluation
+  Entry permission (entry_permission): run_evaluations
+  Display name: Evaluation / Évaluation
+  Version: {{ trimPrefix "v" .Chart.AppVersion }}
+  Icon: fact_check
+  UI upstream: {{ $ui }}
+  API upstream: {{ $api }}
 
-1. Control Plane — the catalog entry the browser and the admin see:
+Create the registration disabled, then enable it after checking the upstreams.
+An organization Owner authorizes evaluation for their organization; local space
+policy may restrict it further. Only collective spaces support applications.
+Application availability does not grant evaluation business permissions.
 
-    applications:
-      control-plane-backend:
-        configuration:
-          platform:
-            frontend:
-              feature_flags:
-                enableApplications: true
-            application_sources:
-              - app_id: evaluation
-                ui_prefix: /apps/evaluation
-                version: {{ trimPrefix "v" .Chart.AppVersion }}
-                icon: fact_check
-                display_name:
-                  en: "Evaluation"
-                  fr: "Évaluation"
-                description:
-                  en: "Evaluate agents against versioned test sets."
-                  fr: "Évaluer les agents sur des jeux de tests versionnés."
-                enabled: true
-
-2. Fred frontend gateway — where it proxies /apps/evaluation/ and
-   /app-services/evaluation/ (fully qualified names are required):
-
-    applications:
-      frontend:
-        env:
-          - name: FRONTEND_APPLICATIONS_JSON
-            value: |
-              [{"app_id": "evaluation", "ui_upstream": "{{ $ui }}", "service_upstream": "{{ $api }}", "service_required": true}]
-
-   Add this entry to the list if other applications are registered.
-
-3. Enable it: a platform admin (or feature manager) opens Admin > Features,
-   filter "app", and enables `evaluation` for the collaborative teams that
-   should have it (or turns it on by default). That writes the `app:evaluation`
-   grant; until then no team sees the application. Personal spaces never do.
+Control Plane stores the registration in SQL. Do not add application_sources,
+FRONTEND_APPLICATIONS_JSON or enableApplications to Weaver's Helm values.
+The existing Fred gateway forwards /apps/* and /app-services/* to Control Plane.
+No Fred restart is required when changing a registration.
 
 The UI accepts messages only from {{ .Values.ui.hostOrigin }}.
+Swift retains its existing Helm registration and team-grant workflow.

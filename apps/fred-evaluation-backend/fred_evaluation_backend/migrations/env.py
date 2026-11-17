@@ -19,6 +19,7 @@ run_migrations_offline, run_migrations_online = make_alembic_env(
     target_metadata=[Base.metadata],
     get_postgres_config=lambda: load_configuration().storage.postgres,
     version_table="alembic_version_evaluation",
+    create_schema=True,
 )
 
 if context.is_offline_mode():

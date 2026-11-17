@@ -37,6 +37,25 @@ L'UI de l'evaluator, livrée comme application Fred (voir son README) : React,
 L'ancienne UI, dans le frontend Fred, utilise encore `/evaluation/v1` ; elle
 sera retirée une fois celle-ci complète.
 
+The host resolves application `evaluation` from the Control Plane SQL registry
+and effective organization/local offers. The browser retains the published
+iframe protocol: `team.id` carries the organization/team/project space UUID and
+requests use `/app-services/evaluation/teams/{spaceUUID}/...`. Weaver's dynamic
+proxy removes only `/app-services/evaluation`, preserves the caller token and
+forwards `/teams/{spaceUUID}/...` to the registered API base URL. Personal
+spaces are excluded. Entry permission is `run_evaluations` for this app.
+
+The hosted API independently checks the fresh application listing at
+`GET /spaces/{spaceUUID}/applications` (array, matched by `logical_name`) and
+its business permission through `POST /authorize/space`. Reads/run actions
+require `run_evaluations`; corpus creation/deletion require
+`manage_evaluation_corpus`, also in the shared `/evaluation/v1` services.
+Every named evaluation/run must belong to the path space. Application offers
+do not grant Member/Editor access. No caller token or authorization decision
+is persisted. Local tests cover denial, revocation and cross-space isolation;
+the [developer contract](DEVELOPER_CONTRACT.md#surface-de-lapplication-fred-evaluation)
+records the scope and limits of local k3d browser/worker acceptance.
+
 ### `apps/fred-evaluation-backend`
 
 Deux processus distincts dans le même package Python :

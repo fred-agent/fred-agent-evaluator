@@ -105,14 +105,18 @@ class _InMemoryRunStore:
 
 
 class _MemberControlPlaneClient:
-    async def authorize_space(self, *, space_id: str, auth: object):
-        _ = space_id, auth
+    async def authorize_space(
+        self, *, space_id: str, auth: object, permission: str = "run_evaluations"
+    ):
+        _ = space_id, auth, permission
         return SimpleNamespace(allowed=True)
 
 
 class _NonMemberControlPlaneClient:
-    async def authorize_space(self, *, space_id: str, auth: object):
-        _ = space_id, auth
+    async def authorize_space(
+        self, *, space_id: str, auth: object, permission: str = "run_evaluations"
+    ):
+        _ = space_id, auth, permission
         return SimpleNamespace(allowed=False)
 
 

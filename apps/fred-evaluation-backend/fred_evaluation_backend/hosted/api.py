@@ -5,9 +5,11 @@ that prefix stripped, so these routes live under `/teams/{team_id}/...` with no
 `/evaluation/v1` base: they are mounted beside the existing router, not under it,
 and the existing surface is untouched.
 
-Two gates apply on every route, and neither implies the other:
+Three gates apply on every route, and none implies another:
 - `require_entitled` — the Control Plane says `team_id` may use this application
-  (which also proves the caller is a member of it);
+  in this Weaver space;
+- business permission — run_evaluations, or manage_evaluation_corpus for corpus
+  creation/deletion; a Member/Editor cannot gain access through an app offer;
 - ownership — the evaluation or run named in the path belongs to `team_id`.
   Without it, being entitled in one team would open every other team's runs by
   id; a resource of another team answers 404, exactly like a missing one.
@@ -57,6 +59,7 @@ from fred_evaluation_backend.hosted.entitlement import (
     CONTROL_PLANE_FAILURES,
     get_control_plane_client,
     require_entitled,
+    require_evaluation_access,
 )
 from fred_evaluation_backend.runs import service as run_service
 from fred_evaluation_backend.runs.api import launch_run, write_run_analysis
@@ -88,6 +91,9 @@ def _get_run_store(request: Request) -> RunStore:
     return RunStore(engine)
 
 
+# Shared create/list/delete/start services enforce their own business permission.
+# Other hosted routes use this dependency before calling read/action services.
+EvaluationAccess = Annotated[OutboundAuth, Depends(require_evaluation_access)]
 Entitled = Annotated[OutboundAuth, Depends(require_entitled)]
 CurrentUser = Annotated[KeycloakUser, Depends(authenticate_request)]
 Evaluations = Annotated[EvaluationStore, Depends(_get_evaluation_store)]
@@ -197,7 +203,7 @@ def build_hosted_router() -> APIRouter:
         responses=_GATED,
     )
     async def get_evaluation(
-        team_id: str, evaluation_id: str, auth: Entitled, store: Evaluations
+        team_id: str, evaluation_id: str, auth: EvaluationAccess, store: Evaluations
     ) -> EvaluationDetailResponse:
         await _require_team_evaluation(evaluation_id, team_id, store)
         return await evaluation_service.get_evaluation(evaluation_id, store=store)
@@ -264,7 +270,7 @@ def build_hosted_router() -> APIRouter:
     async def list_runs(
         team_id: str,
         evaluation_id: str,
-        auth: Entitled,
+        auth: EvaluationAccess,
         store: Runs,
         evaluation_store: Evaluations,
         offset: int = Query(default=0, ge=0),
@@ -287,7 +293,7 @@ def build_hosted_router() -> APIRouter:
     async def get_runs_summary(
         team_id: str,
         evaluation_id: str,
-        auth: Entitled,
+        auth: EvaluationAccess,
         store: Runs,
         evaluation_store: Evaluations,
     ) -> EvaluationRunSummaryResponse:
@@ -296,7 +302,7 @@ def build_hosted_router() -> APIRouter:
 
     @router.get("/runs/{run_id}", response_model=EvaluationRun, responses=_GATED)
     async def get_run(
-        team_id: str, run_id: str, auth: Entitled, store: Runs
+        team_id: str, run_id: str, auth: EvaluationAccess, store: Runs
     ) -> EvaluationRun:
         await _require_team_run(run_id, team_id, store)
         return await run_service.get_run(run_id, store=store)
@@ -308,7 +314,7 @@ def build_hosted_router() -> APIRouter:
         responses=_GATED,
     )
     async def delete_run(
-        team_id: str, run_id: str, auth: Entitled, store: Runs
+        team_id: str, run_id: str, auth: EvaluationAccess, store: Runs
     ) -> Response:
         await _require_team_run(run_id, team_id, store)
         await run_service.delete_run(run_id, store=store)
@@ -322,7 +328,7 @@ def build_hosted_router() -> APIRouter:
     async def list_run_cases(
         team_id: str,
         run_id: str,
-        auth: Entitled,
+        auth: EvaluationAccess,
         store: Runs,
         offset: int = Query(default=0, ge=0),
         limit: int = Query(default=50, ge=1, le=200),
@@ -338,7 +344,7 @@ def build_hosted_router() -> APIRouter:
         responses=_GATED,
     )
     async def get_run_case(
-        team_id: str, run_id: str, case_id: str, auth: Entitled, store: Runs
+        team_id: str, run_id: str, case_id: str, auth: EvaluationAccess, store: Runs
     ) -> EvaluationCaseResponse:
         await _require_team_run(run_id, team_id, store)
         return await run_service.get_run_case(run_id, case_id, store=store)
@@ -349,7 +355,7 @@ def build_hosted_router() -> APIRouter:
     async def get_run_report(
         team_id: str,
         run_id: str,
-        auth: Entitled,
+        auth: EvaluationAccess,
         store: Runs,
         evaluation_store: Evaluations,
         cp_client: ControlPlane,
@@ -365,7 +371,7 @@ def build_hosted_router() -> APIRouter:
 
     @router.post("/runs/{run_id}/cancel", status_code=202, responses=_GATED)
     async def cancel_run(
-        team_id: str, run_id: str, auth: Entitled, store: Runs
+        team_id: str, run_id: str, auth: EvaluationAccess, store: Runs
     ) -> dict[str, str]:
         await _require_team_run(run_id, team_id, store)
         await run_service.cancel_run(run_id, store=store)
@@ -377,7 +383,7 @@ def build_hosted_router() -> APIRouter:
         responses={**_GATED, 409: {"description": "Run not completed yet"}},
     )
     async def analyze(
-        team_id: str, run_id: str, request: Request, auth: Entitled, store: Runs
+        team_id: str, run_id: str, request: Request, auth: EvaluationAccess, store: Runs
     ) -> RunAnalysisResponse:
         await _require_team_run(run_id, team_id, store)
         return await write_run_analysis(request, run_id, store=store)
@@ -386,7 +392,7 @@ def build_hosted_router() -> APIRouter:
         "/agent-instances", response_model=list[TeamAgentInstance], responses=_GATED
     )
     async def list_agent_instances(
-        team_id: str, auth: Entitled, cp_client: ControlPlane
+        team_id: str, auth: EvaluationAccess, cp_client: ControlPlane
     ) -> list[TeamAgentInstance]:
         return await _from_control_plane(
             cp_client.list_team_agent_instances(team_id=team_id, auth=auth),
@@ -398,7 +404,7 @@ def build_hosted_router() -> APIRouter:
         "/model-profiles", response_model=list[TeamModelProfile], responses=_GATED
     )
     async def list_model_profiles(
-        team_id: str, auth: Entitled, cp_client: ControlPlane
+        team_id: str, auth: EvaluationAccess, cp_client: ControlPlane
     ) -> list[TeamModelProfile]:
         return await _from_control_plane(
             cp_client.list_team_model_profiles(team_id=team_id, auth=auth),
@@ -407,7 +413,7 @@ def build_hosted_router() -> APIRouter:
         )
 
     @router.get("/metrics", response_model=list[MetricChoice], responses=_GATED)
-    async def list_metrics(team_id: str, auth: Entitled) -> list[MetricChoice]:
+    async def list_metrics(team_id: str, auth: EvaluationAccess) -> list[MetricChoice]:
         return [
             MetricChoice(
                 metric_id=metric_id,

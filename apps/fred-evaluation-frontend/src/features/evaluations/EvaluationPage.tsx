@@ -70,7 +70,7 @@ export function EvaluationPage({ evaluationId }: { evaluationId: string }) {
         target: run.target,
         metrics: run.metrics,
         custom_metrics: run.custom_metrics,
-        agent_model_override: run.agent_model_override,
+        agent_model_override: null,
       });
       toast.showSuccess({ summary: t("ui.started") });
       go(`runs/${created.run_id}`);

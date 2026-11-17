@@ -79,8 +79,10 @@ class _FakeCase:
 class _FakeControlPlaneOK:
     m2m_token_provider = None
 
-    async def authorize_space(self, *, space_id: str, auth: object):
-        _ = space_id, auth
+    async def authorize_space(
+        self, *, space_id: str, auth: object, permission: str = "run_evaluations"
+    ):
+        _ = space_id, auth, permission
         return SimpleNamespace(allowed=True)
 
     async def prepare_managed_instance_execution(

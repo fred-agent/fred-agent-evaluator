@@ -69,6 +69,8 @@ class _FakeControlPlane:
     ) -> None:
         self.grants = grants if grants is not None else {"team-1": {"evaluation"}}
         self.failure = failure
+        self.permissions: set[str] = {"run_evaluations", "manage_evaluation_corpus"}
+        self.permission_calls: list[tuple[str, str, object]] = []
         self.entitlement_auth: list[object] = []
         self.choices_auth: list[object] = []
         self.choices_failure: Exception | None = None
@@ -79,9 +81,11 @@ class _FakeControlPlane:
             raise self.failure
         return frozenset(self.grants.get(team_id, set()))
 
-    async def authorize_space(self, *, space_id: str, auth: object):
-        _ = space_id, auth
-        return SimpleNamespace(allowed=True)
+    async def authorize_space(
+        self, *, space_id: str, auth: object, permission: str = "run_evaluations"
+    ):
+        self.permission_calls.append((space_id, permission, auth))
+        return SimpleNamespace(allowed=permission in self.permissions)
 
     async def list_team_agent_instances(self, *, team_id: str, auth):
         self.choices_auth.append(auth)
@@ -114,7 +118,7 @@ class _FakeControlPlane:
 
 
 def _status_error(status: int) -> httpx.HTTPStatusError:
-    request = httpx.Request("GET", "http://cp.test/teams/team-1/applications")
+    request = httpx.Request("GET", "http://cp.test/spaces/team-1/applications")
     return httpx.HTTPStatusError(
         "control plane",
         request=request,
@@ -251,6 +255,12 @@ async def test_an_entitled_team_works_its_evaluations_end_to_end():
     assert report.status_code == 200
     stored = await run_store.get_run(run_id)
     assert stored is not None and stored.team_id == "team-1"
+    # One fresh business decision per HTTP request, including shared services.
+    assert len(cp.permission_calls) == 9
+    assert cp.permission_calls[0][1] == "manage_evaluation_corpus"
+    assert all(
+        permission == "run_evaluations" for _, permission, _ in cp.permission_calls[1:]
+    )
     # The entitlement check propagates the caller's own token (RFC EVAL-AUTH).
     assert cp.entitlement_auth
     assert all(
@@ -539,10 +549,10 @@ async def test_control_plane_client_lists_the_teams_application_ids(monkeypatch)
         seen.append(request)
         return httpx.Response(
             200,
-            json={
-                "schema_version": "1",
-                "items": [{"id": "evaluation"}, {"id": "information-systems"}],
-            },
+            json=[
+                {"id": "registry-uuid-1", "logical_name": "evaluation"},
+                {"id": "registry-uuid-2", "logical_name": "information-systems"},
+            ],
         )
 
     transport = httpx.MockTransport(handler)
@@ -557,7 +567,7 @@ async def test_control_plane_client_lists_the_teams_application_ids(monkeypatch)
 
     assert ids == frozenset({"evaluation", "information-systems"})
     assert (
-        str(seen[0].url) == "http://cp.test/control-plane/v1/teams/team-1/applications"
+        str(seen[0].url) == "http://cp.test/control-plane/v1/spaces/team-1/applications"
     )
     assert seen[0].headers["authorization"] == BEARER
 
@@ -565,17 +575,31 @@ async def test_control_plane_client_lists_the_teams_application_ids(monkeypatch)
         team_id="a/../b?x#y", auth=NoAuthentication()
     )
     assert seen[1].url.raw_path == (
-        b"/control-plane/v1/teams/a%2F..%2Fb%3Fx%23y/applications"
+        b"/control-plane/v1/spaces/a%2F..%2Fb%3Fx%23y/applications"
     )
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"apps": []},
+        {"items": [{"id": "evaluation"}]},
+        [{"id": "evaluation"}],
+        [{"logical_name": 4}],
+        [None],
+    ],
+)
 @pytest.mark.asyncio
-async def test_control_plane_client_rejects_a_malformed_application_list(monkeypatch):
-    transport = httpx.MockTransport(lambda _: httpx.Response(200, json={"apps": []}))
+async def test_control_plane_client_rejects_a_malformed_application_list(
+    monkeypatch: pytest.MonkeyPatch, payload: object
+):
+    transport = httpx.MockTransport(lambda _: httpx.Response(200, json=payload))
     real_async_client = httpx.AsyncClient
-    monkeypatch.setattr(
-        httpx, "AsyncClient", lambda **kw: real_async_client(transport=transport, **kw)
-    )
+
+    def async_client(*, timeout: float) -> httpx.AsyncClient:
+        return real_async_client(transport=transport, timeout=timeout)
+
+    monkeypatch.setattr(httpx, "AsyncClient", async_client)
     client = ControlPlaneClient(base_url="http://cp.test/control-plane/v1")
     with pytest.raises(ControlPlaneInvalidResponseError):
         await client.list_team_application_ids(
@@ -641,4 +665,86 @@ async def test_analysis_is_generated_once_and_cached_even_when_model_is_unavaila
     assert cached.status_code == 200
     assert cached.json() == {"run_id": run_id, "analysis": result, "cached": True}
     analyze.assert_awaited_once()
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("role", ["member", "editor"])
+async def test_application_offer_does_not_grant_business_permissions(role: str):
+    engine, evaluation_store, run_store = await _stores()
+    evaluation_id, run_id = await _seed(evaluation_store, run_store, "team-1")
+    cp = _FakeControlPlane()
+    cp.permissions = set()  # Both Member and Editor lack evaluation permissions.
+    app = _app(engine, cp)
+    app.dependency_overrides[authenticate_request] = lambda: KeycloakUser(
+        uid="alice", username="alice", roles=[role], email="alice@test.example"
+    )
+    async with _client(app) as client:
+        for route in _hosted_routes():
+            path = route.path.format(
+                team_id="team-1",
+                evaluation_id=evaluation_id,
+                run_id=run_id,
+                case_id="any",
+            )
+            for method in sorted(route.methods or ()):
+                body = None
+                if method == "POST" and path.endswith("/runs"):
+                    body = _RUN_SPEC
+                elif method == "POST" and path.endswith("/evaluations"):
+                    body = {
+                        "name": "denied",
+                        "origin": "manual",
+                        "cases": [{"input": "q"}],
+                    }
+                response = await client.request(method, path, json=body)
+                assert response.status_code == 403, (method, path, response.text)
+                assert _code(response) == "target_forbidden"
+    assert await evaluation_store.count_evaluations_by_team("team-1") == 1
+    run = await run_store.get_run(run_id)
+    assert run is not None and run.operational_state == "pending"
+    assert all(
+        auth == UserAuthentication(authorization_header=BEARER)
+        for _, _, auth in cp.permission_calls
+    )
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_application_and_business_revocation_take_effect_on_next_request():
+    engine, evaluation_store, run_store = await _stores()
+    _, run_id = await _seed(evaluation_store, run_store, "team-1")
+    cp = _FakeControlPlane()
+    async with _client(_app(engine, cp)) as client:
+        path = f"/teams/team-1/runs/{run_id}"
+        assert (await client.get(path)).status_code == 200
+        cp.permissions.clear()
+        denied = await client.get(path)
+        assert denied.status_code == 403 and _code(denied) == "target_forbidden"
+        cp.permissions.add("run_evaluations")
+        assert (await client.get(path)).status_code == 200
+        cp.grants.clear()
+        denied = await client.get(path)
+        assert denied.status_code == 403 and _code(denied) == "application_not_granted"
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_corpus_mutation_requires_its_own_permission():
+    engine, evaluation_store, run_store = await _stores()
+    evaluation_id, _ = await _seed(evaluation_store, run_store, "team-1")
+    cp = _FakeControlPlane()
+    cp.permissions = {"run_evaluations"}
+    async with _client(_app(engine, cp)) as client:
+        assert (await client.get("/teams/team-1/evaluations")).status_code == 200
+        created = await client.post(
+            "/teams/team-1/evaluations",
+            json={"name": "denied", "origin": "manual", "cases": [{"input": "q"}]},
+        )
+        deleted = await client.delete(f"/teams/team-1/evaluations/{evaluation_id}")
+    assert created.status_code == deleted.status_code == 403
+    assert await evaluation_store.get_evaluation(evaluation_id) is not None
+    assert "manage_evaluation_corpus" in {
+        permission for _, permission, _ in cp.permission_calls
+    }
     await engine.dispose()

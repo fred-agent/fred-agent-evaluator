@@ -13,7 +13,9 @@
 
 `team_id` in the API and database stores a Weaver **space UUID**. The name is
 retained for this increment; no database migration or column rename is needed.
-Only managed Python agent instances can be evaluated. The Control Plane owns
+Hosted applications are offered to organization, team and project spaces only;
+personal spaces are excluded by the Control Plane. Only managed Python agent
+instances can be evaluated. The Control Plane owns
 space permissions and runtime routing; the runtime admits each delegated turn.
 
 ## Identity: API-user vs worker-service (RFC `EVAL-AUTH`)
@@ -120,6 +122,9 @@ puis demande au Control Plane `POST /authorize/space` avec
 `{"space_id": team_id, "permission": "run_evaluations"}` et le jeton de l'appelant.
 Le scope vient de la ressource, jamais d'une équipe arbitraire désignée par le
 client. `allowed: false` donne 403 `target_forbidden`, sans modification.
+Corpus creation and deletion instead require `manage_evaluation_corpus`, on both
+API surfaces, before any persistence or deletion. Analyst/Owner hold these
+business permissions; an application offer grants neither permission.
 Une réponse HTTP 404 du Control Plane donne 404 `target_not_found`.
 Dans le checkout Weaver examiné, `api.rs::probe` convertit aussi `NotFound` et
 `Forbidden` en `200 {"allowed": false}` ; l'évaluateur ne déduit pas l'existence
@@ -138,11 +143,19 @@ un écran de gestion des evaluations indépendant du démarrage d'un run.
 
 ## Surface de l'application Fred (`evaluation`)
 
-**Point ouvert Weaver :** `list_team_application_ids` et `hosted/entitlement.py`
-conservent leur contrat `/teams/{team_id}/applications`. L'hébergement et les
-droits applicatifs Weaver sont un autre chantier. Cette surface ne constitue
-pas une intégration Weaver validée ; utiliser `/evaluation/v1` pour le test décrit
-plus bas. Les routes `/teams` ci-dessous sont celles de l'évaluateur historique.
+The hosted surface is wired to Weaver's SQL application registry. Register
+logical name `evaluation` with entry permission `run_evaluations`, UI base URL
+including `/apps/evaluation/`, and the evaluator API base URL. Enable its
+`application:<registry UUID>` offer through the existing organization/local
+governance. No frontend environment registry or `platform.application_sources`
+YAML registration is used.
+
+Local k3d acceptance on 2026-11-17 covered Admin registration, organization
+authorization, Analyst access and Editor denial, then a two-case Python-agent
+run, scoring, analysis and deep-link reload. Both cases passed with answer
+relevancy 1.00. Report export returned successfully in the UI; the downloaded
+file was not recovered from the embedded test browser. The Docker procedure
+below covers the separate direct `/evaluation/v1` path.
 
 L'UI de l'evaluator est une application Fred : Fred l'affiche dans un iframe
 (`/apps/evaluation/`) et relaie ses appels via sa gateway, qui retire le
@@ -168,18 +181,23 @@ Règles :
 
 - **L'équipe vient du chemin, jamais du body** : les bodies sont
   `EvaluationDocument` et `RunSpec` (`extra: forbid`), sans `team_id`.
-- **Droit d'accès** (`hosted/entitlement.py`) : chaque route demande au
-  Control Plane `GET /teams/{team_id}/applications`, avec le jeton de
-  l'appelant, et n'admet la requête que si `evaluation` y figure. La gateway
-  n'autorise rien elle-même. Tout le reste est un refus : non-membre
-  (`target_forbidden`), app non accordée (`application_not_granted`), Control
-  Plane injoignable (`control_plane_unavailable`) ou incohérent
-  (`control_plane_invalid_response`).
+- **Application entitlement** (`hosted/entitlement.py`): every request reads
+  `GET /spaces/{spaceUUID}/applications` using the caller token. Weaver returns
+  an array of effective applications; the evaluator matches
+  `logical_name: "evaluation"`, never the registry UUID `id`. The Control Plane
+  list and proxy check the entry permission, enabled status and effective offer.
+  No match yields `application_not_granted`; unavailable or malformed upstream
+  responses fail closed. No entitlement decision is cached.
+- **Business permissions**: every hosted read, choice, analysis and run action
+  also checks `run_evaluations` via `POST /authorize/space`; corpus creation and
+  deletion check `manage_evaluation_corpus`. The API rechecks these permissions
+  independently of the proxy, so direct calls and app offers cannot admit a
+  Member/Editor. Revocation takes effect on the next request.
 - **Appartenance** : une evaluation ou un run d'une autre équipe répond 404,
   comme une ressource absente, et n'est jamais modifié.
-- **Pas d'alias `personal`** : le Control Plane le résout en `personal-<uid>`,
-  différent pour chaque appelant, alors que les lignes sont rangées sous la
-  valeur du chemin ; il est refusé (`application_not_granted`) avant tout appel.
+- **No personal space**: the historical `personal` alias is refused locally;
+  the Control Plane application listing rejects personal space UUIDs. The
+  historical `team_id` path/database name always identifies a Weaver space.
 - Ces règles sont vérifiées structurellement par `tests/test_hosted_app.py` :
   toute route ajoutée sans le contrôle d'accès, ou qui atteindrait la
   ressource d'une autre équipe, fait échouer la suite.
@@ -401,8 +419,10 @@ queue=evaluation)` puis `Temporal evaluation worker ready.`
 
 ### 3. Obtenir le jeton de la personne
 
-Le client public `app` autorise le password grant. Ne jamais créer un run avec
-un jeton de service.
+Use a person's token, never a service token, to create a run. The command below
+requires password grant to be enabled for the local `app` client. On k3d it is
+disabled: use the normal browser login and hosted application instead; do not
+change the identity provider configuration just to run this procedure.
 
 ```bash
 read -rsp 'Mot de passe : ' PW; printf '\n'
@@ -469,6 +489,5 @@ le motif d'un refus du pod est dans son log, événement `[SECURITY]`.
 | `IntegrityError` `…_conversation_fk` | le pod enregistre un tour sans conversation en base (Fred antérieur au correctif) |
 | `An explicit owning PostgreSQL schema is required` | `storage.postgres.schema` absent, ou fred-pod antérieur au correctif |
 
-Ne pas désactiver la sécurité pour faire réussir le test. La sélection de modèle
-et la surface applicative hébergée (iframe dans Fred) restent les points ouverts
-décrits plus haut.
+Ne pas désactiver la sécurité pour faire réussir le test. Le choix d'un modèle
+différent par run reste différé ; la surface hébergée est décrite plus haut.

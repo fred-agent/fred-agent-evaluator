@@ -50,8 +50,10 @@ class _ControlPlane:
     def __init__(self, member_of: frozenset[str] = frozenset({"team-1"})) -> None:
         self.member_of = member_of
 
-    async def authorize_space(self, *, space_id: str, auth: object):
-        _ = space_id, auth
+    async def authorize_space(
+        self, *, space_id: str, auth: object, permission: str = "run_evaluations"
+    ):
+        _ = space_id, auth, permission
         return SimpleNamespace(allowed=space_id in self.member_of)
 
     async def get_space(self, *, space_id: str, auth: object):
