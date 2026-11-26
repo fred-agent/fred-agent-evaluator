@@ -288,6 +288,50 @@ They are also echoed back on `EvaluationRun` (`GET /evaluations/{id}/runs`,
 so a caller — e.g. the frontend's rerun — can read back which metrics a given
 run was scored against instead of guessing a default.
 
+## Retained case evidence
+
+The worker commits the complete SDK `EvalTrace` on the existing case before
+judging, together with its answer, model and token usage. `execution_session_id`
+first holds the local execution claim; retaining the response atomically replaces
+that claim with the runtime-created session ID. The trace input must match the
+case, and the claim guards the write. No session ID is sent to Weaver. The
+internal claim is never exposed as a runtime session: API responses return
+`execution_session_id: null` until evidence has been retained.
+Scoring retries reuse that evidence; they never call the agent again. Worker setup failures preserve the
+retained answer and are reported as setup/scoring errors. Workers still use the
+frozen destination and delegated runtime admission; they never call user-only
+Control Plane preparation. An attempt
+whose response was lost or could not be retained is unusable: the case fails
+explicitly (`trace_missing`, `trace_oversized`, `trace_mismatch` or
+`trace_persistence_failed`). Start a new run to execute it again. Scoring failure
+preserves evidence and is reported separately from an agent execution failure.
+
+The fixed per-case ceiling is **8 MiB of serialized UTF-8 JSON**, with no
+truncation. This engineering budget accommodates several Wiki reads at the
+existing 100,000-character page ceiling, including their duplicated retrieval
+context and JSON overhead. Runtime output has no overall trace ceiling; this
+budget does not promise every possible turn will fit. Per-tool timing is absent
+from `EvalTrace`; unavailable timing stays unknown.
+
+Existing authorized case-detail and report routes include `trace`,
+`execution_session_id` and `token_usage`. Lists expose `trace_available` but omit
+the payload (`trace: null`), including in database reads; run analysis never
+receives it. Reports preflight **64 MiB total retained trace bytes** before
+loading payloads, recheck the cumulative size while loading one trace at a time,
+and return 413 above that budget, directing callers to retrieve
+individual case details. This is an evidence budget, not a process-memory bound:
+parsed models, answers and response serialization add overhead. Trace data follows
+the existing run/team authorization and case/run/evaluation deletion lifecycle.
+A competing worker that loses the pending-case claim leaves the winner untouched.
+A retry that finds an already running case without evidence cannot distinguish
+an active attempt from a lost response: it records an explicit unusable result,
+without another agent call. Failure writes cannot erase evidence committed in
+the meantime. This is not an exactly-once execution or live-owner protocol;
+create a new run when evidence cannot be recovered.
+
+Historical cases have no recoverable evidence (`trace_available: false`); a
+historical answer or verdict alone is not a usable evidence archive.
+
 ## Scoring profiles (structural checks only)
 
 `resolve_profile()` (`fred-deepeval-cli`) still runs automatically — but now

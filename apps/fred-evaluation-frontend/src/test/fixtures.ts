@@ -77,6 +77,7 @@ export const runCase: RunCase = {
   input: "What is Fred?",
   expected_output: null,
   actual_output: "A platform.",
+  trace_available: false,
   profile: "auto",
   actual_model_name: "mistral-small-2506",
   latency_ms: 1200,

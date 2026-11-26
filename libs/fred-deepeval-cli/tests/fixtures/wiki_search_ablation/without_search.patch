@@ -1,0 +1,31 @@
+--- a/libs/capabilities/fred-capability-team-wiki/fred_capability_team_wiki/wiki/capability.py
++++ b/libs/capabilities/fred-capability-team-wiki/fred_capability_team_wiki/wiki/capability.py
+@@ -449,10 +449,7 @@
+         parts.append(
+             "The team's own knowledge base. Prefer it over your own assumptions "
+             "for anything about how this team works, and cite the page you used. "
+-            "Search before you read: use wiki_search to find published ordinary "
+-            "pages by their content, optionally filtered by type or tag, then "
+-            "wiki_read_page on the returned path. Search excludes files and "
+-            "rules; wiki_list_pages browses all pages and files. "
++            "wiki_list_pages browses all pages and files. "
+             "Address a page by its path in the index below — its titles from "
+             'the top joined by " / ", as the indentation shows them — and '
+             "pass that to wiki_read_page. Entries marked (file) are files: "
+@@ -960,7 +957,7 @@
+             return _ok(f"{head}{body}{_segment_note('wiki_read_file', path, window)}")
+ 
+         if ctx.config.mode != "read_write":
+-            return [wiki_list_pages, wiki_search, wiki_read_page, wiki_read_file]
++            return [wiki_list_pages, wiki_read_page, wiki_read_file]
+ 
+         # --- the write half ------------------------------------------------
+         #
+@@ -1211,7 +1208,6 @@
+ 
+         return [
+             wiki_list_pages,
+-            wiki_search,
+             wiki_read_page,
+             wiki_read_file,
+             wiki_propose_page_text,

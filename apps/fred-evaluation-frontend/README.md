@@ -2,7 +2,7 @@
 
 The evaluator's own user interface, delivered as a **Fred application** (app id
 `evaluation`). Fred shows it in an iframe at `/team/<team id>/apps/evaluation`,
-serves it at `/apps/evaluation/`, and relays its API calls to the evaluation
+serves it at the registration-specific `/apps/<registration UUID>/`, and relays its API calls to the evaluation
 backend through `/app-services/evaluation/teams/<team id>/...`.
 
 It is a standalone React app. It talks to Fred only through the published
@@ -63,21 +63,26 @@ and Fred's frontend (:5173) — the VS Code task **All Services PROD** starts th
 API, the worker and this UI.
 
 ```bash
-make run   # :5181 — creates public/config.json from config.example.json once
+make public/config.json build
+npx --no-install vite preview --host 0.0.0.0 --port 5181 --strictPort
 ```
+
+Use the built preview for Fred integration so assets and `config.json` resolve
+relative to the registration directory. `make run` remains the standalone Vite
+development server.
 
 `public/config.json` holds `hostOrigin`: the exact Fred origin the browser
 uses (`http://localhost:5173` locally). Messages from any other origin are
 ignored.
 
-Register it through Fred's application administration (Control Plane SQL):
+As the organization Owner, register it in **Administration > Features > Apps**:
 
 - Logical name `evaluation`, entry permission `run_evaluations`.
-- UI base URL `http://127.0.0.1:5181/apps/evaluation/` and API base URL
+- UI base URL `http://127.0.0.1:5181/` and API base URL
   `http://127.0.0.1:8336/` for local development. Use addresses reachable from
   the Control Plane process; Kubernetes installation uses service DNS instead.
-- Enable the application and its `application:<registry UUID>` offer through
-  the existing organization/local capability governance.
+- Review the registration, then authorize it in the same panel. Local space
+  policy can restrict this organization authorization further.
 
 The host and proxy resolve the current registration dynamically; no
 `FRONTEND_APPLICATIONS_JSON` or `platform.application_sources` registration

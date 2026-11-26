@@ -18,7 +18,11 @@ from fred_evaluation_backend.execution.evaluator_errors import (
 from fred_evaluation_backend.execution.outbound_auth import OutboundAuth
 from fred_evaluation_backend.execution.runtime_resolver import resolve_managed_instance
 from fred_evaluation_backend.execution.team_resolver import resolve_team_membership
-from fred_evaluation_backend.runs.models import EvaluationRunRow
+from fred_evaluation_backend.runs.models import (
+    EvaluationRunRow,
+    EvaluationCaseRow,
+    EvaluationMetricResultRow,
+)
 from fred_evaluation_backend.runs.schemas import (
     CustomMetricSpecInput,
     EvaluationCaseListResponse,
@@ -216,7 +220,12 @@ async def get_run_summary(
     )
 
 
-def _case_to_response(row, metrics) -> EvaluationCaseResponse:
+def _case_to_response(
+    row: EvaluationCaseRow,
+    metrics: list[EvaluationMetricResultRow],
+    *,
+    include_trace: bool = False,
+) -> EvaluationCaseResponse:
     return EvaluationCaseResponse(
         case_id=row.case_id,
         run_id=row.run_id,
@@ -227,6 +236,10 @@ def _case_to_response(row, metrics) -> EvaluationCaseResponse:
         input=row.input,
         expected_output=row.expected_output,
         actual_output=row.actual_output,
+        trace_available=row.trace_available,
+        trace=json.loads(row.trace_json) if include_trace and row.trace_json else None,
+        execution_session_id=row.execution_session_id if row.trace_available else None,
+        token_usage=json.loads(row.token_usage_json) if row.token_usage_json else None,
         profile=row.profile,
         actual_model_name=row.actual_model_name,
         latency_ms=row.latency_ms,
@@ -282,11 +295,12 @@ async def get_run_case(
     *,
     store: RunStore,
 ) -> EvaluationCaseResponse:
-    rows = await store.list_cases_by_run(run_id, limit=10000)
-    row = next((c for c in rows if c.case_id == case_id), None)
-    if row is None:
+    row = await store.get_case(case_id)
+    if row is None or row.run_id != run_id:
         raise HTTPException(status_code=404, detail=f"Case '{case_id}' not found.")
-    return _case_to_response(row, await store.list_metrics_by_case(case_id))
+    return _case_to_response(
+        row, await store.list_metrics_by_case(case_id), include_trace=True
+    )
 
 
 # A run in one of these states never changes again. `completed` is what the
@@ -332,6 +346,8 @@ async def delete_run(
 # A run holds at most as many cases as its evaluation (capped at 200 on creation),
 # so a single unpaginated read is bounded; the ceiling is a guard, not a page size.
 _REPORT_CASE_LIMIT = 10_000
+# Payload bytes only: the JSON response and parsed models add overhead.
+_REPORT_TRACE_BYTES = 64 * 1024 * 1024
 
 
 async def build_run_report(
@@ -371,11 +387,31 @@ async def build_run_report(
                 "[REPORT] could not resolve team name for %s", evaluation_row.team_id
             )
 
+    if await store.retained_trace_bytes(run_id) > _REPORT_TRACE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="Report evidence exceeds 64 MiB; retrieve each case through its case-detail endpoint.",
+        )
     case_rows = await store.list_cases_by_run(run_id, limit=_REPORT_CASE_LIMIT)
-    cases = [
-        _case_to_response(row, await store.list_metrics_by_case(row.case_id))
-        for row in case_rows
-    ]
+    cases: list[EvaluationCaseResponse] = []
+    trace_bytes = 0
+    for summary in case_rows:
+        # Cases may finish after preflight. Load one payload at a time and check
+        # its size before decoding, rather than materializing every trace at once.
+        row = await store.get_case(summary.case_id)
+        if row is None or row.run_id != run_id:
+            raise HTTPException(status_code=404, detail="Report case no longer exists.")
+        trace_bytes += len(row.trace_json.encode("utf-8")) if row.trace_json else 0
+        if trace_bytes > _REPORT_TRACE_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail="Report evidence exceeds 64 MiB; retrieve each case through its case-detail endpoint.",
+            )
+        cases.append(
+            _case_to_response(
+                row, await store.list_metrics_by_case(row.case_id), include_trace=True
+            )
+        )
 
     # Stored wrapped as {"analysis": {...}} by the analyze endpoint, not as a bare
     # RunAnalysisResult — unwrap it here rather than trusting the column shape.

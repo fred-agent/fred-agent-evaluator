@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import ClassVar, Literal
 
+from fred_sdk.contracts.eval import EvalTrace  # pyright: ignore[reportMissingTypeStubs]
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from fred_evaluation_backend.runs.metrics_catalog import BUILTIN_METRIC_IDS
@@ -157,6 +158,10 @@ class EvaluationCaseResponse(BaseModel):
     input: str
     expected_output: str | None
     actual_output: str | None
+    trace_available: bool = False
+    trace: EvalTrace | None = None
+    execution_session_id: str | None = None
+    token_usage: dict[str, int] | None = None
     profile: str | None
     # Ground truth from the LLM provider's own response metadata — may differ
     # from the run's `agent_model_override` if a higher-precedence Control

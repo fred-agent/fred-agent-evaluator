@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, column_property, mapped_column
 
 # EvaluationRunRow.evaluation_id below is a string-based ForeignKey("evaluation.evaluation_id")
 # — SQLAlchemy resolves that lazily by looking up the "evaluation" table name on
@@ -41,7 +41,9 @@ class EvaluationCaseRow(Base):
     structural_checks_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     execution_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     scoring_errors_json: Mapped[str | None] = mapped_column(Text, nullable=True)
-    raw_trace_ref: Mapped[str | None] = mapped_column(String, nullable=True)
+    trace_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    trace_available: Mapped[bool] = column_property(trace_json.is_not(None))
+    execution_session_id: Mapped[str | None] = mapped_column(String, nullable=True)
     telemetry_trace_id: Mapped[str | None] = mapped_column(String, nullable=True)
     # Ground truth from the LLM provider's own response metadata
     # (`EvalTrace.model_name`), not the run's requested `agent_model_override` —

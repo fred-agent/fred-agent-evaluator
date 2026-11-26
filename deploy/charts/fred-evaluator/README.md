@@ -4,6 +4,12 @@ The `evaluation` application of [Fred](https://github.com/ThalesGroup/fred): eva
 agents against versioned test sets. It runs next to an existing Fred platform, in any
 namespace, and Weaver exposes it according to the SQL registration and organization policy.
 
+Each Weaver organization needs a dedicated evaluator release. Provision its own
+database, workload identity, credentials and Temporal queue, then configure this
+chart to use them. The defaults below describe one local instance; a second release
+name alone does not isolate its data or work. See the
+[deployment model](../../../docs/DEPLOYMENT_GUIDE.md) before installation.
+
 ## TL;DR
 
 ```bash
@@ -120,14 +126,13 @@ validates it at startup, and a pod that fails to start says which key is wrong.
 ## Register and enable in Fred
 
 On Weaver, `helm install` (or `helm get notes <release>`) prints the full UI and API
-upstreams. A platform administrator creates the `evaluation` registration disabled
-in **Admin > Applications**, with `entry_permission: run_evaluations`, checks it,
-then enables it. The UI upstream includes
+upstreams. The organization Owner creates the `evaluation` registration in
+**Administration > Features > Apps**, with `entry_permission: run_evaluations`,
+checks it, then authorizes its use in the same panel. The UI upstream includes
 `/apps/evaluation/`; the API upstream ends at `/`. Control Plane stores this in SQL;
 no per-application Helm values or Fred restart is needed.
 
-An organization Owner authorizes the application for their organization. Local
-space policy can restrict this offer further. Personal spaces are excluded, and
+Each registration belongs to its organization. Local space policy can restrict this offer further. Personal spaces are excluded, and
 application availability never substitutes for `run_evaluations` or
 `manage_evaluation_corpus` permissions. Swift retains its existing Helm
 registration and team-grant workflow.

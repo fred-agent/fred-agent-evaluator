@@ -24,8 +24,8 @@ void loadRuntimeConfig()
       error instanceof Error ? error.message : "Invalid runtime config.json";
     root.render(
       <main role="alert" className="evaluation-shell">
-        Configuration error: {message}. Mount a valid
-        /apps/evaluation/config.json.
+        Configuration error: {message}. Mount a valid config.json in the UI
+        directory.
       </main>,
     );
   });

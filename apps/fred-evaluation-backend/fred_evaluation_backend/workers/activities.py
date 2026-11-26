@@ -4,10 +4,12 @@ import asyncio
 import json
 import logging
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
+from uuid import uuid4
 
 from fred_core import M2MTokenProvider
 from fred_core.kpi import BaseKPIWriter, Dims, NoOpKPIWriter
+from fred_sdk.contracts.eval import EvalTrace  # pyright: ignore[reportMissingTypeStubs]
 from opentelemetry.trace import Status, StatusCode
 
 from fred_evaluation_backend.execution.agent_client import AgentClient
@@ -105,38 +107,67 @@ async def _execute_and_score_case_inner(
     from fred_deepeval_cli.core.structural_checks import build_structural_checks
 
     stats = track_case_calls(run_id, case_id)
-    await store.update_case_result(
-        case_id,
-        status="running",
-        outcome="unknown",
-        verdict="inconclusive",
-        actual_output=None,
-        latency_ms=None,
-        execution_error=None,
-        scoring_errors_json=None,
-        structural_checks_json=None,
-        actual_model_name=None,
-    )
-
-    logger.debug("[ACTIVITY] calling agent case=%s", case_id)
-    agent_started = time.perf_counter()
+    eval_trace: EvalTrace | None = None
+    agent_ms: float | None = None
+    agent_started: float | None = None
     try:
-        eval_trace = await agent_client.evaluate(
-            created_by=created_by,
-            run_id=run_id,
-            evaluate_url=evaluate_url,
-            team_id=team_id,
-            agent_instance_id=agent_instance_id,
-            input=input,
-            token_provider=token_provider,
-        )
+        session_id = str(uuid4())
+        case = await store.get_case(case_id)
+        if case is None or case.run_id != run_id:
+            raise ValueError("trace_missing: case absent from run")
+        if case.trace_json is not None:
+            eval_trace = EvalTrace.model_validate_json(case.trace_json)
+            if (
+                eval_trace.session_id != case.execution_session_id
+                or eval_trace.input != input
+            ):
+                raise ValueError("trace_mismatch: retained evidence differs from case")
+        else:
+            if case.status != "pending" or case.execution_session_id is not None:
+                raise ValueError(
+                    "trace_missing: previous execution has no retained evidence"
+                )
+            try:
+                await store.begin_case_execution(
+                    case_id, run_id=run_id, session_id=session_id
+                )
+            except ValueError:
+                # Another worker won the pending claim. Do not alter its attempt.
+                return
+            logger.debug("[ACTIVITY] calling agent case=%s", case_id)
+            agent_started = time.perf_counter()
+            candidate = cast(
+                object,
+                await agent_client.evaluate(
+                    evaluate_url=evaluate_url,
+                    team_id=team_id,
+                    agent_instance_id=agent_instance_id,
+                    input=input,
+                    token_provider=token_provider,
+                    created_by=created_by,
+                    run_id=run_id,
+                ),
+            )
+            agent_ms = _elapsed_ms(agent_started)
+            _record_agent_call(kpi, agent_ms, None)
+            agent_started = None
+            if not isinstance(candidate, EvalTrace):
+                raise ValueError("trace_missing: runtime returned no EvalTrace")
+            try:
+                await store.retain_case_trace(
+                    case_id, run_id=run_id, session_id=session_id, trace=candidate
+                )
+            except Exception as exc:
+                detail = str(exc) if isinstance(exc, ValueError) else type(exc).__name__
+                raise RuntimeError(f"trace_persistence_failed: {detail}") from exc
+            eval_trace = candidate
     except Exception as exc:
-        agent_ms = _elapsed_ms(agent_started)
         failure = classify(exc)
-        _record_agent_call(kpi, agent_ms, failure)
+        if agent_started is not None:
+            agent_ms = _elapsed_ms(agent_started)
+            _record_agent_call(kpi, agent_ms, failure)
         logger.error(
-            "event=agent_call_failed run=%s case=%s error_code=%s http_status=%s "
-            "exception_type=%s agent_ms=%.0f message=%s",
+            "event=agent_call_failed run=%s case=%s error_code=%s http_status=%s exception_type=%s agent_ms=%s message=%s",
             run_id,
             case_id,
             failure.code,
@@ -148,7 +179,7 @@ async def _execute_and_score_case_inner(
         span.record_exception(exc)
         span.set_status(Status(StatusCode.ERROR, str(failure)))
         span.set_attribute("eval.verdict", "failed")
-        await store.update_case_result(
+        updated = await store.update_case_result(
             case_id,
             status="error",
             outcome="execution_error",
@@ -159,15 +190,28 @@ async def _execute_and_score_case_inner(
             scoring_errors_json=None,
             structural_checks_json=None,
             actual_model_name=None,
+            only_if_trace_missing=True,
         )
+        if not updated:
+            return
         await emit_run_event(run_id, case_id, "case_error", store)
         record_case_end(
             kpi, run_id=run_id, case_id=case_id, verdict="error", agent_ms=agent_ms
         )
         return
-    agent_ms = _elapsed_ms(agent_started)
-    _record_agent_call(kpi, agent_ms, None)
-
+    _ = await store.update_case_result(
+        case_id,
+        status="running",
+        outcome="unknown",
+        verdict="inconclusive",
+        actual_output=eval_trace.output,
+        latency_ms=eval_trace.latency_ms,
+        execution_error=eval_trace.error,
+        scoring_errors_json=None,
+        structural_checks_json=None,
+        actual_model_name=eval_trace.model_name,
+    )
+    await store.delete_metrics_by_case(case_id)
     trace_dict = eval_trace.model_dump()
     logger.info(
         "[TRACE] case=%s tools_called=%s steps_count=%d",
@@ -210,15 +254,15 @@ async def _execute_and_score_case_inner(
         span.record_exception(exc)
         span.set_status(Status(StatusCode.ERROR, str(failure)))
         span.set_attribute("eval.verdict", "failed")
-        await store.update_case_result(
+        _ = await store.update_case_result(
             case_id,
             status="error",
-            outcome="execution_error",
+            outcome=classify_outcome(trace_dict),
             verdict="failed",
             actual_output=eval_trace.output,
             latency_ms=eval_trace.latency_ms,
-            execution_error=str(failure),
-            scoring_errors_json=None,
+            execution_error=eval_trace.error,
+            scoring_errors_json=json.dumps([str(failure)]),
             structural_checks_json=None,
             actual_model_name=eval_trace.model_name,
         )
@@ -296,22 +340,6 @@ async def _execute_and_score_case_inner(
     else:
         span.set_status(Status(StatusCode.OK))
 
-    await store.update_case_result(
-        case_id,
-        status="completed",
-        outcome=outcome,
-        verdict=verdict,
-        actual_output=eval_trace.output,
-        latency_ms=eval_trace.latency_ms,
-        execution_error=eval_trace.error,
-        scoring_errors_json=json.dumps(scoring_errors) if scoring_errors else None,
-        structural_checks_json=json.dumps([c.model_dump() for c in structural_checks]),
-        actual_model_name=eval_trace.model_name,
-    )
-
-    # This activity is retryable, so scoring a case must be repeatable: drop any
-    # rows a previous attempt left behind before writing this attempt's.
-    await store.delete_metrics_by_case(case_id)
     for metric in metric_results:
         await store.create_metric_result(
             case_id=case_id,
@@ -325,6 +353,19 @@ async def _execute_and_score_case_inner(
             error=metric.error,
         )
 
+    _ = await store.update_case_result(
+        case_id,
+        status="completed",
+        outcome=outcome,
+        verdict=verdict,
+        actual_output=eval_trace.output,
+        latency_ms=eval_trace.latency_ms,
+        execution_error=eval_trace.error,
+        scoring_errors_json=json.dumps(scoring_errors) if scoring_errors else None,
+        structural_checks_json=json.dumps([c.model_dump() for c in structural_checks]),
+        actual_model_name=eval_trace.model_name,
+    )
+
     await emit_run_event(run_id, case_id, "case_completed", store)
     record_case_end(
         kpi,
@@ -334,6 +375,37 @@ async def _execute_and_score_case_inner(
         agent_ms=agent_ms,
         stats=stats,
         metric_errors=sum(1 for m in metric_results if m.verdict == "error"),
+    )
+
+
+async def record_case_setup_failure(
+    case_id: str, *, store: RunStore, failure: CallFailure
+) -> bool:
+    """Setup can fail on a scoring retry; keep the already committed attempt."""
+    from fred_deepeval_cli.core.evaluator import classify_outcome  # pyright: ignore[reportUnknownVariableType]
+
+    row = await store.get_case(case_id)
+    trace = (
+        EvalTrace.model_validate_json(row.trace_json)
+        if row is not None and row.trace_json is not None
+        else None
+    )
+    return await store.update_case_result(
+        case_id,
+        status="error",
+        outcome=classify_outcome(trace.model_dump()) if trace else "execution_error",
+        verdict="failed",
+        actual_output=trace.output if trace else None,
+        latency_ms=trace.latency_ms if trace else None,
+        execution_error=trace.error if trace else str(failure),
+        scoring_errors_json=json.dumps([f"case_setup_failed: {failure}"])
+        if trace
+        else None,
+        structural_checks_json=row.structural_checks_json
+        if row is not None and trace
+        else None,
+        actual_model_name=trace.model_name if trace else None,
+        only_if_trace_missing=trace is None,
     )
 
 

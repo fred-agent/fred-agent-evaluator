@@ -350,7 +350,12 @@ def build_hosted_router() -> APIRouter:
         return await run_service.get_run_case(run_id, case_id, store=store)
 
     @router.get(
-        "/runs/{run_id}/report", response_model=RunReportResponse, responses=_GATED
+        "/runs/{run_id}/report",
+        response_model=RunReportResponse,
+        responses={
+            **_GATED,
+            413: {"description": "Report evidence exceeds 64 MiB; use case detail"},
+        },
     )
     async def get_run_report(
         team_id: str,

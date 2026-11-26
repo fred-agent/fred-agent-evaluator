@@ -9,6 +9,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from types import SimpleNamespace
+from fred_sdk.contracts.eval import EvalTrace  # pyright: ignore[reportMissingTypeStubs]
 
 import httpx
 import pytest
@@ -28,9 +30,30 @@ class _FakeStore:
     def __init__(self) -> None:
         self.case_results: list[dict[str, object]] = []
         self.metrics: list[dict[str, object]] = []
+        self.case: SimpleNamespace = SimpleNamespace(
+            run_id="run-1", trace_json=None, execution_session_id=None, status="pending"
+        )
+
+    async def get_case(self, _case_id: str) -> SimpleNamespace:
+        return self.case
+
+    async def begin_case_execution(
+        self, _case_id: str, *, run_id: str, session_id: str
+    ) -> None:
+        assert run_id == "run-1"
+        self.case.execution_session_id = session_id
+
+    async def retain_case_trace(
+        self, _case_id: str, *, run_id: str, session_id: str, trace: EvalTrace
+    ) -> None:
+        assert run_id == "run-1"
+        assert session_id
+        self.case.execution_session_id = trace.session_id
+        self.case.trace_json = trace.model_dump_json()
 
     async def update_case_result(self, case_id, **fields):
         self.case_results.append(fields)
+        return True
 
     async def delete_metrics_by_case(self, case_id):
         self.metrics.clear()
@@ -49,7 +72,7 @@ class _Agent:
     async def evaluate(self, **kwargs):
         if self._error is not None:
             raise self._error
-        from fred_sdk.contracts.eval import EvalTrace
+        from fred_sdk.contracts.eval import EvalTrace  # pyright: ignore[reportMissingTypeStubs]
 
         return EvalTrace(
             session_id="pod-generated-session",

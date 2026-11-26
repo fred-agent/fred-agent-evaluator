@@ -540,6 +540,81 @@ export interface components {
              */
             threshold: number;
         };
+        /**
+         * EvalStep
+         * @description One step in the agent execution trace.
+         */
+        EvalStep: {
+            /** Kind */
+            kind: string;
+            /** Tool Name */
+            tool_name?: string | null;
+            /** Call Id */
+            call_id?: string | null;
+            /** Arguments */
+            arguments?: {
+                [key: string]: unknown;
+            } | null;
+            /** Content */
+            content?: string | null;
+            /** Is Error */
+            is_error?: boolean | null;
+            /** Node Id */
+            node_id?: string | null;
+            /** Error Message */
+            error_message?: string | null;
+        };
+        /**
+         * EvalTrace
+         * @description Full evaluation trace for one agent turn.
+         *
+         *     Designed to satisfy DeepEval / Promptfoo evaluation harnesses directly:
+         *     - input / output / retrieval_context map to LLMTestCase fields
+         *     - steps provides the ordered execution trace for tool-correctness metrics
+         *     - tools_called is a convenience list of tool names in invocation order
+         */
+        EvalTrace: {
+            /** Session Id */
+            session_id: string;
+            /** Agent Id */
+            agent_id: string;
+            /**
+             * Agent Tags
+             * @default []
+             */
+            agent_tags: string[];
+            /** Input */
+            input: string;
+            /** Output */
+            output?: string | null;
+            /** Error */
+            error?: string | null;
+            /** Latency Ms */
+            latency_ms: number;
+            /** Model Name */
+            model_name?: string | null;
+            /** Token Usage */
+            token_usage?: {
+                [key: string]: number;
+            } | null;
+            /** Finish Reason */
+            finish_reason?: string | null;
+            /**
+             * Steps
+             * @default []
+             */
+            steps: components["schemas"]["EvalStep"][];
+            /**
+             * Retrieval Context
+             * @default []
+             */
+            retrieval_context: string[];
+            /**
+             * Tools Called
+             * @default []
+             */
+            tools_called: string[];
+        };
         /** EvaluationCase */
         EvaluationCase: {
             /** External Id */
@@ -582,6 +657,18 @@ export interface components {
             expected_output: string | null;
             /** Actual Output */
             actual_output: string | null;
+            /**
+             * Trace Available
+             * @default false
+             */
+            trace_available: boolean;
+            trace?: components["schemas"]["EvalTrace"] | null;
+            /** Execution Session Id */
+            execution_session_id?: string | null;
+            /** Token Usage */
+            token_usage?: {
+                [key: string]: number;
+            } | null;
             /** Profile */
             profile: string | null;
             /** Actual Model Name */
@@ -1465,6 +1552,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["EvaluatorErrorResponse"];
                 };
+            };
+            /** @description Report evidence exceeds 64 MiB; use case detail */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -2729,6 +2823,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["EvaluatorErrorResponse"];
                 };
+            };
+            /** @description Report evidence exceeds 64 MiB; use case detail */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

@@ -1,4 +1,4 @@
-const CONFIG_PATH = "/apps/evaluation/config.json";
+const CONFIG_PATH = "./config.json";
 
 export interface RuntimeConfig {
   hostOrigin: string;

@@ -1,3 +1,2 @@
-/** This application's id in Fred: it names the UI prefix (`/apps/evaluation`),
- * the service prefix (`/app-services/evaluation`) and the entitlement grant. */
+/** Stable SDK key; Fred resolves the organization's registered UI and API destinations. */
 export const APPLICATION_ID = "evaluation";

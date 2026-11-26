@@ -29,7 +29,7 @@ describe("runtime host origin", () => {
     await expect(loadRuntimeConfig(fetcher)).rejects.toThrow(
       "config.json unavailable",
     );
-    expect(fetcher).toHaveBeenCalledWith("/apps/evaluation/config.json", {
+    expect(fetcher).toHaveBeenCalledWith("./config.json", {
       cache: "no-store",
     });
   });

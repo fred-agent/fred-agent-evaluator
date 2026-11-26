@@ -1,12 +1,21 @@
 # fred-agent-evaluator
 
-Monorepo for the Fred agent evaluation platform.
+Evaluate Fred agents against datasets and inspect their answers and scores.
+The evaluator is a separate application: a hosted UI, an API and a scoring worker.
+
+On Weaver, deploy a dedicated evaluator for each organization, with its own
+workload credentials and business database. The organization Owner (Responsable)
+registers and authorizes it in **Administration > Features > Apps**. This connects
+an already deployed service; it neither installs containers nor restarts Fred.
+Start with the [deployment guide](docs/DEPLOYMENT_GUIDE.md) for the model, boundaries
+and installation procedure. Swift keeps its separate Helm registration workflow.
 
 ## Structure
 
 ```
 apps/
   fred-evaluation-backend/   # Evaluation API (FastAPI :8336) + Worker
+  fred-evaluation-frontend/  # Hosted application UI
 libs/
   fred-deepeval-cli/         # Scoring library (PyPI: fred-deepeval-cli)
 deploy/
@@ -20,12 +29,13 @@ docs/
   DEPLOYMENT_GUIDE.md
 ```
 
-## Images Docker
+## Docker images
 
-| Image | Rôle | Port |
+| Image | Role | Port |
 |---|---|---|
 | `fred-evaluation-api` | API REST + SSE | 8336 |
 | `fred-evaluation-worker` | Worker Temporal (scoring) | — |
+| `fred-evaluation-ui` | Hosted UI | 8080 |
 
 ## Quick start (local)
 

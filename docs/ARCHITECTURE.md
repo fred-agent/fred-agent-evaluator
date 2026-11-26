@@ -101,7 +101,9 @@ Librairie Python publiée sur PyPI.
 2. Worker détecte le run `pending` (poll mémoire) ou reçoit le workflow Temporal
 3. Worker lit `evaluate_url` dans le snapshot, résolue par l'API avec le jeton utilisateur avant la persistance du run
 4. Worker `POST /agents/evaluate?person=...&run=...&agent=...` avec son jeton M2M → admission déléguée Weaver → exécution Python → `EvalTrace`
-5. Worker passe `EvalTrace` à `fred-deepeval-cli` → scores calculés
+5. Worker commits bounded `EvalTrace` evidence on the case before scoring with
+   `fred-deepeval-cli`; scoring retries reuse the retained attempt. See
+   [retained case evidence](DEVELOPER_CONTRACT.md#retained-case-evidence).
 6. Worker persiste résultats en DB, émet events SSE
 7. Frontend reçoit updates via `GET /runs/{run_id}/events`
 

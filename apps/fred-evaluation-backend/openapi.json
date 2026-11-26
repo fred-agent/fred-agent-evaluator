@@ -556,6 +556,9 @@
             },
             "description": "Not Found"
           },
+          "413": {
+            "description": "Report evidence exceeds 64 MiB; use case detail"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -2440,6 +2443,9 @@
             },
             "description": "Service Unavailable"
           },
+          "413": {
+            "description": "Report evidence exceeds 64 MiB; use case detail"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -3093,6 +3099,219 @@
         "title": "CustomMetricSpecInput",
         "description": "API-side twin of `fred_deepeval_cli.core.models.CustomMetricSpec`.\n\nValidates shape only \u2014 not whether `parameters` names are valid\n`LLMTestCaseParams` members. Scoring-specific validation belongs to\nthe worker: an unknown parameter name is caught by its\n`CustomMetricSpec.model_validate()` and surfaces as a per-case scoring\nerror rather than a run-creation error."
       },
+      "EvalStep": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "tool_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Name"
+          },
+          "call_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Id"
+          },
+          "arguments": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Arguments"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "is_error": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Error"
+          },
+          "node_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Node Id"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "EvalStep",
+        "description": "One step in the agent execution trace."
+      },
+      "EvalTrace": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "agent_id": {
+            "type": "string",
+            "title": "Agent Id"
+          },
+          "agent_tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Agent Tags",
+            "default": []
+          },
+          "input": {
+            "type": "string",
+            "title": "Input"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "latency_ms": {
+            "type": "integer",
+            "title": "Latency Ms"
+          },
+          "model_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Name"
+          },
+          "token_usage": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Usage"
+          },
+          "finish_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finish Reason"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/EvalStep"
+            },
+            "type": "array",
+            "title": "Steps",
+            "default": []
+          },
+          "retrieval_context": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Retrieval Context",
+            "default": []
+          },
+          "tools_called": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tools Called",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "session_id",
+          "agent_id",
+          "input",
+          "latency_ms"
+        ],
+        "title": "EvalTrace",
+        "description": "Full evaluation trace for one agent turn.\n\nDesigned to satisfy DeepEval / Promptfoo evaluation harnesses directly:\n- input / output / retrieval_context map to LLMTestCase fields\n- steps provides the ordered execution trace for tool-correctness metrics\n- tools_called is a convenience list of tool names in invocation order"
+      },
       "EvaluationCase": {
         "properties": {
           "external_id": {
@@ -3251,6 +3470,46 @@
               }
             ],
             "title": "Actual Output"
+          },
+          "trace_available": {
+            "type": "boolean",
+            "title": "Trace Available",
+            "default": false
+          },
+          "trace": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvalTrace"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "execution_session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Session Id"
+          },
+          "token_usage": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Usage"
           },
           "profile": {
             "anyOf": [

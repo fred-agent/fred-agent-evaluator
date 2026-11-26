@@ -3,7 +3,7 @@
 {{- $api := printf "http://%s-api.%s.svc.cluster.local:%v/" .Release.Name $ns .Values.api.port -}}
 The evaluation application is deployed in namespace {{ $ns }}.
 
-On Weaver, a platform administrator opens Admin > Applications and registers:
+On Weaver, the organization Owner opens Administration > Features > Apps and registers:
   Logical name: evaluation
   Entry permission (entry_permission): run_evaluations
   Display name: Evaluation / Évaluation
@@ -12,9 +12,8 @@ On Weaver, a platform administrator opens Admin > Applications and registers:
   UI upstream: {{ $ui }}
   API upstream: {{ $api }}
 
-Create the registration disabled, then enable it after checking the upstreams.
-An organization Owner authorizes evaluation for their organization; local space
-policy may restrict it further. Only collective spaces support applications.
+Registration starts unauthorized. Review the upstreams, then authorize its use
+in the same panel. Local space policy may restrict it further. Only collective spaces support applications.
 Application availability does not grant evaluation business permissions.
 
 Control Plane stores the registration in SQL. Do not add application_sources,

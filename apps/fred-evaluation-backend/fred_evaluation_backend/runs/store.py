@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+from fred_sdk.contracts.eval import EvalTrace  # pyright: ignore[reportMissingTypeStubs]
 from fred_core.sql import make_session_factory, use_session
-from sqlalchemy import case, delete, func, select
+from sqlalchemy import LargeBinary, case, cast, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.orm import defer
 
 from fred_evaluation_backend.runs.models import (
     EvaluationCaseRow,
@@ -17,6 +20,9 @@ from fred_evaluation_backend.runs.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Full UTF-8 JSON, never truncated. See DEVELOPER_CONTRACT.md for the budget.
+MAX_TRACE_BYTES = 8 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -89,6 +95,7 @@ class RunStore:
                 (
                     await s.execute(
                         select(EvaluationCaseRow)
+                        .options(defer(EvaluationCaseRow.trace_json, raiseload=True))
                         .where(EvaluationCaseRow.run_id == run_id)
                         .offset(offset)
                         .limit(limit)
@@ -99,6 +106,25 @@ class RunStore:
             )
         return list(rows)
 
+    async def retained_trace_bytes(self, run_id: str) -> int:
+        """Preflight report budget without loading payloads into the API process."""
+        async with use_session(self._sessions) as s:
+            # PostgreSQL's text -> bytea cast interprets backslash escapes;
+            # octet_length(text) counts UTF-8 JSON without reinterpreting it.
+            byte_length = (
+                func.octet_length(EvaluationCaseRow.trace_json)
+                if s.get_bind().dialect.name == "postgresql"
+                else func.length(cast(EvaluationCaseRow.trace_json, LargeBinary))
+            )
+            return int(
+                await s.scalar(
+                    select(func.coalesce(func.sum(byte_length), 0)).where(
+                        EvaluationCaseRow.run_id == run_id
+                    )
+                )
+                or 0
+            )
+
     async def get_case(
         self,
         case_id: str,
@@ -106,6 +132,68 @@ class RunStore:
     ) -> EvaluationCaseRow | None:
         async with use_session(self._sessions, session) as s:
             return await s.get(EvaluationCaseRow, case_id)
+
+    async def begin_case_execution(
+        self, case_id: str, *, run_id: str, session_id: str
+    ) -> None:
+        """Claim one agent attempt. A lost response must not silently rerun it."""
+        async with use_session(self._sessions) as s:
+            result = await s.execute(
+                update(EvaluationCaseRow)
+                .where(
+                    EvaluationCaseRow.case_id == case_id,
+                    EvaluationCaseRow.run_id == run_id,
+                    EvaluationCaseRow.status == "pending",
+                    EvaluationCaseRow.execution_session_id.is_(None),
+                    EvaluationCaseRow.trace_json.is_(None),
+                )
+                .values(
+                    execution_session_id=session_id,
+                    status="running",
+                    started_at=_utcnow(),
+                )
+                .returning(EvaluationCaseRow.case_id)
+            )
+            if result.scalar_one_or_none() is None:
+                raise ValueError(
+                    "trace_missing: execution already attempted or case absent"
+                )
+
+    async def retain_case_trace(
+        self, case_id: str, *, run_id: str, session_id: str, trace: EvalTrace
+    ) -> None:
+        """Commit evidence and answer together, before any judge call."""
+        payload = trace.model_dump_json()
+        if len(payload.encode("utf-8")) > MAX_TRACE_BYTES:
+            raise ValueError(f"trace_oversized: exceeds {MAX_TRACE_BYTES} UTF-8 bytes")
+        if not trace.session_id:
+            raise ValueError("trace_mismatch: runtime session is empty")
+        async with use_session(self._sessions) as s:
+            result = await s.execute(
+                update(EvaluationCaseRow)
+                .where(
+                    EvaluationCaseRow.case_id == case_id,
+                    EvaluationCaseRow.run_id == run_id,
+                    EvaluationCaseRow.execution_session_id == session_id,
+                    EvaluationCaseRow.input == trace.input,
+                    EvaluationCaseRow.trace_json.is_(None),
+                )
+                .values(
+                    execution_session_id=trace.session_id,
+                    trace_json=payload,
+                    token_usage_json=json.dumps(trace.token_usage)
+                    if trace.token_usage is not None
+                    else None,
+                    actual_output=trace.output,
+                    latency_ms=trace.latency_ms,
+                    actual_model_name=trace.model_name,
+                )
+                .returning(EvaluationCaseRow.case_id)
+            )
+            if result.scalar_one_or_none() is None:
+                raise ValueError(
+                    "trace_mismatch: attempt/input differs or evidence already retained"
+                )
 
     async def delete_metrics_by_case(
         self,
@@ -169,19 +257,29 @@ class RunStore:
         structural_checks_json: str | None,
         actual_model_name: str | None,
         session: AsyncSession | None = None,
-    ) -> None:
+        only_if_trace_missing: bool = False,
+    ) -> bool:
+        statement = update(EvaluationCaseRow).where(
+            EvaluationCaseRow.case_id == case_id
+        )
+        if only_if_trace_missing:
+            # A delayed failure must not erase evidence committed by another attempt.
+            statement = statement.where(EvaluationCaseRow.trace_json.is_(None))
         async with use_session(self._sessions, session) as s:
-            row = await s.get(EvaluationCaseRow, case_id)
-            if row:
-                row.status = status
-                row.outcome = outcome
-                row.verdict = verdict
-                row.actual_output = actual_output
-                row.latency_ms = latency_ms
-                row.execution_error = execution_error
-                row.scoring_errors_json = scoring_errors_json
-                row.structural_checks_json = structural_checks_json
-                row.actual_model_name = actual_model_name
+            result = await s.execute(
+                statement.values(
+                    status=status,
+                    outcome=outcome,
+                    verdict=verdict,
+                    actual_output=actual_output,
+                    latency_ms=latency_ms,
+                    execution_error=execution_error,
+                    scoring_errors_json=scoring_errors_json,
+                    structural_checks_json=structural_checks_json,
+                    actual_model_name=actual_model_name,
+                ).returning(EvaluationCaseRow.case_id)
+            )
+            return result.scalar_one_or_none() is not None
 
     async def create_run_event(
         self,

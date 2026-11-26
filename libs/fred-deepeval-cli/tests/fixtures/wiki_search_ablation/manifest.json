@@ -1,0 +1,8 @@
+{
+  "fred_commit": "da3e2537e9c59b338d822001d881adcec240cbfe",
+  "source_path": "libs/capabilities/fred-capability-team-wiki/fred_capability_team_wiki/wiki/capability.py",
+  "source_sha256": "e9eaa4a0bf4860e7a0e7a877cdc7833675258089fc858d0a6dd90ed16d0c5476",
+  "ablated_source_sha256": "841df68758641f5d8f39d7404cf529cadf51ae9b48bc7a582b77f57639eca14c",
+  "patch_sha256": "579dd7e7503c94fb2597f02f29c79b1aa784e3ffd13ea85bd731ce5814103b4c",
+  "build_sha256": null
+}

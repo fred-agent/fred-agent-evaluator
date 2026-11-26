@@ -1,6 +1,14 @@
 # Deployment guide
 
 The evaluator is an independent Fred application: UI, API and worker images.
+Deploy one evaluator release per organization, with its own service addresses,
+workload credentials and database. Reuse the images, not a running service or its
+data. The Fred registry rejects UI/API origins already owned by another organization;
+operators must also prevent alias addresses from reaching the same deployment.
+Fred's [application and KB deployment model](https://github.com/ThalesGroup/fred/blob/weaver/docs/architecture/08-operations.md#organization-owned-applications-and-knowledge-bases)
+is the architectural reference: the Fred core can be shared, each extension
+deployment belongs to one organization, and registration does not create technical
+isolation. Hosted UI code is trusted and shares Fred's browser origin.
 The [chart README](../deploy/charts/fred-evaluator/README.md) owns Kubernetes
 installation, prerequisites and configuration. The API migrates its PostgreSQL
 schema; only the worker runs agents and scoring. The worker exposes no business HTTP API.
@@ -10,7 +18,8 @@ schema; only the worker runs agents and scoring. The worker exposes no business 
 `make docker-build` builds all three images. By default they resolve published Fred
 Python libraries from the committed lockfile. For unreleased Weaver libraries use
 `FRED_LIBS=local FRED_REPO=/path/to/fred`; no checkout is required by default.
-The UI builds with its `/apps/evaluation/` base path.
+The UI builds with relative asset and configuration paths. Fred assigns each
+organization registration its own browser directory.
 
 For the local factory, after preparing infrastructure and model credentials:
 
@@ -35,8 +44,8 @@ claim, provisioned through the existing Keycloak service-client configuration.
 - UI upstream: `http://fred-evaluator-ui.fred-weaver.svc.cluster.local:8080/apps/evaluation/`.
 - API upstream: `http://fred-evaluator-api.fred-weaver.svc.cluster.local:8336/`.
 
-A platform administrator creates the disabled registration in **Admin > Applications**,
-then enables it after checking the upstreams. An organization Owner authorizes it;
+The organization Owner registers the service in **Administration > Features > Apps**,
+then reviews the upstreams and authorizes its use in the same panel;
 local collective-space policy may restrict it further. Personal spaces are excluded.
 Control Plane owns this SQL registration and evaluates access. Do not set
 `application_sources`, `FRONTEND_APPLICATIONS_JSON` or `enableApplications` in Helm.
@@ -49,8 +58,11 @@ An offered application also requires `run_evaluations` for reads/runs and
 `manage_evaluation_corpus` for corpus creation/deletion.
 
 Swift keeps its existing Helm registration and team authorization workflow. The
-factory has separate line values; do not deploy both evaluator releases against
-the shared `evaluation` database simultaneously.
+factory's local defaults supply one `evaluation` database and one worker identity;
+they do not provision a new isolated evaluator for each organization. Before a
+second organization uses this software, provision a separate release, destinations,
+identity, credentials, database and worker queue. Do not deploy Swift and Weaver
+evaluator releases against the shared defaults simultaneously.
 
 ## Docker Compose
 

@@ -18,6 +18,7 @@ from fred_evaluation_backend.runs.store import RunStore
 from fred_evaluation_backend.workers.activities import (
     execute_and_score_case,
     record_case_end,
+    record_case_setup_failure,
 )
 
 logger = logging.getLogger(__name__)
@@ -95,12 +96,35 @@ class RunRunner:
         # Read from the run's own frozen snapshot, exactly like the Temporal path reads
         # it from the workflow payload — so both engines pace a given run identically,
         # and a config change never re-paces a run that is already under way.
-        snapshot = RunSnapshot.model_validate_json(run.snapshot_json)
-        if not snapshot.evaluate_url:
-            raise ValueError(
-                "Run snapshot has no evaluate_url; create a new run on Weaver."
+        try:
+            snapshot = RunSnapshot.model_validate_json(run.snapshot_json)
+            if not snapshot.evaluate_url:
+                raise ValueError(
+                    "Run snapshot has no evaluate_url; create a new run on Weaver."
+                )
+            evaluate_url = snapshot.evaluate_url
+        except Exception as exc:
+            from fred_evaluation_backend.workers.workflow import summarize_cases
+
+            for case in await self._store.list_cases_by_run(run_id, limit=10000):
+                _ = await record_case_setup_failure(
+                    case.case_id, store=self._store, failure=classify(exc)
+                )
+            agg = summarize_cases(
+                await self._store.list_cases_by_run(run_id, limit=10000)
             )
-        evaluate_url = snapshot.evaluate_url
+            await self._store.update_run_aggregates(
+                run_id,
+                completed_cases=agg.completed,
+                passed_cases=agg.passed,
+                failed_cases=agg.failed,
+                insufficient_cases=agg.insufficient,
+                execution_error_cases=agg.execution_errors,
+                scoring_error_cases=agg.scoring_errors,
+                verdict="failed",
+                operational_state="error",
+            )
+            return
         max_concurrency = max(1, (snapshot.execution or {}).get("max_concurrency", 1))
         limiter = asyncio.Semaphore(max_concurrency)
 
@@ -156,18 +180,10 @@ class RunRunner:
                         failure.exception_type,
                         failure.message,
                     )
-                    await self._store.update_case_result(
-                        case.case_id,
-                        status="error",
-                        outcome="execution_error",
-                        verdict="failed",
-                        actual_output=None,
-                        latency_ms=None,
-                        execution_error=str(failure),
-                        scoring_errors_json=None,
-                        structural_checks_json=None,
-                        actual_model_name=None,
-                    )
+                    if not await record_case_setup_failure(
+                        case.case_id, store=self._store, failure=failure
+                    ):
+                        return
                     record_case_end(
                         self._kpi, run_id=run_id, case_id=case.case_id, verdict="error"
                     )

@@ -394,6 +394,7 @@ def build_evaluations_router(prefix: str = "") -> APIRouter:
             401: {"model": EvaluatorErrorResponse},
             403: {"model": EvaluatorErrorResponse},
             404: {"model": EvaluatorErrorResponse},
+            413: {"description": "Report evidence exceeds 64 MiB; use case detail"},
         },
     )
     async def get_run_report(

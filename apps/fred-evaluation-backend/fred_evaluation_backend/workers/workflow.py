@@ -170,6 +170,7 @@ async def run_case_for_run(payload: RunCaseInput) -> None:
         emit_run_event,
         execute_and_score_case,
         record_case_end,
+        record_case_setup_failure,
     )
 
     store = get_store()
@@ -233,18 +234,10 @@ async def run_case_for_run(payload: RunCaseInput) -> None:
             failure.exception_type,
             failure.message,
         )
-        await store.update_case_result(
-            payload.case_id,
-            status="error",
-            outcome="execution_error",
-            verdict="failed",
-            actual_output=None,
-            latency_ms=None,
-            execution_error=str(failure),
-            scoring_errors_json=None,
-            structural_checks_json=None,
-            actual_model_name=None,
-        )
+        if not await record_case_setup_failure(
+            payload.case_id, store=store, failure=failure
+        ):
+            return
         await emit_run_event(payload.run_id, payload.case_id, "case_error", store)
         record_case_end(
             kpi, run_id=payload.run_id, case_id=payload.case_id, verdict="error"
